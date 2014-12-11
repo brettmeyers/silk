@@ -1,0 +1,17 @@
+name: silk
+license: GPL2
+version: 3.9.0
+dependencies:
+  - c-ares
+  - glib2
+  - gnutls >= 1.4.1
+  - libpcap
+  - libfixbuf >= 1.3.0
+  - lzo
+  - perl-dbi
+  - python
+  - zlib
+build_dependencies:
+  - bison
+  - flex
+  - pkg-config
