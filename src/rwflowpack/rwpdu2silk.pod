@@ -1,0 +1,183 @@
+=pod
+
+=head1 NAME
+
+B<rwpdu2silk> - Convert NetFlow v5 records to SiLK Flow records
+
+=head1 SYNOPSIS
+
+  rwpdu2silk [--silk-output=FILE] [--print-statistics]
+        [--log-destination={stdout | stderr | none | PATH}]
+        [--note-add=TEXT] [--note-file-add=FILE]
+        [--compression-method=COMP_METHOD]
+        {--xargs | --xargs=FILENAME | PDUFILE [PDUFILE...]}
+
+  rwpdu2silk --help
+
+  rwpdu2silk --version
+
+=head1 DESCRIPTION
+
+B<rwpdu2silk> reads NetFlow v5 PDU (Protocol Data Units) records from
+one or more files, converts the records to the SiLK Flow format, and
+writes the SiLK records to the path specified by B<--silk-output> or
+to the standard output when B<--silk-output> is not provided.  Note
+that B<rwpdu2silk> cannot read from the standard input.
+
+B<rwpdu2silk> expects its input files to be a the format created by
+Cisco's NetFlow Collector: The file's size must be an integer multiple
+of 1464, where each 1464 octet chunk contains a 24 octet NetFlow v5
+header and space for thirty 48 octet NetFlow v5 records.  The number
+of valid records per chunk is specified in the header.
+
+B<rwpdu2silk> reads NetFlow v5 records from the files named on the
+command line when B<--xargs> is not present.  If an input file name
+ends in C<.gz>, the file will be uncompressed as it is read.  When the
+B<--xargs> switch is provided, B<rwpdu2silk> will read the names of
+the files to process from the named text file, or from the standard
+input if no file name argument is provided to the switch.  The input
+to B<--xargs> must contain one file name per line.
+
+=head1 OPTIONS
+
+Option names may be abbreviated if the abbreviation is unique or is an
+exact match for an option.  A parameter to an option may be specified
+as B<--arg>=I<param> or B<--arg> I<param>, though the first form is
+required for options that take optional parameters.
+
+=over 4
+
+=item B<--silk-output>=I<FILE>
+
+Write the SiLK records to I<FILE>, which must not exist.  If the
+switch is not provided or if I<FILE> has the value C<stdout> or C<->,
+the SiLK flows are written to the standard output.
+
+=item B<--print-statistics>
+
+Print, to the standard error, the number of records that were written
+to the SiLK output file.  See also B<--log-destination>.
+
+=item B<--log-destination>={B<none> | B<stdout> | B<stderr> | I<PATH>}
+
+Write more detailed information to the specified destination.  The
+default destination is B<none> which suppresses messages.  Use
+B<stdout> or B<stderr> to send messages to the standard output or
+standard error, respectively.  Any other value is treated as a file
+name in which to write the messages.  When an existing file is
+specified, B<rwpdu2silk> appends any messages to the file.
+Information that is written includes the following:
+
+=over 4
+
+=item *
+
+For each input stream, the number of PDU records read, number of SiLK
+records generated, number of missing records (based on the NetFlow v5
+sequence number), and number of invalid records.
+
+=item *
+
+Messages about invalid records.
+
+=back
+
+=item B<--note-add>=I<TEXT>
+
+Add the specified I<TEXT> to the header of the output file as an
+annotation.  This switch may be repeated to add multiple annotations
+to a file.  To view the annotations, use the B<rwfileinfo(1)> tool.
+
+=item B<--note-file-add>=I<FILENAME>
+
+Open I<FILENAME> and add the contents of that file to the header of
+the output file as an annotation.    This switch may be repeated to
+add multiple annotations.  Currently the application makes no effort
+to ensure that I<FILENAME> contains text; be careful that you do not
+attempt to add a SiLK data file as an annotation.
+
+=item B<--compression-method>=I<COMP_METHOD>
+
+Specify how to compress the output.  When this switch is not given,
+output to the standard output or to named pipes is not compressed, and
+output to files is compressed using the default chosen when SiLK was
+compiled.  The valid values for I<COMP_METHOD> are determined by which
+external libraries were found when SiLK was compiled.  To see the
+available compression methods and the default method, use the
+B<--help> or B<--version> switch.  SiLK can support the following
+I<COMP_METHOD> values when the required libraries are available.
+
+=over 4
+
+=item none
+
+Do not compress the output using an external library.
+
+=item zlib
+
+Use the B<zlib(3)> library for compressing the output, and always
+compress the output regardless of the destination.  Using zlib
+produces the smallest output files at the cost of speed.
+
+=item lzo1x
+
+Use the I<lzo1x> algorithm from the LZO real time compression library
+for compression, and always compress the output regardless of the
+destination.  This compression provides good compression with less
+memory and CPU overhead.
+
+=item best
+
+Use lzo1x if available, otherwise use zlib.  Only compress the output
+when writing to a file.
+
+=back
+
+=item B<--xargs>
+
+=item B<--xargs>=I<FILENAME>
+
+Causes B<rwpdu2silk> to read file names from I<FILENAME> or from the
+standard input if I<FILENAME> is not provided.  The input should have
+one file name per line.  B<rwpdu2silk> will open each file in turn and
+read records from it, as if the files had been listed on the command
+line.
+
+=item B<--help>
+
+Print the available options and exit.
+
+=item B<--version>
+
+Print the version number and information about how SiLK was
+configured, then exit the application.
+
+=back
+
+=head1 ENVIRONMENT
+
+=over 4
+
+=item SILK_CLOBBER
+
+The SiLK tools normally refuse to overwrite existing files.  Setting
+SILK_CLOBBER to a non-empty value removes this restriction.
+
+=back
+
+=head1 SEE ALSO
+
+B<rwfileinfo(1)>, B<rwflowpack(8)>, B<silk(7)>, B<zlib(3)>
+
+=head1 BUGS
+
+B<rwpdu2silk> cannot read from the standard input.
+
+=cut
+
+$SiLK: rwpdu2silk.pod 3896709adc0e 2013-11-11 22:29:30Z mthomas $
+
+Local Variables:
+mode:text
+indent-tabs-mode:nil
+End:

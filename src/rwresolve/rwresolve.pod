@@ -1,0 +1,211 @@
+=pod
+
+=head1 NAME
+
+B<rwresolve> - Convert IP addresses in delimited text to hostnames
+
+=head1 SYNOPSIS
+
+  rwresolve [--ip-fields=FIELDS] [--delimiter=C] [--column-width=N]
+      [--resolver={ c-ares | adns | getnameinfo | gethostbyaddr }]
+      [--max-requests=N]
+
+  rwresolve --help
+
+  rwresolve --version
+
+=head1 DESCRIPTION
+
+B<rwresolve> is an application that reads delimited textual input and
+maps IP addresses in the input to host names up performing a reverse
+DNS look-up.  If the look-up succeeds, the IP is replaced with the
+host name (B<rwresolve> uses the first host name returned by the
+resolver).  If the look-up fails, the IP address remains unchanged.
+
+B<rwresolve> does a DNS query for every IP address, so it can be
+B<extremely> slow.  B<rwresolve> works best on very limited data sets.
+To reduce the number of DNS calls it makes, B<rwresolve> caches the
+results of queries.  There are two libraries that support asynchronous
+DNS queries which B<rwresolve> can use if either of those libraries
+was found when SiLK was configured.  These libraries are the ADNS
+library and the c-ares library.  Specify the B<--resolver> switch to
+have B<rwresolve> use a particular function for look-ups.
+
+When an IP address resolves to multiple names, B<rwresolve> prints the
+first name returned by the resolver.
+
+B<rwresolve> is designed specifically to deal with the output of
+B<rwcut(1)>, though it will work with other SiLK tools that produce
+delimited text.  B<rwresolve> reads the standard input, splits the
+line into fields based on the delimiter (default 'B<|>'), converts the
+specified I<FIELDS> (default fields 1 and 2) from an IP address in its
+canonical form (e.g., dotted decimal for IPv4) to a hostname.  If the
+field cannot be parsed as an address or if the look up fails to return
+a hostname, the field is not modified.  The fields to convert are
+specified via the B<--ip-fields>=I<FIELDS> option.  The B<--delimiter>
+option can be used to specify an alternate delimiter.
+
+Since hostnames are generally wider than IP addresses, the use of the
+B<--column-width> field is advised to increase the width of the IP
+columns.  If this switch is not specified, no justification of
+hostnames is attempted.
+
+By default, B<rwresolve> will use the c-ares library if available,
+then it will use the ADNS library if available.  To choose a different
+IP look up option, use the B<--resolver> switch.
+
+The maximum number of parallel DNS queries to attempt with c-ares or
+ADNS can be specified with the B<--max-requests> switch.
+
+=head1 OPTIONS
+
+Option names may be abbreviated if the abbreviation is unique or is an
+exact match for an option.  A parameter to an option may be specified
+as B<--arg>=I<param> or S<B<--arg> I<param>>, though the first form is
+required for options that take optional parameters.
+
+=over 4
+
+=item B<--ip-fields>=I<FIELDS>
+
+Specify the column number(s) of the input that should be considered IP
+addresses.  Column numbers start from 1.  If not specified, the
+default is 1,2.
+
+=item B<--delimiter>=I<C>
+
+Specify the character that separates the columns of the input.  The
+default is 'B<|>'.
+
+=item B<--column-width>=I<WIDTH>
+
+Set the width of the columns specified in B<--ip-fields> to I<WIDTH>.
+When specified, the I<FIELDS> columns always have the specified
+I<WIDTH> regardless of whether the IP to hostname mapping was
+successful.  If this switch is not specified, fields containing IP
+addresses that could not be resolved will maintain their input length,
+and fields where the lookup was successful will be printed with no
+padding.
+
+=item B<--resolver>=B<c-ares>
+
+Use the c-ares library to convert the IP addresses to hostnames.
+Requires that the c-ares library was found when SiLK was configured.
+This library supports IPv6 look-ups when SiLK is compiled to support
+IPv6.
+
+=item B<--resolver>=B<adns>
+
+Use the ADNS library to convert the IP addresses to hostnames.
+Requires that the ADNS library was found when SiLK was configured.
+This library only supports IPv4 look-ups.
+
+=item B<--resolver>=B<getnameinfo>
+
+Use the B<getnameinfo(3)> C library function to convert IP addresses
+to hostnames.  This function supports IPv6 look-ups when SiLK is
+compiled to support IPv6.
+
+=item B<--resolver>=B<gethostbyaddr>
+
+Use the B<gethostbyaddr(3)> C library function to convert IP addresses
+to hostnames.  This function only supports IPv4.
+
+=item B<--max-requests>=I<MAX>
+
+When the c-ares or ADNS library is used, limit the number of
+outstanding DNS queries active at any one time to I<MAX>.  The default
+is 128.  This switch is not available if neither c-ares nor ADNS were
+found when SiLK was compiled.
+
+=item B<--help>
+
+Print the available options and exit.
+
+=item B<--version>
+
+Print the version number and information about how SiLK was
+configured, then exit the application.
+
+=back
+
+=head1 EXAMPLE
+
+In the following examples, the dollar sign (C<$>) represents the shell
+prompt.  The text after the dollar sign represents the command line.
+Lines have been wrapped for improved readability, and the back slash
+(C<\>) is used to indicate a wrapped line.
+
+Suppose you have found some interesting data in the file
+F<interesting.rw>, and you want to view the data using B<rwcut(1)>,
+but you also want to determine the hostname of each the source IPs and
+append that hostname to the B<rwcut> output.  In the example command
+below, note how the source IP field (B<rwcut> field 1) was specified
+twice in the B<rwcut> invocation, and B<rwresolve> is told to resolve
+the second occurrence, which is field in column 13.  This allows you
+to see the source IP (in the first column) and the host name it
+mapped to (in the final column).
+
+ $ rwcut --fields=1-12,1 interesting.rw             \
+   | rwresolve --ip-field=13
+
+
+=head1 ENVIRONMENT
+
+When ADNS is used, the following environment variables affect it.  The
+ADNS_ form of each variable takes precedence.
+
+=over 4
+
+=item RES_CONF
+
+=item ADNS_RES_CONF
+
+A filename, whose contents are in the format of F<resolv.conf>.
+
+=item RES_CONF_TEXT
+
+=item ADNS_RES_CONF_TEXT
+
+A string in the format of F<resolv.conf>.
+
+=item RES_OPTIONS
+
+=item ADNS_RES_OPTIONS
+
+These are parsed as if they appeared in the B<options> line of a
+F<resolv.conf>.  In addition to being parsed at this point in the
+sequence, they are also parsed at the very beginning before
+F<resolv.conf> or any other environment variables are read, so that
+any debug option can affect the processing of the configuration.
+
+=item LOCALDOMAIN
+
+=item ADNS_LOCALDOMAIN
+
+These are interpreted as if their contents appeared in a B<search>
+line in F<resolv.conf>.
+
+=back
+
+=head1 SEE ALSO
+
+B<rwcut(1)>, B<silk(7)>, B<gethostbyaddr(3)>, B<getnameinfo(3)>
+
+=head1 BUGS
+
+Because B<rwresolve> must do a DNS query for every IP address, it is
+B<extremely> slow.
+
+The output from B<rwresolve> is rarely columnar because hostnames can
+be very long.  You may want to consider putting the resolved hostnames
+in the final column of output.
+
+=cut
+
+$SiLK: rwresolve.pod cd09f0a5fcc6 2014-06-14 15:43:33Z mthomas $
+
+Local Variables:
+mode:text
+indent-tabs-mode:nil
+End:

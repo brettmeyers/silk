@@ -1,0 +1,138 @@
+=pod
+
+=head1 NAME
+
+B<ipafilter> - SiLK plug-in for flow filtering based on IPA data
+
+=head1 SYNOPSIS
+
+  rwfilter [--ipa-src-expr IPA_EXPR] [--ipa-dst-expr IPA_EXPR]
+        [--ipa-any-expr IPA_EXPR] ...
+
+=head1 DESCRIPTION
+
+The B<ipafilter> plug-in provides switches to B<rwfilter(1)> that can
+partition flows using data in an IPA database.  B<rwfilter> will
+automatically load the B<ipafilter> plug-in when it is available.
+
+=head1 OPTIONS
+
+The B<ipafilter> plug-in provides the following options to rwfilter.
+
+=over 4
+
+=item B<--ipa-src-expr>=I<IPA_EXPR>
+
+Use I<IPA_EXPR> to filter flows based on the source IP of the flow matching the
+I<IPA_EXPR> expression.
+
+=item B<--ipa-dst-expr>=I<IPA_EXPR>
+
+Use I<IPA_EXPR> to filter flows based on the destination IP of the flow
+matching the I<IPA_EXPR> expression.
+
+=item B<--ipa-any-expr>=I<IPA_EXPR>
+
+Use I<IPA_EXPR> to filter flows based on either the source or destination IP of
+the flow matching the I<IPA_EXPR> expression.
+
+=back
+
+=head1 IPA EXPRESSIONS
+
+The syntax for IPA filter expressions is documented in B<ipaquery(1)>.
+Some simple examples are shown in the B<EXAMPLES> section below.
+
+=head1 EXAMPLES
+
+In the following examples, the dollar sign (C<$>) represents the shell
+prompt.  The text after the dollar sign represents the command line.
+Lines have been wrapped for improved readability, and the back slash
+(C<\>) is used to indicate a wrapped line.
+
+To pull flows from or to any IP address in the "watch" catalog:
+
+ $ rwfilter --start-date 2010/01/01:00                  \
+        --ipa-any-expr "in watch at 2010/01/01"         \
+        --pass watchflows.rw
+
+To pull flows from any IP labeled "bad" in the last year:
+
+ $ rwfilter --start-date 2010/01/01:00                  \
+        --ipa-src-expr "label bad after 2009/01/01"     \
+        --pass badguys.rw
+
+=head1 ENVIRONMENT
+
+=over 4
+
+=item SILK_PATH
+
+This environment variable gives the root of the install tree.  When
+searching for configuration files and plug-ins, B<rwfilter> may use
+this environment variable.  See the L</FILES> section for details.
+
+=item SILK_PLUGIN_DEBUG
+
+When set to 1, B<rwfilter> prints status messages to the standard
+error as it attempts to find and open the F<ipafilter.so> plug-in.  A
+typical invocation using this variable is
+
+ env SILK_PLUGIN_DEBUG=1 rwfilter --plugin=ipafilter.so --version
+
+=back
+
+=head1 FILES
+
+=over 4
+
+=item F<$SILK_PATH/share/silk/silk-ipa.conf>
+
+=item F<$SILK_PATH/share/silk-ipa.conf>
+
+=item F<@prefix@/share/silk/silk-ipa.conf>
+
+=item F<@prefix@/share/silk-ipa.conf>
+
+Possible locations for the IPA configuration file.  This file contains
+the URI for connecting to the IPA database.  If the configuration file
+does not exist, attempts to use the B<ipafilter> plug-in will exit
+with an error.  The format of this URI is
+I<driver>://I<user>:I<pass-word>@I<hostname>/I<database>.  For
+example:
+
+ postgresql://ipauser:secret@database-server.domain.com/ipa
+
+=item F<${SILK_PATH}/lib64/silk/ipafilter.so>
+
+=item F<${SILK_PATH}/lib64/ipafilter.so>
+
+=item F<${SILK_PATH}/lib/silk/ipafilter.so>
+
+=item F<${SILK_PATH}/lib/ipafilter.so>
+
+=item F<@prefix@/lib64/silk/ipafilter.so>
+
+=item F<@prefix@/lib64/ipafilter.so>
+
+=item F<@prefix@/lib/silk/ipafilter.so>
+
+=item F<@prefix@/lib/ipafilter.so>
+
+Possible locations for the plug-in.
+
+=back
+
+=head1 SEE ALSO
+
+B<rwfilter(1)>, B<rwipaimport(1)>, B<rwipaexport(1)>, B<silk(7)>,
+B<ipaquery(1)>, B<ipaimport(1)>, B<ipaexport(1)>
+
+=cut
+
+$SiLK: ipafilter.pod cd09f0a5fcc6 2014-06-14 15:43:33Z mthomas $
+
+Local Variables:
+mode:text
+indent-tabs-mode:nil
+End:

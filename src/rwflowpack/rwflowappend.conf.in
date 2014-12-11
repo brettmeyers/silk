@@ -1,0 +1,109 @@
+### RWFlowAppend configuration file  -*- sh -*-
+##
+## The canonical pathname for this file is
+## @sysconfdir@/@myprog@.conf
+##
+## RCSIDENT("$SiLK: rwflowappend.conf.in 7f4317c4a2a1 2014-05-22 21:38:41Z mthomas $")
+##
+## This is a /bin/sh file that gets loaded by the init.d/@myprog@
+## wrapper script, and this file must follow /bin/sh syntax rules.
+
+# Set to non-empty value to enable rwflowappend
+ENABLED=
+
+# These are convenience variables for setting other values in this
+# configuration file; their use is not required.
+statedirectory=@localstatedir@/lib/rwflowappend
+
+# If CREATE_DIRECTORIES is set to "yes", the directories named in this
+# file will be created automatically if they do not already exist
+CREATE_DIRECTORIES=no
+
+# Full path of the directory containing the "@myprog@" program
+BIN_DIR=@sbindir@
+
+# The full path of the directory where incoming files will be placed.
+INCOMING_DIR=${statedirectory}/incoming
+
+# The full path of the directory where files will be placed if there
+# are errors within the file
+ERROR_DIR=${statedirectory}/error
+
+# The full path of the directory to archive files after they have been
+# processed.  If not set, the files are not archived.
+ARCHIVE_DIR= #${statedirectory}/archive
+
+# When using the ARCHIVE_DIR, normally files are stored in
+# subdirectories of the ARCHIVE_DIR.  If this variable's value is 1,
+# files are stored in ARCHIVE_DIR itself, not in subdirectories of it.
+FLAT_ARCHIVE=0
+
+# The full path to the root of the tree under which the packed SiLK
+# Flow files will be written.  Used by --root-directory.
+DATA_ROOTDIR=@SILK_DATA_ROOTDIR@
+
+# The full path to the site configuration file.  Used by
+# --site-config-file.  Defaults to silk.conf in the ${DATA_ROOTDIR} if
+# not set.
+SITE_CONFIG=
+
+# Command to run on each file once it has been processed.  Requires
+# use of the ARCHIVE_DIR.  In the command, "%s" will be replaced with
+# the full path to the file in the archive directory.
+#POST_COMMAND='echo appended file %s'
+POST_COMMAND=
+
+# Command to run on newly created hourly files.  In the command, "%s"
+# will be replaced with the full path to the hourly file.
+#HOUR_COMMAND='echo created new hourly file %s'
+HOUR_COMMAND=
+
+# The type of compression to use for packed files.  Left empty, the
+# value chosen at compilation time will be used.  Valid values are
+# "best" and "none".  Other values are system-specific (the available
+# values are listed in the description of the --compression-method
+# switch in the output of rwflowappend --help).
+COMPRESSION_TYPE=
+
+# Interval between attempts to check the INCOMING_DIR for new files,
+# in seconds.  This may be left blank, and will default to 15.
+POLLING_INTERVAL=
+
+# Reject any incremental file containing records whose start time
+# occurs more than this number of hours in the past, relative to the
+# current time.  The incremental files are moved into the error
+# directory.  When setting this, allow for the flow generator's active
+# timeout (typically 30 minutes) and time to move the flow records
+# through the collection system.  This may be left blank, in which
+# case all incremental files are accepted.
+REJECT_HOURS_PAST=
+
+# Similar to REJECT_HOURS_PAST, but rejects incremental files
+# containing records whose start time occurs more than this number of
+# hours in the future.  This may be left blank, in which case all
+# incremental files are accepted.
+REJECT_HOURS_FUTURE=
+
+
+###
+
+# The type of logging to use.  Valid values are "legacy" and "syslog".
+LOG_TYPE=syslog
+
+# The lowest level of logging to actually log.  Valid values are:
+# emerg, alert, crit, err, warning, notice, info, debug
+LOG_LEVEL=info
+
+# The full path of the directory where the log files will be written
+# when LOG_TYPE is "legacy".
+LOG_DIR=${statedirectory}/log
+
+# The full path of the directory where the PID file will be written
+PID_DIR=${LOG_DIR}
+
+# The user this program runs as; root permission is not required.
+USER=root
+#USER=`whoami`  # run as user invoking the script
+
+# Extra options to pass to rwflowappend
+EXTRA_OPTIONS=

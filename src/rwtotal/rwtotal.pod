@@ -1,0 +1,444 @@
+=pod
+
+=head1 NAME
+
+B<rwtotal> - Count how much traffic matched specific keys
+
+=head1 SYNOPSIS
+
+  rwtotal {--sip-first-8 | --sip-first-16 | --sip-first-24 |
+        --sip-last-8 | --sip-last-16 | --dip-first-8 |
+        --dip-first-16 | --dip-first-24 | --dip-last-8 |
+        --dip-last-16 | --sport | --dport | --proto | --packets |
+        --bytes | --duration | --icmp-code}
+        [--summation] [--min-bytes=COUNT] [--max-bytes=COUNT]
+        [--min-packets=COUNT] [--max-packets=COUNT]
+        [--min-records=COUNT] [--max-records=COUNT] [--skip-zeroes]
+        [--no-titles] [--no-columns] [--column-separator=CHAR]
+        [--no-final-delimiter] [{--delimited | --delimited=CHAR}]
+        [--print-filenames] [--copy-input=PATH] [--output-path=PATH]
+        [--pager=PAGER_PROG] [--site-config-file=FILENAME]
+        {[--xargs] | [--xargs=FILENAME] | [FILE [FILE ...]]}
+
+  rwtotal --help
+
+  rwtotal --version
+
+=head1 DESCRIPTION
+
+B<rwtotal> reads SiLK Flow records, bins those records by the
+user-specified specified key, computes the volume per bin (record
+count and sums of packets and bytes), and prints the bins and their
+volumes.
+
+B<rwtotal> reads SiLK Flow records from the files named on the command
+line or from the standard input when no file names are specified and
+B<--xargs> is not present.  To read the standard input in addition to
+the named files, use C<-> or C<stdin> as a file name.  If an input
+file name ends in C<.gz>, the file will be uncompressed as it is read.
+When the B<--xargs> switch is provided, B<rwtotal> will read the names
+of the files to process from the named text file, or from the standard
+input if no file name argument is provided to the switch.  The input
+to B<--xargs> must contain one file name per line.
+
+By default, B<rwtotal> prints a bin for every possible key, even when
+the volume for that bin is zero.  Use the B<--skip-zeroes> switch to
+suppress the printing of these empty bins.
+
+Use the B<--summation> switch to include a row giving the volume for
+all flow records.
+
+The maximum key value that B<rwtotal> supports is 16,777,215.  When
+the key field is B<--bytes> or B<--packets>, B<rwtotal> will create a
+bin for all unique values up to 16,777,214.  The final bin
+(16,777,215) will consist of all values greater than 16,777,214.
+
+=head1 OPTIONS
+
+Option names may be abbreviated if the abbreviation is unique or is an
+exact match for an option.  A parameter to an option may be specified
+as B<--arg>=I<param> or S<B<--arg> I<param>>, though the first form is
+required for options that take optional parameters.
+
+One and only one of the following counting keys is required:
+
+=over 4
+
+=item B<--sip-first-8>
+
+Key on the first 8 bits of the source IP address
+
+=item B<--sip-first-16>
+
+Key on the first 16 bits of the source IP address
+
+=item B<--sip-first-24>
+
+Key on the first 24 bits of the source IP address
+
+=item B<--sip-last-8>
+
+Key on the last 8 bits of the source IP address
+
+=item B<--sip-last-16>
+
+Key on the last 16 bits of the source IP address
+
+=item B<--dip-first-8>
+
+Key on the first 8 bits of the destination IP address
+
+=item B<--dip-first-16>
+
+Key on the first 16 bits of the destination IP address
+
+=item B<--dip-first-24>
+
+Key on the first 24 bits of the destination IP address
+
+=item B<--dip-last-8>
+
+Key on the last 8 bits of the destination IP address
+
+=item B<--dip-last-16>
+
+Key on the last 16 bits of the destination IP address
+
+=item B<--sport>
+
+Key on the source port.
+
+=item B<--dport>
+
+Key on the destination port.
+
+=item B<--proto>
+
+Key on the protocol.
+
+=item B<--packets>
+
+Key on the number of packets in the record
+
+=item B<--bytes>
+
+Key on the number of bytes in the record
+
+=item B<--duration>
+
+Key on the duration of the record.
+
+=item B<--icmp-code>
+
+Key on the ICMP type and code.  This switch will assume
+that all incoming records are ICMP.
+
+=back
+
+The following options affect the output:
+
+=over 4
+
+=item B<--summation>
+
+Print as the final row a total of the values in each column.
+
+=item B<--min-bytes>=I<COUNT>
+
+Disable printing of bins with fewer than I<COUNT> bytes.  By default,
+all bins are printed.
+
+=item B<--max-bytes>=I<COUNT>
+
+Disable printing of bins with more than I<COUNT> bytes.  By default,
+all bins are printed.
+
+=item B<--min-packets>=I<COUNT>
+
+Disable printing of bins with fewer than I<COUNT> packets.  By
+default, all bins are printed.
+
+=item B<--max-packets>=I<COUNT>
+
+Disable printing of bins with more than I<COUNT> packets.  By default,
+all bins are printed.
+
+=item B<--min-records>=I<COUNT>
+
+Disable printing of bins with fewer than I<COUNT> flow records.  By
+default, all bins are printed.
+
+=item B<--max-records>=I<COUNT>
+
+Disable printing of bins with more than I<COUNT> flow records.  By
+default, all bins are printed.
+
+=item B<--skip-zeroes>
+
+Disable printing of bins with no traffic.  By default, all bins are
+printed.
+
+=item B<--no-titles>
+
+Turn off column titles.  By default, titles are printed.
+
+=item B<--no-columns>
+
+Disable fixed-width columnar output.
+
+=item B<--column-separator>=I<C>
+
+Use specified character between columns and after the final column.
+When this switch is not specified, the default of 'B<|>' is used.
+
+=item B<--no-final-delimiter>
+
+Do not print the column separator after the final column.  Normally a
+delimiter is printed.
+
+=item B<--delimited>
+
+=item B<--delimited>=I<C>
+
+Run as if B<--no-columns> B<--no-final-delimiter> B<--column-sep>=I<C>
+had been specified.  That is, disable fixed-width columnar output; if
+character I<C> is provided, it is used as the delimiter between
+columns instead of the default 'B<|>'.
+
+=item B<--print-filenames>
+
+Print to the standard error the names of input files as they are
+opened.
+
+=item B<--copy-input>=I<PATH>
+
+Copy all binary input to the specified file or named pipe.  I<PATH>
+can be C<stdout> to print flows to the standard output as long as the
+B<--output-path> switch has been used to redirect B<rwtotal>'s ASCII
+output.
+
+=item B<--output-path>=I<PATH>
+
+Determine where the output of B<rwtotal> (ASCII text) is written.  If
+this option is not given, output is written to the standard output.
+
+=item B<--pager>=I<PAGER_PROG>
+
+When output is to a terminal, invoke the program I<PAGER_PROG> to view
+the output one screen full at a time.  This switch overrides the
+SILK_PAGER environment variable, which in turn overrides the PAGER
+variable.  If the value of the pager is determined to be the empty
+string, no paging will be performed and all output will be printed to
+the terminal.
+
+=item B<--site-config-file>=I<FILENAME>
+
+Read the SiLK site configuration from the named file I<FILENAME>.
+When this switch is not provided, B<rwtotal> searches for the site
+configuration file in the locations specified in the L</FILES>
+section.
+
+=item B<--xargs>
+
+=item B<--xargs>=I<FILENAME>
+
+Causes B<rwtotal> to read file names from I<FILENAME> or from the
+standard input if I<FILENAME> is not provided.  The input should have
+one file name per line.  B<rwtotal> will open each file in turn and
+read records from it, as if the files had been listed on the command
+line.
+
+=item B<--help>
+
+Print the available options and exit.
+
+=item B<--version>
+
+Print the version number and information about how SiLK was
+configured, then exit the application.
+
+=back
+
+=head1 EXAMPLES
+
+In the following examples, the dollar sign (C<$>) represents the shell
+prompt.  The text after the dollar sign represents the command line.
+Lines have been wrapped for improved readability, and the back slash
+(C<\>) is used to indicate a wrapped line.
+
+=head2 Group by the protocol
+
+Group all incoming data for the first hour of March 1, 2003 by
+protocol.
+
+ $ rwfilter --start-date=2003/03/01:00 --end-date=2003/03/01:00 \
+        --all-destination=stdout                                \
+   | rwtotal --proto --skip-zero
+    protocol|        Records|               Bytes|          Packets|
+           1|          15622|            10695328|           147084|
+           6|         330726|        120536195111|        144254362|
+          17|         155528|            24500079|           155528|
+
+To get the same result with B<rwuniq(1)>, use:
+
+ $ rwfilter ... --pass=stdout                                   \
+   | rwuniq --fields=proto --values=records,bytes,packets       \
+        --sort-output
+ pro|   Records|               Bytes|        Packets|
+   1|     15622|            10695328|         147084|
+   6|    330726|        120536195111|      144254362|
+  17|    155528|            24500079|         155528|
+
+=head2 Group by the source Class A addresses
+
+ $ rwfilter --start-date=2003/03/01:00 --end-date=2003/03/01:00 \
+        --all-destination=stdout                                \
+   | rwtotal --sip-first-8 --skip-zero
+  sIP_First8|        Records|               Bytes|          Packets|
+          10|         173164|         59950837766|         72201390|
+         172|          77764|            17553593|            77764|
+         192|         250948|         60602999159|         72277820|
+
+Use B<rwnetmask(1)> and B<rwuniq(1)> to get a similar result:
+
+ $ rwfilter ... --pass=stdout                                   \
+   | rwnetmask --4sip-prefix=8                                  \
+   | rwuniq --fields=sip --values=records,bytes,packets         \
+        --sort-output --ipv6-policy=ignore
+             sIP|   Records|               Bytes|        Packets|
+        10.0.0.0|    173164|         59950837766|       72201390|
+       172.0.0.0|     77764|            17553593|          77764|
+       192.0.0.0|    250948|         60602999159|       72277820|
+
+=head2 Group by the final IPv4 octet
+
+ $ rwfilter --start-date=2003/03/01:00 --end-date=2003/03/01:00     \
+        --proto=6 --pass=stdout --daddress=192.168.x.x              \
+   | rwtotal --dip-last-16 --skip-zero | head -5
+  dIP_Last16|        Records|               Bytes|          Packets|
+       0. 38|              6|             4862678|             4016|
+       1. 14|              1|               32844|              452|
+      18.146|              1|                4226|               12|
+      21.  4|              6|             5462032|             4521|
+
+One way to accomplish this with B<rwuniq> is to create a new field
+using PySiLK (see B<pysilk(3)>) and the PySiLK plug-in capability (see
+B<silkpython(3)>.  The invocation is:
+
+ $ rwfilter ... --pass=stdout                                      \
+   | rwuniq --python=/tmp/dip16.py --fields=dip-last-16            \
+        --values=flows,bytes,packets --sort-output | head -5
+     dip-last-16|   Records|               Bytes|        Packets|
+        0.0.0.38|         6|             4862678|           4016|
+        0.0.1.14|         1|               32844|            452|
+      0.0.18.146|         1|                4226|             12|
+        0.0.21.4|         6|             5462032|           4521|
+
+where the definition of the C<dip-last-16> field is given in the file
+F<tmp/dip16.py>:
+
+ import silk
+ mask = silk.IPAddr("0.0.255.255")
+ def mask_dip(r):
+     return r.dip.mask(mask)
+
+ register_ipv4_field("dip-last-16", mask_dip)
+
+
+=head1 ENVIRONMENT
+
+=over 4
+
+=item SILK_PAGER
+
+When set to a non-empty string, B<rwtotal> automatically invokes this
+program to display its output a screen at a time.  If set to an empty
+string, B<rwtotal> does not automatically page its output.
+
+=item PAGER
+
+When set and SILK_PAGER is not set, B<rwtotal> automatically invokes
+this program to display its output a screen at a time.
+
+=item SILK_CLOBBER
+
+The SiLK tools normally refuse to overwrite existing files.  Setting
+SILK_CLOBBER to a non-empty value removes this restriction.
+
+=item SILK_CONFIG_FILE
+
+This environment variable is used as the value for the
+B<--site-config-file> when that switch is not provided.
+
+=item SILK_DATA_ROOTDIR
+
+This environment variable specifies the root directory of data
+repository.  As described in the L</FILES> section, B<rwtotal> may
+use this environment variable when searching for the SiLK site
+configuration file.
+
+=item SILK_PATH
+
+This environment variable gives the root of the install tree.  When
+searching for configuration files, B<rwtotal> may use this environment
+variable.  See the L</FILES> section for details.
+
+=back
+
+=head1 FILES
+
+=over 4
+
+=item F<${SILK_CONFIG_FILE}>
+
+=item F<${SILK_DATA_ROOTDIR}/silk.conf>
+
+=item F<@SILK_DATA_ROOTDIR@/silk.conf>
+
+=item F<${SILK_PATH}/share/silk/silk.conf>
+
+=item F<${SILK_PATH}/share/silk.conf>
+
+=item F<@prefix@/share/silk/silk.conf>
+
+=item F<@prefix@/share/silk.conf>
+
+Possible locations for the SiLK site configuration file which are
+checked when the B<--site-config-file> switch is not provided.
+
+=back
+
+=head1 SEE ALSO
+
+B<rwaddrcount(1)>, B<rwnetmask(1)>, B<rwstats(1)>, B<rwuniq(1)>,
+B<pysilk(3)>, B<silkpython(3)>, B<silk(7)>
+
+=head1 BUGS
+
+B<rwtotal> replicates some functionality in B<rwuniq(1)> (most notably
+when B<rwuniq> checks by port or protocol), but the implementations
+differ: B<rwtotal> uses an array instead of a hash-table, so access is
+faster, the output is always sorted, and the output includes keys with
+a value of zero.  The use of an array prevents B<rwtotal> from using
+the complete IP address the way B<rwuniq> does, but it also ensures
+that B<rwtotal> will not run out of memory.
+
+When used in an IPv6 environment, B<rwtotal> will process every record
+as long as the IP address is not part of the key.  When aggregating by
+the IP address, B<rwtotal> converts IPv6 flow records that contain
+addresses in the ::ffff:0:0/96 prefix to IPv4 and processes them.
+IPv6 records having addresses outside of that prefix are silently
+ignored.  B<rwtotal> will not be modified to support IPv6 addresses;
+instead, users should use B<rwuniq(1)> (maybe combined with
+B<rwnetmask(1)>).
+
+B<rwtotal> is also similar to B<rwaddrcount(1)> and B<rwstats(1)>.
+
+=cut
+
+$SiLK: rwtotal.pod cd09f0a5fcc6 2014-06-14 15:43:33Z mthomas $
+
+Local Variables:
+mode:text
+indent-tabs-mode:nil
+End:

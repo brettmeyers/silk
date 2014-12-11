@@ -1,0 +1,210 @@
+=pod
+
+=head1 NAME
+
+B<mapsid> - Map between sensor names and sensor numbers
+
+=head1 SYNOPSIS
+
+  mapsid [--print-classes] [--print-descriptions]
+        [--site-config-file=FILENAME]
+        [{ <sensor-name> | <sensor-number> } ...]
+
+  mapsid --help
+
+  mapsid --version
+
+=head1 DESCRIPTION
+
+As of SiLK 3.0, B<mapsid> is deprecated, and it will be removed in
+the SiLK 4.0 release.  Use B<rwsiteinfo(1)> instead---the L</EXAMPLES>
+section shows how to use B<rwsiteinfo> to get output similar to that
+produced by B<mapsid>.
+
+B<mapsid> is a utility that maps sensor names to sensor numbers or
+vice versa depending on the input arguments.  Sensors are defined in
+the B<silk.conf(5)> file.
+
+When no sensor arguments are given to B<mapsid>, the mapping of all
+sensor numbers to names is printed.  When a numeric argument is given,
+the number to name mapping is printed for the specified argument.
+When a name is given, its numeric id is printed.  For convenience when
+typing in sensor names, case is ignored.
+
+=head1 OPTIONS
+
+Option names may be abbreviated if the abbreviation is unique or is an
+exact match for an option.  A parameter to an option may be specified
+as B<--arg>=I<param> or B<--arg> I<param>, though the first form is
+required for options that take optional parameters.
+
+=over 4
+
+=item B<--print-classes>
+
+For each sensor, print the classes for which the sensor collects
+data.  The classes are enclosed in square brackets, C<[]>.
+
+=item B<--print-descriptions>
+
+For each sensor, print the description of the sensor as defined in the
+F<silk.conf> file (if any).
+
+=item B<--site-config-file>=I<FILENAME>
+
+Read the SiLK site configuration from the named file I<FILENAME>.
+When this switch is not provided, B<mapsid> searches for the site
+configuration file in the locations specified in the L</FILES>
+section.
+
+=item B<--help>
+
+Print the available options and exit.
+
+=item B<--version>
+
+Print the version number and information about how SiLK was
+configured, then exit the application.
+
+=back
+
+=head1 EXAMPLES
+
+The following examples demonstrate the use of B<mapsid>.  In addition,
+each example shows how to get similar output using B<rwsiteinfo(1)>.
+
+In the following examples, the dollar sign (C<$>) represents the shell
+prompt.  The text after the dollar sign represents the command line.
+Lines have been wrapped for improved readability, and the back slash
+(C<\>) is used to indicate a wrapped line.
+
+=head2 Name to number mapping
+
+ $ mapsid beta
+ BETA ->     1
+
+ $ rwsiteinfo --fields=sensor,id-sensor --sensors=BETA
+ Sensor|Sensor-ID|
+   BETA|        1|
+
+Unlike B<mapsid>, matching of the sensor name is case-sensitive in
+B<rwsiteinfo>.
+
+=head2 Number to name mapping
+
+ $ mapsid 3
+     3 -> DELTA
+
+ $ rwsiteinfo --fields=id-sensor,sensor --sensors=3 --delimited=,
+ Sensor-ID,Sensor
+ 3,DELTA
+
+=head2 Print all mappings
+
+ $ mapsid
+     0 -> ALPHA
+     1 -> BETA
+     2 -> GAMMA
+     3 -> DELTA
+     4 -> EPSLN
+     5 -> ZETA
+      ....
+
+ $ rwsiteinfo --fields=id-sensor,sensor --no-titles
+   0| ALPHA|
+   1|  BETA|
+   2| GAMMA|
+   3| DELTA|
+   4| EPSLN|
+   5|  ZETA|
+   ...
+
+=head2 Print the class
+
+ $ mapsid --print-classes 3 ZETA
+     3 -> DELTA  [all]
+ ZETA  ->     5  [all]
+
+ $ rwsiteinfo --fields=id-sensor,sensor,class:list --sensors=4,ZETA
+ Sensor-ID|Sensor|Class:list|
+         3| DELTA|       all|
+         5|  ZETA|       all|
+
+=head2 Print the class and description
+
+ $ mapsid --print-classes --print-description 0 1
+     0 -> ALPHA  [all]  "Primary gateway"
+     1 -> BETA   [all]  "Secondary gateway"
+
+B<rwsiteinfo> supports using an integer range when specifying sensors.
+
+ $ rwsiteinfo --fields=id-sensor,sensor,class:list,describe-sensor \
+       --sensors=0-1
+ Sensor-ID|Sensor|Class:list|Sensor-Description|
+         0| ALPHA|       all|   Primary gateway|
+         1|  BETA|       all| Secondary gateway|
+
+
+=head1 ENVIRONMENT
+
+=over 4
+
+=item SILK_CONFIG_FILE
+
+This environment variable is used as the value for the
+B<--site-config-file> when that switch is not provided.
+
+=item SILK_DATA_ROOTDIR
+
+This environment variable specifies the root directory of data
+repository.  As described in the L</FILES> section, B<mapsid> may use
+this environment variable when searching for the SiLK site
+configuration file.
+
+=item SILK_PATH
+
+This environment variable gives the root of the install tree.  When
+searching for configuration files, B<mapsid> may use this environment
+variable.  See the L</FILES> section for details.
+
+=back
+
+=head1 FILES
+
+=over 4
+
+=item F<${SILK_CONFIG_FILE}>
+
+=item F<${SILK_DATA_ROOTDIR}/silk.conf>
+
+=item F<@SILK_DATA_ROOTDIR@/silk.conf>
+
+=item F<${SILK_PATH}/share/silk/silk.conf>
+
+=item F<${SILK_PATH}/share/silk.conf>
+
+=item F<@prefix@/share/silk/silk.conf>
+
+=item F<@prefix@/share/silk.conf>
+
+Possible locations for the SiLK site configuration file which are
+checked when the B<--site-config-file> switch is not provided.
+
+=back
+
+=head1 SEE ALSO
+
+B<rwsiteinfo(1)>, B<silk.conf(5)>, B<silk(7)>
+
+=head1 NOTES
+
+As of SiLK 3.0, B<mapsid> is deprecated; use B<rwsiteinfo(1)> instead.
+
+=cut
+
+$SiLK: mapsid.pod 8b39dddcaab4 2013-12-06 21:47:40Z mthomas $
+
+Local variables:
+mode:text
+indent-tabs-mode:nil
+End:

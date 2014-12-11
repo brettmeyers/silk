@@ -1,0 +1,733 @@
+=pod
+
+=head1 NAME
+
+B<rwpmaplookup> - Map keys to prefix map entries
+
+=head1 SYNOPSIS
+
+  rwpmaplookup { --map-file=MAP_FILE | --address-types[=MAP_FILE]
+                 | --country-codes[=MAP_FILE] }
+        [--fields=FIELDS] [--ipset-files] [--no-errors]
+        [--ip-format=FORMAT] [--integer-ips] [--zero-pad-ips]
+        [--no-titles] [--no-columns] [--column-separator=CHAR]
+        [--no-final-delimiter] [{--delimited | --delimited=CHAR}]
+        [{--output-path=PATH | --pager=PAGER_PROG}]
+        [--no-files ARG [ARGS...] | --xargs[=FILE] | FILE [FILES...]]
+
+  rwpmaplookup --help
+
+  rwpmaplookup --version
+
+=head1 DESCRIPTION
+
+B<rwpmaplookup> finds keys in a binary prefix map file and prints the
+key and its value in a textual, bar (B<|>) delimited format.
+
+By default, B<rwpmaplookup> expects its arguments to be the names of
+text files containing keys---one key per line.  When the
+B<--ipset-files> switch is given, B<rwpmaplookup> takes IPset files as
+arguments and uses the IPs as the keys.  The B<--no-files> switch
+causes B<rwpmaplookup> to treat each command line argument itself as a
+key to find in the prefix map.
+
+When B<--no-files> is not specified, B<rwpmaplookup> reads the keys
+from the files named on the command line or from the standard input
+when no file names are specified and neither B<--xargs> nor
+B<--no-files> is present.  To read the standard input in addition to
+the named files, use C<-> or C<stdin> as a file name.  When the
+B<--xargs> switch is provided, B<rwpmaplookup> will read the names of
+the files to process from the named text file, or from the standard
+input if no file name argument is provided to the switch.  The input
+to B<--xargs> must contain one file name per line.
+
+You must tell B<rwpmaplookup> the prefix map to use for look-ups using
+one of three switches:
+
+=over 4
+
+=item *
+
+To use an arbitrary prefix map, use the B<--map-file> switch.
+
+=item *
+
+If you want to map IP addresses to country codes (see B<ccfilter(3)>),
+use the B<--country-codes> switch.  To use the default country
+code prefix map, do not provide an argument to the switch.  To use a
+specific country code mapping file, specify the file as the argument.
+
+=item *
+
+If you want to map IP addresses to address types (see B<addrtype(3)>),
+use the B<--address-types> switch.  To use the default address types
+prefix map, do not provide an argument to the switch.  To use a
+specific address types mapping file, specify the file as the argument.
+
+=back
+
+If the B<--map-file> switch specifies a prefix map containing
+protocol/port pairs, each input file should contain one protocol/port
+pair per line in the form I<PROTOCOL>/I<PORT>, where I<PROTOCOL> is a
+number between 0 and 255 inclusive, and I<PORT> is a number between 0
+and 65535 inclusive.  When the B<--ipset-files> switch is specified,
+it is an error if the B<--map-file> switch specifies a prefix map
+containing protocol/port pairs.
+
+When querying any other type of prefix map and the B<--ipset-files>
+switch is not present, each textual input file should contain one IP
+address per line, where the IP is a single IP address (I<not> a CIDR
+block) in canonical form or the integer representation of an IPv4
+address.
+
+The B<--fields> switch allows you to specify which columns appear in
+the output.  The default columns are the key and the value, where the
+key is the IP address or protocol/port pair, and the value is the
+textual label for that key.
+
+If the prefix map contains IPv6 addresses, any IPv4 address in the
+input is mapped into the ::ffff:0:0/96 netblock when searching.
+
+If the prefix map contains IPv4 addresses only, any IPv6 address in
+the ::ffff:0:0/96 netblock is converted to IPv4 when searching.  Any
+other IPv6 address is ignored, and it is not printed in the output
+unless the C<input> field is requested.
+
+Prefix map files are created by the B<rwpmapbuild(1)> and
+B<rwgeoip2ccmap(1)> utilities.  IPset files are created most often by
+B<rwset(1)> and B<rwsetbuild(1)>.
+
+=head1 OPTIONS
+
+Option names may be abbreviated if the abbreviation is unique or is an
+exact match for an option.  A parameter to an option may be specified
+as B<--arg>=I<param> or B<--arg> I<param>, though the first form is
+required for options that take optional parameters.
+
+One of B<--map-file>, B<--address-types>, or B<--country-codes> is
+required.
+
+=over 4
+
+=item B<--map-file>=I<PMAP_FILE>
+
+Find the IP addresses or protocol/port pairs in the prefix map file
+I<PMAP_FILE>.
+
+=item B<--address-types>
+
+Find the IP addresses in the address types (see B<addrtype(3)>) mapping
+file specified by the SILK_ADDRESS_TYPES environment variable, or in
+the default address types mapping file if that environment variable is
+not set.
+
+=item B<--address-types>=I<ADDRTYPE_FILE>
+
+Find the IP addresses in the address types mapping file specified by
+I<ADDRTYPE_FILE>.
+
+=item B<--country-codes>
+
+Find the IP addresses in the country code (see B<ccfilter(3)>) mapping
+file specified by the SILK_COUNTRY_CODES environment variable, or in
+the default country code mapping file if that environment variable is
+not set.
+
+=item B<--country-codes>=I<COUNTRY_CODE_FILE>
+
+Find the IP addresses in the country code mapping file specified by
+I<COUNTRY_CODE_FILE>.
+
+=item B<--fields>=I<FIELDS>
+
+Specify the columns to include in the output.  The columns will be
+displayed in the order the fields are specified.  I<FIELDS> is a comma
+separated list of field-names.  Field-names are case-insensitive.
+When this switch is not provided, the default fields are C<key,value>.
+The list of available fields are:
+
+=over 4
+
+=item key
+
+The key used to search the prefix map.
+
+=item value
+
+The label returned from the prefix map for the key.
+
+=item block
+
+The block in the prefix map that contains the key.  For a prefix map
+file that contains IPv4 addresses, the result will be a CIDR block
+such as 10.18.26.32/27.
+
+=item start-block
+
+The value at the start of the block in the prefix map that contains
+the key.
+
+=item end-block
+
+The value at the end of the block in the prefix map that contains the
+key.
+
+=item input
+
+The text read from the input file that B<rwpmaplookup> attempted to
+parse.  Note that blank lines, lines containing only whitespace and
+comments, and lines longer than 2048 characters will not be printed.
+In addition, any comments appearing after the text are stripped.  When
+B<--ipset-files> is specified, this field contains the IP address in
+its canonical form.
+
+=back
+
+=item B<--no-files>
+
+Causes B<rwpmaplookup> to treat the command line arguments as the text
+to be parsed.  This allows one to look up a handful of values without
+having to create a temporary file.  Use of the B<--no-files> switch
+disables paging of the output.  This switch may not be combined with
+B<--ipset-files>.
+
+=item B<--no-errors>
+
+Disables printing of errors when the input cannot be parsed as an IP
+address or a protocol/port pair.  This switch is ignored when
+B<--ipset-files> is specified.
+
+=item B<--ipset-files>
+
+Causes B<rwpmaplookup> to treat the command line arguments as the
+names of IPset files to read and use as keys into the prefix map.  It
+is an error to use this switch when B<--map-file> specifies a
+protocol/port prefix map.  When B<--ipset-files> is active, the
+C<input> column of B<--fields> contains the IP in its canonical form,
+regardless of the B<--ip-format> switch.  This switch may not be
+combined with B<--no-files>.
+
+=item B<--ip-format>=I<FORMAT>
+
+When printing the key of an prefix map containing IP addresses,
+specify how the IP addresses will be printed.  When this switch is not
+specified, IPs are printed in the canonical format.  The I<FORMAT> is
+one of:
+
+=over 4
+
+=item canonical
+
+Print IP addresses in their canonical form: dotted quad for IPv4
+(C<127.0.0.1>) and hexadectet for IPv6 (C<2001:db8::1>).  Note that
+IPv6 addresses in ::ffff:0:0/96 and some IPv6 addresses in ::/96 will
+be printed as a mixture of IPv6 and IPv4.
+
+=item zero-padded
+
+Print IP addresses in their canonical form, but add zeros to the
+output so it fully fills the width of column.  The addresses
+C<127.0.0.1> and C<2001:db8::1> are printed as C<127.000.000.001> and
+C<2001:0db8:0000:0000:0000:0000:0000:0001>, respectively.
+
+=item decimal
+
+Print IP addresses as integers in decimal format.  The addresses
+C<127.0.0.1> and C<2001:db8::1> are printed as C<2130706433> and
+C<42540766411282592856903984951653826561>, respectively.
+
+=item hexadecimal
+
+Print IP addresses as integers in hexadecimal format.  The addresses
+C<127.0.0.1> and C<2001:db8::1> are printed as C<7f000001> and
+C<20010db8000000000000000000000001>, respectively.
+
+=item force-ipv6
+
+Print all IP addresses in the canonical form for IPv6 without using
+any IPv4 notation.  Any IPv4 address is mapped into the ::ffff:0:0/96
+netblock.  The addresses C<127.0.0.1> and C<2001:db8::1> are printed
+as C<::ffff:7f00:1> and C<2001:db8::1>, respectively.
+
+=back
+
+=item B<--integer-ips>
+
+Print IP addresses as integers.  This switch is equivalent to
+B<--ip-format=decimal>, it is deprecated as of SiLK 3.7.0, and it will
+be removed in the SiLK 4.0 release.
+
+=item B<--zero-pad-ips>
+
+Print IP addresses as fully-expanded, zero-padded values in their
+canonical form.  This switch is equivalent to
+B<--ip-format=zero-padded>, it is deprecated as of SiLK 3.7.0, and it
+will be removed in the SiLK 4.0 release.
+
+=item B<--no-titles>
+
+Turn off column titles.  By default, titles are printed.
+
+=item B<--no-columns>
+
+Disable fixed-width columnar output.
+
+=item B<--column-separator>=I<C>
+
+Use specified character between columns and after the final column.
+When this switch is not specified, the default of 'B<|>' is used.
+
+=item B<--no-final-delimiter>
+
+Do not print the column separator after the final column.  Normally a
+delimiter is printed.
+
+=item B<--delimited>
+
+=item B<--delimited>=I<C>
+
+Run as if B<--no-columns> B<--no-final-delimiter> B<--column-sep>=I<C>
+had been specified.  That is, disable fixed-width columnar output; if
+character I<C> is provided, it is used as the delimiter between
+columns instead of the default 'B<|>'.
+
+=item B<--output-path>=I<PATH>
+
+Determines where the output of B<rwpmaplookup> is written.  If this
+option is not given, output is written to the standard output.
+
+=item B<--pager>=I<PAGER_PROG>
+
+When the B<--no-files> switch has not been specified and output is to
+a terminal, invoke the program I<PAGER_PROG> to view the output one
+screen full at a time.  This switch overrides the SILK_PAGER
+environment variable, which in turn overrides the PAGER variable.  If
+the value of the pager is determined to be the empty string, no paging
+will be performed and all output will be printed to the terminal.
+
+=item B<--xargs>
+
+=item B<--xargs>=I<FILENAME>
+
+Causes B<rwpmaplookup> to read file names from I<FILENAME> or from the
+standard input if I<FILENAME> is not provided.  The input should have
+one file name per line.  B<rwpmaplookup> will open each file in turn
+and read the IPset, textual IP addresses, or textual protocol/port
+pairs from it, as if the files had been listed on the command line.
+
+=item B<--help>
+
+Print the available options and exit.
+
+=item B<--version>
+
+Print the version number and information about how SiLK was
+configured, then exit the application.
+
+=back
+
+=head1 EXAMPLES
+
+In the following examples, the dollar sign (C<$>) represents the shell
+prompt.  The text after the dollar sign represents the command line.
+Lines have been wrapped for improved readability, and the back slash
+(C<\>) is used to indicate a wrapped line.
+
+=head2 Country code examples
+
+Print the country code for a list of addresses read from the standard
+input.
+
+ $ cat my-addrs.txt
+ 128.2.0.0
+ 128.2.0.1
+ $ cat my-addrs.txt | rwpmaplookup --country-codes
+             key|               value|
+       128.2.0.0|                  us|
+       128.2.0.1|                  us|
+
+Use B<--no-files> to list the address on the command line.
+
+ $ rwpmaplookup --country-codes  128.2.0.0 128.2.0.1
+             key|               value|
+       128.2.0.0|                  us|
+       128.2.0.1|                  us|
+
+Use B<--ipset-files> to read the addresses from an IPset file.
+
+ $ rwsetbuild my-addrs.txt my-addrs.set
+ $ rwpmaplookup --country-codes --ipset-files my-addrs.set
+             key|               value|
+       128.2.0.0|                  us|
+       128.2.0.1|                  us|
+
+Use the B<--fields> switch to control which columns are printed.
+
+ $ rwpmaplookup --country-codes --fields=value my-addrs.txt
+                value|
+                   us|
+                   us|
+
+Add the B<--delimited> and B<--no-titles> switches so the output only
+contains the value column.  Print the country code for a single
+address using the default country code prefix map.
+
+ $ rwpmaplookup --country-codes --fields=value --delimited \
+        --no-titles --no-files 128.2.0.0
+ us
+
+Alternatively
+
+ $ echo 128.2.0.0   \
+   | rwpmaplookup --country-codes --fields=value --delim --no-title
+ us
+
+To use a different country code mapping file, provide that file as the
+argument to the B<--country-codes> switch.
+
+ $ rwpmaplookup --country-code=old-address-map.pmap --no-files 128.2.0.0
+           key|value|
+     128.2.0.0|   us|
+
+=head2 CIDR block input
+
+Note that B<rwpmaplookup> does not parse text that contains CIDR
+blocks.
+
+ $ echo '128.2.0.0/31'      \
+   | rwpmaplookup --country-codes
+             key|value|
+ rwpmaplookup: Invalid IP '128.2.0.1/31' at -:1: Extra text follows value
+
+For this case, use the IPset tool B<rwsetbuild(1)> to parse the CIDR
+block list and create a binary IPset stream, and pipe the IPset to
+B<rwpmaplookup>.
+
+ $ echo '128.2.0.0/31'      \
+   | rwsetbuild             \
+   | rwpmaplookup --country-code --ipset-files
+             key|value|
+       128.2.0.0|   --|
+       128.2.0.1|   --|
+
+For versions of B<rwpmaplookup> that do not have the B<--ipset-files>
+switch, you can have B<rwsetcat(1)> read the binary IPset stream and
+print the IP addresses as text, and pipe that into B<rwpmaplookup>.
+Be sure to include the C<--cidr-blocks=0> switch to B<rwsetcat> which
+forces individual IP addresses to be printed.
+
+ $ echo '128.2.0.0/31'              \
+   | rwsetbuild                     \
+   | rwsetcat --cidr-blocks=0       \
+   | rwpmaplookup --country-code
+             key|value|
+       128.2.0.0|   --|
+       128.2.0.1|   --|
+
+=head2 General prefix map usage
+
+Consider a user-defined prefix map, F<assigned-slash-8s.pmap>, that
+maps each /8 in the IPv4 address space to its assignment.
+
+ $ rwpmapcat assigned-slash-8s.pmap | head -4
+            ipBlock|                                         label|
+          0.0.0.0/8|                   IANA - Local Identification|
+          1.0.0.0/8|                                         APNIC|
+          2.0.0.0/8|                                      RIPE NCC|
+
+Use the B<--map-file> switch to map from IPs to labels using this
+prefix map.
+
+ $ cat my-addrs.txt
+ 17.17.17.17
+ 9.9.9.9
+ $ cat my-addrs.txt | rwpmaplookup --map-file=assigned-slash-8s.pmap
+             key|               value|
+     17.17.17.17| Apple Computer Inc.|
+         9.9.9.9|                 IBM|
+
+Use B<--ip-format=decimal> to print the output as integers.
+
+ $ cat my-addrs.txt         \
+   | rwpmaplookup --ip-format=decimal --map-file=assigned-slash-8s.pmap
+        key|               value|
+  286331153| Apple Computer Inc.|
+  151587081|                 IBM|
+
+Add the C<input> field to see the input as well.
+
+ $ cat my-addrs.txt         \
+   | rwpmaplookup --ip-format=decimal --fields=key,value,input \
+        --map-file=assigned-slash-8s.pmap
+        key|               value|               input|
+  286331153| Apple Computer Inc.|         17.17.17.17|
+  151587081|                 IBM|             9.9.9.9|
+
+Combine the C<input> field with the B<--no-errors> switch to see a row
+for each key.
+
+ $ rwpmaplookup --fields=key,value,input --no-errors --no-files \
+        --map-file=assigned-slash-8s.pmap 9.9.9.9 17.1717.17
+             key|               value|               input|
+         9.9.9.9| Apple Computer Inc.|             9.9.9.9|
+                |                    |          17.1717.17|
+
+The input can contain integer values.
+
+ $ echo 151587081           \
+   | rwpmaplookup --fields=key,value,input --delimited=, \
+        --map-file=assigned-slash-8s.pmap
+ key,value,input
+ 9.9.9.9,IBM,151587081
+
+=head2 Block output
+
+Specifying C<block> in the B<--fields> switch causes B<rwpmaplookup>
+to print the CIDR block that contains the address key.
+
+ $ cat my-addrs.txt
+ 9.8.7.6
+ 9.10.11.12
+ 17.16.15.14
+ 17.18.19.20
+ $ rwpmaplookup --map-file=assigned-slash-8s.pmap \
+        --fields=key,value,block my-addrs.txt
+             key|               value|             block|
+         9.8.7.6|                 IBM|         9.0.0.0/8|
+      9.10.11.12|                 IBM|         9.0.0.0/8|
+     17.16.15.14| Apple Computer Inc.|        17.0.0.0/8|
+     17.18.19.20| Apple Computer Inc.|        17.0.0.0/8|
+
+To break the CIDR block into its starting and ending value, specify
+the C<start-block> and C<end-block> fields.
+
+ $ rwpmaplookup --map-file=assigned-slash-8s.pmap               \
+        --fields=key,value,start-block,end-block my-addrs.txt
+             key|               value|    start-block|      end-block|
+         9.8.7.6|                 IBM|        9.0.0.0|  9.255.255.255|
+      9.10.11.12|                 IBM|        9.0.0.0|  9.255.255.255|
+     17.16.15.14| Apple Computer Inc.|       17.0.0.0| 17.255.255.255|
+     17.18.19.20| Apple Computer Inc.|       17.0.0.0| 17.255.255.255|
+
+To get a unique list of blocks for the input keys, do not output the
+C<key> field and pipe the output of B<rwpmaplookup> to the B<uniq(1)>
+command.  (This works as long as the input data is sorted).
+
+ $ cat my-addrs.txt                                 \
+   | rwpmaplookup --map-file=assigned-slash-8s.pmap \
+        --fields=block,value                        \
+   | uniq
+              block|               value|
+          9.0.0.0/8|                 IBM|
+         17.0.0.0/8| Apple Computer Inc.|
+
+The values printed in the C<block> column corresponds to the CIDR
+block that were used when the prefix map file was created.
+
+ $ rwpmaplookup --map=assigned-slash-8s.pmap --fields=block,value   \
+        --no-files 128.2.0.1 129.0.0.1
+              block|               value|
+        128.0.0.0/8|Administered by ARIN|
+        129.0.0.0/8|Administered by ARIN|
+
+In the output from B<rwpmapcat(1)>, those two blocks are combined into
+a larger range.
+
+ $ rwpmapcat --map=assigned-slash-8s.pmap | grep 128
+        128.0.0.0/6|Administered by ARIN|
+
+=head2 Working with IPsets
+
+Assume you have a binary IPset file, F<my-ips.set>, that has the
+contents shown here, and you want to find the list of unique
+assignments from the F<assigned-slash-8s.pmap> file.
+
+ $ rwsetcat --cidr-blocks=1 my-ips.set
+ 9.9.9.0/24
+ 13.13.13.0/24
+ 15.15.15.0/24
+ 16.16.16.0/24
+ 17.17.17.0/24
+ 18.18.18.0/24
+
+Since the blocks in the F<assigned-slash-8s.pmap> file are /8, use the
+B<rwsettool(1)> command to mask the IPs in the IPset to the unique /8
+that contains each of the IPs.
+
+ $ rwsettool --mask=8 my-ips.set    \
+   | rwpmaplookup --map-file=assigned-slash-8s.pmap
+            key|                        value|
+        9.0.0.0|                          IBM|
+       13.0.0.0|            Xerox Corporation|
+       15.0.0.0|      Hewlett-Packard Company|
+       16.0.0.0|Digital Equipment Corporation|
+       17.0.0.0|          Apple Computer Inc.|
+       18.0.0.0|                          MIT|
+
+=head2 Protocol/port prefix maps
+
+Assume the B<service.pmap> prefix map file maps protocol/port pairs to
+the name of the service running on the named port.
+
+ $ rwpmapcat service.pmap
+ startPair|  endPair|    label|
+       0/0|  0/65535|  unknown|
+       1/0|  1/65535|     ICMP|
+       2/0|  5/65535|  unknown|
+       6/0|     6/21|      TCP|
+      6/22|     6/22|  TCP/SSH|
+ ...
+      17/0|    17/52|      UDP|
+     17/53|    17/53|  UDP/DNS|
+ ...
+
+To query this prefix map, the input must contain two numbers separated
+by a slash.
+
+ $ rwpmaplookup --map-file=service.pmap --no-files 6/80
+       key|    value|
+      6/80| TCP/HTTP|
+
+Specifying C<block>, C<start-block>, and C<end-block> in the
+B<--fields> switch also works for Protocol/port prefix map files.  The
+C<block> column contains the same information as the C<start-block>
+and C<end-block> columns separated by a single space.
+
+ $ rwpmaplookup --map-file=service.pmap --no-files  \
+        --fields=key,value,start,end,block          \
+        6/80 6/6000 17/0 17/53 128/128
+       key|     value|start-blo|end-block|              block|
+      6/80|  TCP/HTTP|     6/80|     6/80|          6/80 6/80|
+    6/6000|       TCP|   6/4096|   6/6143|      6/4096 6/6143|
+      17/0|       UDP|     17/0|    17/31|         17/0 17/31|
+     17/53|   UDP/DNS|    17/53|    17/53|        17/53 17/53|
+   200/200|Unassigned|    192/0|223/65535|    192/0 223/65535|
+
+Using the B<pmapfilter(3)> plug-in to B<rwcut(1)>, you can print the
+label for the source port and destination port in the SiLK Flow file
+F<data.rw>.
+
+ $ rwcut --pmap-file=service.pmap --num-rec=5       \
+        --fields=proto,sport,src-service,dport,dst-service data.rw
+ pro|sPort|src-service|dPort|dst-service|
+  17|29617|        UDP|   53|    UDP/DNS|
+  17|   53|    UDP/DNS|29617|        UDP|
+   6|29618|        TCP|   22|    TCP/SSH|
+   6|   22|    TCP/SSH|29618|        TCP|
+   1|    0|       ICMP|  771|       ICMP|
+
+The B<pmapfilter> plug-in does not provide a way to print the values
+based on the application field.  You can get that information by
+having B<rwcut> print the protocol and application separated by a
+slash, and pipe the result into B<rwpmaplookup>.
+
+ $ rwcut --fields=proto,application --num-rec=5     \
+        --delimited=/ --no-title                    \
+   | rwpmaplookup --map-file=service.pmap
+       key|    value|
+     17/53|  UDP/DNS|
+     17/53|  UDP/DNS|
+      6/22|  TCP/SSH|
+      6/22|  TCP/SSH|
+       1/0|     ICMP|
+
+=head1 ENVIRONMENT
+
+=over 4
+
+=item SILK_PAGER
+
+When set to a non-empty string, B<rwpmaplookup> automatically invokes
+this program to display its output a screen at a time unless the
+B<--no-files> switch is given.  If this variable is set to an empty
+string, B<rwpmaplookup> does not automatically page its output.
+
+=item PAGER
+
+When set and SILK_PAGER is not set, B<rwpmaplookup> automatically
+invokes this program to display its output a screen at a time.
+
+=item SILK_COUNTRY_CODES
+
+This environment variable allows the user to specify the country code
+mapping file to use when the B<--country-codes> switch is specified
+without an argument.  The variable's value may be a complete path or a
+file relative to SILK_PATH.  See the L</FILES> section for standard
+locations of this file.
+
+=item SILK_ADDRESS_TYPES
+
+This environment variable allows the user to specify the address type
+mapping file to use when the B<--address-types> switch is specified
+without an argument.  The variable's value may be a complete path or a
+file relative to the SILK_PATH.  See the L</FILES> section for
+standard locations of this file.
+
+=item SILK_CLOBBER
+
+The SiLK tools normally refuse to overwrite existing files.  Setting
+SILK_CLOBBER to a non-empty value removes this restriction.
+
+=item SILK_PATH
+
+This environment variable gives the root of the install tree.  When
+searching for configuration files, B<rwpmaplookup> may use this
+environment variable.  See the L</FILES> section for details.
+
+=back
+
+=head1 FILES
+
+=over 4
+
+=item F<${SILK_COUNTRY_CODES}>
+
+=item F<${SILK_PATH}/share/silk/country_codes.pmap>
+
+=item F<${SILK_PATH}/share/country_codes.pmap>
+
+=item F<@prefix@/share/silk/country_codes.pmap>
+
+=item F<@prefix@/share/country_codes.pmap>
+
+Possible locations for the country codes mapping file when the
+B<--country-codes> switch is specified without an argument.
+
+=item F<${SILK_ADDRESS_TYPES}>
+
+=item F<${SILK_PATH}/share/silk/address_types.pmap>
+
+=item F<${SILK_PATH}/share/address_types.pmap>
+
+=item F<@prefix@/share/silk/address_types.pmap>
+
+=item F<@prefix@/share/address_types.pmap>
+
+Possible locations for the address types mapping file when the
+B<--address-types> switch is specified without an argument.
+
+=back
+
+=head1 NOTES
+
+B<rwpmaplookup> was added in SiLK 3.0.
+
+B<rwpmaplookup> duplicates the functionality of B<rwip2cc(1)>.
+B<rwip2cc> is deprecated, and it will be removed in the SiLK 4.0
+release.  Examples of using B<rwpmaplookup> in place of B<rwip2cc> are
+provided in the latter's manual page.
+
+=head1 SEE ALSO
+
+B<rwpmapbuild(1)>, B<rwpmapcat(1)>, B<ccfilter(3)>, B<addrtype(3)>,
+B<pmapfilter(3)>, B<rwgeoip2ccmap(1)>, B<rwcut(1)>, B<rwset(1)>,
+B<rwsetbuild(1)>, B<rwsetcat(1)>, B<rwsettool(1)>, B<silk(7)>
+
+=cut
+
+$SiLK: rwpmaplookup.pod cd09f0a5fcc6 2014-06-14 15:43:33Z mthomas $
+
+Local Variables:
+mode:text
+indent-tabs-mode:nil
+End:

@@ -1,0 +1,263 @@
+=pod
+
+=head1 NAME
+
+B<rwipfix2silk> - Convert IPFIX records to SiLK Flow records
+
+=head1 SYNOPSIS
+
+  rwipfix2silk [--silk-output=FILE] [--print-statistics]
+        [--interface-values={snmp | vlan}]
+        [--log-destination={stdout | stderr | none | PATH}]
+        [--note-add=TEXT] [--note-file-add=FILE]
+        [--compression-method=COMP_METHOD]
+        {[--xargs] | [--xargs=FILENAME] | [IPFIXFILE [IPFIXFILE...]]}
+
+  rwipfix2silk --help
+
+  rwipfix2silk --version
+
+=head1 DESCRIPTION
+
+B<rwipfix2silk> reads IPFIX (Internet Protocol Flow Information
+eXport) records from files or from the standard input, converts the
+records to the SiLK Flow format, and writes the SiLK records to the
+path specified by B<--silk-output> or to the standard output when
+stdout is not the terminal and B<--silk-output> is not provided.
+
+B<rwipfix2silk> reads IPFIX records from the files named on the
+command line or from the standard input when no file names are
+specified and B<--xargs> is not present.  To read the standard input
+in addition to the named files, use C<-> or C<stdin> as a file name.
+When the B<--xargs> switch is provided, B<rwipfix2silk> will read the
+names of the files to process from the named text file, or from the
+standard input if no file name argument is provided to the switch.
+The input to B<--xargs> must contain one file name per line.
+
+=head1 OPTIONS
+
+Option names may be abbreviated if the abbreviation is unique or is an
+exact match for an option.  A parameter to an option may be specified
+as B<--arg>=I<param> or B<--arg> I<param>, though the first form is
+required for options that take optional parameters.
+
+=over 4
+
+=item B<--silk-output>=I<FILE>
+
+Write the SiLK records to I<FILE>, which must not exist.  If the
+switch is not provided or if I<FILE> has the value C<stdout> or C<->,
+the SiLK flows are written to the standard output.
+
+=item B<--print-statistics>
+
+Print, to the standard error, the number of records that were written
+to the SiLK output file.  See also B<--log-destination>.
+
+=item B<--interface-values>={B<snmp> | B<vlan>}
+
+Specify which IPFIX fields should be stored in the C<input> and
+C<output> fields of the generated SiLK Flow records.  If this switch
+is not specified, the default is B<snmp>.  The choices are:
+
+=over 4
+
+=item I<snmp>
+
+Store the indexes of the network interface cards where the flows
+entered and left the router.  That is, store the C<ingressInterface>
+in C<input> and the C<egressInterface> in C<output>.
+
+=item I<vlan>
+
+Store the VLAN identifiers for the source and destination networks.
+That is, store C<vlanId> in C<input> and C<postVlanId> in C<output>.
+If only one VLAN ID is available, C<input> is set to that value and
+C<output> is set to 0.
+
+=back
+
+=item B<--log-destination>={B<none> | B<stdout> | B<stderr> | I<PATH>}
+
+Write more detailed information to the specified destination.  The
+default destination is B<none> which suppresses messages.  Use
+B<stdout> or B<stderr> to send messages to the standard output or
+standard error, respectively.  Any other value is treated as a file
+name in which to write the messages.  When an existing file is
+specified, B<rwipfix2silk> appends any messages to the file.
+Information that is written includes the following:
+
+=over 4
+
+=item *
+
+For each input stream, the number of forward and reverse IPFIX records
+read and number of records ignored.
+
+=item *
+
+Messages about invalid records.
+
+=item *
+
+When the SILK_IPFIX_PRINT_TEMPLATES environment variable is set to 1,
+the IPFIX templates that were read.
+
+=back
+
+=item B<--note-add>=I<TEXT>
+
+Add the specified I<TEXT> to the header of the output file as an
+annotation.  This switch may be repeated to add multiple annotations
+to a file.  To view the annotations, use the B<rwfileinfo(1)> tool.
+
+=item B<--note-file-add>=I<FILENAME>
+
+Open I<FILENAME> and add the contents of that file to the header of
+the output file as an annotation.    This switch may be repeated to
+add multiple annotations.  Currently the application makes no effort
+to ensure that I<FILENAME> contains text; be careful that you do not
+attempt to add a SiLK data file as an annotation.
+
+=item B<--compression-method>=I<COMP_METHOD>
+
+Specify how to compress the output.  When this switch is not given,
+output to the standard output or to named pipes is not compressed, and
+output to files is compressed using the default chosen when SiLK was
+compiled.  The valid values for I<COMP_METHOD> are determined by which
+external libraries were found when SiLK was compiled.  To see the
+available compression methods and the default method, use the
+B<--help> or B<--version> switch.  SiLK can support the following
+I<COMP_METHOD> values when the required libraries are available.
+
+=over 4
+
+=item none
+
+Do not compress the output using an external library.
+
+=item zlib
+
+Use the B<zlib(3)> library for compressing the output, and always
+compress the output regardless of the destination.  Using zlib
+produces the smallest output files at the cost of speed.
+
+=item lzo1x
+
+Use the I<lzo1x> algorithm from the LZO real time compression library
+for compression, and always compress the output regardless of the
+destination.  This compression provides good compression with less
+memory and CPU overhead.
+
+=item best
+
+Use lzo1x if available, otherwise use zlib.  Only compress the output
+when writing to a file.
+
+=back
+
+=item B<--xargs>
+
+=item B<--xargs>=I<FILENAME>
+
+Causes B<rwipfix2silk> to read file names from I<FILENAME> or from the
+standard input if I<FILENAME> is not provided.  The input should have
+one file name per line.  B<rwipfix2silk> will open each file in turn and
+read records from it, as if the files had been listed on the command
+line.
+
+=item B<--help>
+
+Print the available options and exit.
+
+=item B<--version>
+
+Print the version number and information about how SiLK was
+configured, then exit the application.
+
+=back
+
+=head1 EXAMPLES
+
+In the following examples, the dollar sign (C<$>) represents the shell
+prompt.  The text after the dollar sign represents the command line.
+Lines have been wrapped for improved readability, and the back slash
+(C<\>) is used to indicate a wrapped line.
+
+To convert a packet capture (B<pcap(3)>) file, F<packets.pcap>, such as
+that produced by B<tcpdump(1)>, to the SiLK format, use the
+B<yaf(1)> tool (see L<http://tools.netsa.cert.org/yaf/>) to convert
+the capture data to IPFIX and B<rwipfix2silk> to convert the IPFIX
+data to the SiLK format, storing the records in F<silk.rw>:
+
+ $ yaf --silk --in packets.pcap --out -             \
+   | rwipfix2silk --silk-output=silk.rw
+
+Note that you can produce the same result using the B<rwp2yaf2silk(1)>
+wrapper script:
+
+ $ rwp2yaf2silk --in packets.pcap --out silk.rw
+
+You can use B<rwsilk2ipfix(1)> to convert the SiLK file back to an
+IPFIX format, storing the result in F<ipfix.dat>:
+
+ $ rwsilk2ipfix --silk-output=silk.rw ipfix.dat
+
+If you want to create flow records that contain a single packet
+(similar to the output of B<rwptoflow(1)>), specify
+B<--idle-timeout=0> on the B<yaf> command line:
+
+ $ yaf --silk --in packets.pcap --out - --idle-timeout=0    \
+   | rwipfix2silk --silk-output=silk.rw
+
+To have B<yaf> decode VLAN identifiers for 802.1Q packets and to have
+B<rwipfix2silk> store the VLAN IDs in the C<input> and C<output>
+fields of the SiLK Flow records, use:
+
+ $ yaf --silk --in packets.pcap --out -                             \
+   | rwipfix2silk --silk-output=silk.rw --interface-values=vlan
+
+Note: B<yaf> releases prior to 1.3 would only export the VLAN
+identifiers when the B<--mac> switch was provided on the command line.
+
+=head1 ENVIRONMENT
+
+=over 4
+
+=item SILK_IPFIX_PRINT_TEMPLATES
+
+When set to 1, B<rwipfix2silk> writes messages to the log file
+describing each IPFIX template it reads.  (Use B<--log-destination> to
+change the destination from its default of B<none>.)   The first
+message includes the domain, the template identifier, the number of
+information elements in the template, and the name of this environment
+variable.  Next, a message is printed for each information element in
+the template where the message contains the domain id, the template
+id, and the element's position in the template, length in octets,
+numeric information element identifier, and name.  For elements
+defined by a private enterprise, the IE number has two parts: the
+private enterprise number and the information element number,
+separated by a slash (/).  (Requires libfixbuf 1.4.0 or later.)
+I<Since SiLK 3.8.2.>
+
+=item SILK_CLOBBER
+
+The SiLK tools normally refuse to overwrite existing files.  Setting
+SILK_CLOBBER to a non-empty value removes this restriction.
+
+=back
+
+=head1 SEE ALSO
+
+B<rwsilk2ipfix(1)>, B<rwfileinfo(1)>, B<rwp2yaf2silk(1)>,
+B<rwptoflow(1)>, B<silk(7)>, B<yaf(1)>, B<tcpdump(1)>, B<pcap(3)>,
+B<zlib(3)>
+
+=cut
+
+$SiLK: rwipfix2silk.pod cd09f0a5fcc6 2014-06-14 15:43:33Z mthomas $
+
+Local Variables:
+mode:text
+indent-tabs-mode:nil
+End:

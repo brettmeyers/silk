@@ -1,0 +1,467 @@
+=pod
+
+=head1 NAME
+
+B<rwdedupe> - Eliminate duplicate SiLK Flow records
+
+=head1 SYNOPSIS
+
+  rwdedupe [--ignore-fields=FIELDS] [--packets-delta=NUM]
+        [--bytes-delta=NUM] [--stime-delta=NUM] [--duration-delta=NUM]
+        [--temp-directory=DIR_PATH] [--buffer-size=SIZE]
+        [--note-add=TEXT] [--note-file-add=FILE]
+        [--compression-method=COMP_METHOD] [--print-filenames]
+        [--output-path=PATH] [--site-config-file=FILENAME]
+        {[--xargs] | [--xargs=FILENAME] | [FILE [FILE ...]]}
+
+  rwdedupe --help
+
+  rwdedupe --help-fields
+
+  rwdedupe --version
+
+=head1 DESCRIPTION
+
+B<rwdedupe> reads SiLK Flow records from one or more input sources.
+Records that appear in the input file(s) multiple times will only
+appear in the output stream once; that is, duplicate records are not
+written to the output.  The SiLK Flows are written to the file
+specified by the B<--output-path> switch or to the standard output
+when the B<--output-path> switch is not provided and the standard
+output is not connected to a terminal.
+
+B<Note:> As part of its processing, B<rwdedupe> re-orders the
+records before writing them.
+
+B<rwdedupe> reads SiLK Flow records from the files named on the
+command line or from the standard input when no file names are
+specified and B<--xargs> is not present.  To read the standard input
+in addition to the named files, use C<-> or C<stdin> as a file name.
+If an input file name ends in C<.gz>, the file will be uncompressed as
+it is read.  When the B<--xargs> switch is provided, B<rwdedupe> will
+read the names of the files to process from the named text file, or
+from the standard input if no file name argument is provided to the
+switch.  The input to B<--xargs> must contain one file name per line.
+
+By default, B<rwdedupe> will consider one record to be a duplicate of
+another when I<all> the fields in the records match exactly.  From
+another point on view, any difference in two records results in both
+records appearing in the output.  Note that I<all> means every field
+that exists on a SiLK Flow record.  The complete list of fields is
+specified in the description of B<--ignore-fields> in the L</OPTIONS>
+section below.
+
+To have B<rwdedupe> ignore fields in the comparison, specify those
+fields in the B<--ignore-fields> switch.  When
+B<--ignore-fields>=I<FIELDS> is specified, a record is considered a
+duplicate of another if all fields I<except> those in I<FIELDS> match
+exactly.  B<rwdedupe> will treat I<FIELDS> as being identical across
+all records.  Put another way, if the only difference between two
+records is in the I<FIELDS> fields, only one of those records will be
+written to the output.
+
+The B<--packets-delta>, B<--bytes-delta>, B<--stime-delta> and
+B<--duration-delta> switches allow for "fuzziness" in the input.  For
+example, if B<--stime-delta>=I<NUM> is specified and the only
+difference between two records is in the sTime fields, and the fields
+are within I<NUM> milliseconds of each other, only one record will be
+written to the output.
+
+During its processing, B<rwdedupe> will try to allocate a large (near
+2GB) in-memory array to hold the records.  (You may use the
+B<--buffer-size> switch to change this maximum buffer size.)  If more
+records are read than will fit into memory, the in-core records are
+temporarily stored on disk as described by the B<--temp-directory>
+switch.  When all records have been read, the on-disk files are merged
+to produce the output.
+
+By default, the temporary files are stored in the F</tmp> directory.
+Because of the sizes of the temporary files, it is strongly
+recommended that F</tmp> I<not> be used as the temporary directory,
+and B<rwdedupe> will print a warning when F</tmp> is used.  To modify
+the temporary directory used by B<rwdedupe>, provide the
+B<--temp-directory> switch, set the SILK_TMPDIR environment variable,
+or set the TMPDIR environment variable.
+
+=head1 OPTIONS
+
+Option names may be abbreviated if the abbreviation is unique or is an
+exact match for an option.  A parameter to an option may be specified
+as B<--arg>=I<param> or B<--arg> I<param>, though the first form is
+required for options that take optional parameters.
+
+=over 4
+
+=item B<--ignore-fields>=I<FIELDS>
+
+Ignore the fields listed in I<FIELDS> when determining if two flow
+records are identical; that is, treat I<FIELDS> as being identical
+across all flows.  By default, all fields are treated as significant.
+
+I<FIELDS> is a comma separated list of field-names, field-integers,
+and ranges of field-integers; a range is specified by separating the
+start and end of the range with a hyphen (B<->).  Field-names are
+case-insensitive.  Example:
+
+ --ignore-fields=stime,12-15
+
+The list of supported fields are:
+
+=over 4
+
+=item sIP,1
+
+source IP address
+
+=item dIP,2
+
+destination IP address
+
+=item sPort,3
+
+source port for TCP and UDP, or equivalent
+
+=item dPort,4
+
+destination port for TCP and UDP, or equivalent
+
+=item protocol,5
+
+IP protocol
+
+=item packets,pkts,6
+
+packet count
+
+=item bytes,7
+
+byte count
+
+=item flags,8
+
+bit-wise OR of TCP flags over all packets
+
+=item sTime,9
+
+starting time of flow (milliseconds resolution)
+
+=item duration,10
+
+duration of flow (milliseconds resolution)
+
+=item sensor,12
+
+name or ID of sensor at the collection point
+
+=item in,13
+
+router SNMP input interface or vlanId if packing tools were
+configured to capture it (see B<sensor.conf(5)>)
+
+=item out,14
+
+router SNMP output interface or postVlanId
+
+=item nhIP,15
+
+router next hop IP
+
+=item class,20,type,21
+
+class and type of sensor at the collection point (represented
+internally by a single value)
+
+=item initialFlags,26
+
+TCP flags on first packet in the flow
+
+=item sessionFlags,27
+
+bit-wise OR of TCP flags over all packets except the first in the flow
+
+=item attributes,28
+
+flow attributes set by flow generator
+
+=item application,29
+
+guess as to the content of the flow.  Some software that generates flow
+records from packet data, such as B<yaf(1)>, will inspect the contents
+of the packets that make up a flow and use traffic signatures to label
+the content of the flow.  SiLK calls this label the I<application>;
+B<yaf> refers to it as the I<appLabel>.  The application is the port
+number that is traditionally used for that type of traffic (see the
+F</etc/services> file on most UNIX systems).  For example, traffic
+that the flow generator recognizes as FTP will have a value of 21,
+even if that traffic is being routed through the standard HTTP/web
+S<port (80)>.
+
+=back
+
+=for comment
+##########################################################################
+# Whew!  We've finally reached the end of the --fields help
+
+=item B<--packets-delta>=I<NUM>
+
+Treat the packets field on two records as being the same if the values
+differ by I<NUM> packets or less.  If not specified, the default is 0.
+
+=item B<--bytes-delta>=I<NUM>
+
+Treat the bytes field on two records as being the same if the values
+differ by I<NUM> bytes or less.  If not specified, the default is 0.
+
+=item B<--stime-delta>=I<NUM>
+
+Treat the start-time field on two records as being the same if the
+values differ by I<NUM> milliseconds or less.  If not specified, the
+default is 0.
+
+=item B<--duration-delta>=I<NUM>
+
+Treat the duration field on two records as being the same if the
+values differ by I<NUM> milliseconds or less.  If not specified, the
+default is 0.
+
+=item B<--temp-directory>=I<DIR_PATH>
+
+Specify the name of the directory in which to store data files
+temporarily when more records have been read that will fit into RAM.
+This switch overrides the directory specified in the SILK_TMPDIR
+environment variable, which overrides the directory specified in the
+TMPDIR variable, which overrides the default, F</tmp>.
+
+=item B<--buffer-size>=I<SIZE>
+
+Set the maximum size of the buffer to use for holding the records, in
+bytes.  A larger buffer means fewer temporary files need to be
+created, reducing the I/O wait times.  The default maximum for this
+buffer is near 2GB.  The I<SIZE> may be given as an ordinary integer,
+or as a real number followed by a suffix C<K>, C<M> or C<G>, which
+represents the numerical value multiplied by 1,024 (kilo), 1,048,576
+(mega), and 1,073,741,824 (giga), respectively.  For example, 1.5K
+represents 1,536 bytes, or one and one-half kilobytes.  (This value
+does B<not> represent the absolute maximum amount of RAM that
+B<rwdedupe> will allocate, since additional buffers will be allocated
+for reading the input and writing the output.)
+
+=item B<--output-path>=I<PATH>
+
+Write the SiLK Flow records to the specified file or named pipe.  When
+the standard output is not a terminal and this switch is not provided
+or its argument is C<-> or C<stdout>, the records are written to the
+standard output.
+
+=item B<--note-add>=I<TEXT>
+
+Add the specified I<TEXT> to the header of the output file as an
+annotation.  This switch may be repeated to add multiple annotations
+to a file.  To view the annotations, use the B<rwfileinfo(1)> tool.
+
+=item B<--note-file-add>=I<FILENAME>
+
+Open I<FILENAME> and add the contents of that file to the header of
+the output file as an annotation.    This switch may be repeated to
+add multiple annotations.  Currently the application makes no effort
+to ensure that I<FILENAME> contains text; be careful that you do not
+attempt to add a SiLK data file as an annotation.
+
+=item B<--compression-method>=I<COMP_METHOD>
+
+Specify how to compress the output.  When this switch is not given,
+output to the standard output or to named pipes is not compressed, and
+output to files is compressed using the default chosen when SiLK was
+compiled.  The valid values for I<COMP_METHOD> are determined by which
+external libraries were found when SiLK was compiled.  To see the
+available compression methods and the default method, use the
+B<--help> or B<--version> switch.  SiLK can support the following
+I<COMP_METHOD> values when the required libraries are available.
+
+=over 4
+
+=item none
+
+Do not compress the output using an external library.
+
+=item zlib
+
+Use the B<zlib(3)> library for compressing the output, and always
+compress the output regardless of the destination.  Using zlib
+produces the smallest output files at the cost of speed.
+
+=item lzo1x
+
+Use the I<lzo1x> algorithm from the LZO real time compression library
+for compression, and always compress the output regardless of the
+destination.  This compression provides good compression with less
+memory and CPU overhead.
+
+=item best
+
+Use lzo1x if available, otherwise use zlib.  Only compress the output
+when writing to a file.
+
+=back
+
+=item B<--print-filenames>
+
+Print to the standard error the names of input files as they are
+opened.
+
+=item B<--site-config-file>=I<FILENAME>
+
+Read the SiLK site configuration from the named file I<FILENAME>.
+When this switch is not provided, B<rwdedupe> searches for the site
+configuration file in the locations specified in the L</FILES>
+section.
+
+=item B<--xargs>
+
+=item B<--xargs>=I<FILENAME>
+
+Causes B<rwdedupe> to read file names from I<FILENAME> or from the
+standard input if I<FILENAME> is not provided.  The input should have
+one file name per line.  B<rwdedupe> will open each file in turn and
+read records from it, as if the files had been listed on the command
+line.
+
+=item B<--help>
+
+Print the available options and exit.
+
+=item B<--help-fields>
+
+Print the description and alias(es) of each field and exit.
+
+=item B<--version>
+
+Print the version number and information about how SiLK was
+configured, then exit the application.
+
+=back
+
+=head1 LIMITATIONS
+
+When the temporary files and the final output are stored on the same
+file volume, B<rwdedupe> will require approximately twice as much free
+disk space as the size of input data.
+
+When the temporary files and the final output are on different
+volumes, B<rwdedupe> will require between 1 and 1.5 times as much free
+space on the temporary volume as the size of the input data.
+
+=head1 EXAMPLE
+
+In the following examples, the dollar sign (C<$>) represents the shell
+prompt.  The text after the dollar sign represents the command line.
+
+=for comment
+Lines have been wrapped for improved readability, and the back slash
+(C<\>) is used to indicate a wrapped line.
+
+Suppose you have made several B<rwfilter(1)> runs to find interesting
+traffic:
+
+ $ rwfilter --start-date=2008/02/04 ... --pass=data1.rw
+ $ rwfilter --start-date=2008/02/04 ... --pass=data2.rw
+ $ rwfilter --start-date=2008/02/04 ... --pass=data3.rw
+ $ rwfilter --start-date=2008/02/04 ... --pass=data4.rw
+
+You now want to merge that traffic into a single output file, but you
+want to ensure that any records appearing in multiple output files are
+only counted once.  You can use B<rwdedupe> to merge the output files
+to a single file, F<data.rw>:
+
+ $ rwdedupe data1.rw data2.rw data3.rw data4.rw --output=data.rw
+
+
+=head1 ENVIRONMENT
+
+=over 4
+
+=item SILK_TMPDIR
+
+When set and B<--temp-directory> is not specified, B<rwdedupe> writes
+the temporary files it creates to this directory.  SILK_TMPDIR
+overrides the value of TMPDIR.
+
+=item TMPDIR
+
+When set and SILK_TMPDIR is not set, B<rwdedupe> writes the temporary
+files it creates to this directory.
+
+=item SILK_CLOBBER
+
+The SiLK tools normally refuse to overwrite existing files.  Setting
+SILK_CLOBBER to a non-empty value removes this restriction.
+
+=item SILK_CONFIG_FILE
+
+This environment variable is used as the value for the
+B<--site-config-file> when that switch is not provided.
+
+=item SILK_DATA_ROOTDIR
+
+This environment variable specifies the root directory of data
+repository.  As described in the L</FILES> section, B<rwdedupe> may
+use this environment variable when searching for the SiLK site
+configuration file.
+
+=item SILK_PATH
+
+This environment variable gives the root of the install tree.  When
+searching for configuration files, B<rwdedupe> may use this
+environment variable.  See the L</FILES> section for details.
+
+=item SILK_TEMPFILE_DEBUG
+
+When set to 1, B<rwdedupe> prints debugging messages to the standard
+error as it creates, re-opens, and removes temporary files.
+
+=back
+
+=head1 FILES
+
+=over 4
+
+=item F<${SILK_CONFIG_FILE}>
+
+=item F<${SILK_DATA_ROOTDIR}/silk.conf>
+
+=item F<@SILK_DATA_ROOTDIR@/silk.conf>
+
+=item F<${SILK_PATH}/share/silk/silk.conf>
+
+=item F<${SILK_PATH}/share/silk.conf>
+
+=item F<@prefix@/share/silk/silk.conf>
+
+=item F<@prefix@/share/silk.conf>
+
+Possible locations for the SiLK site configuration file which are
+checked when the B<--site-config-file> switch is not provided.
+
+=item F<${SILK_TMPDIR}/>
+
+=item F<${TMPDIR}/>
+
+=item F</tmp/>
+
+Directory in which to create temporary files.
+
+=back
+
+=head1 SEE ALSO
+
+B<rwfilter(1)>, B<rwfileinfo(1)>, B<sensor.conf(5)>, B<silk(7)>,
+B<yaf(1)>, B<zlib(3)>
+
+=cut
+
+$SiLK: rwdedupe.pod 3ae34ffdfac2 2014-09-19 21:18:06Z mthomas $
+
+Local Variables:
+mode:text
+indent-tabs-mode:nil
+End:

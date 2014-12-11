@@ -1,0 +1,263 @@
+### RWSender configuration file  -*- sh -*-
+##
+## The canonical pathname for this file is
+## @sysconfdir@/@myprog@.conf
+##
+## RCSIDENT("$SiLK: rwsender.conf.in 7f4317c4a2a1 2014-05-22 21:38:41Z mthomas $")
+##
+## This is a /bin/sh file that gets loaded by the init.d/@myprog@
+## wrapper script, and this file must follow /bin/sh syntax rules.
+
+# Set to non-empty value to enable rwsender
+ENABLED=
+
+# These are convenience variables for setting other values in this
+# configuration file; their use is not required.
+statedirectory=@localstatedir@/lib/rwsender
+
+# If CREATE_DIRECTORIES is set to "yes", the directories named in this
+# file will be created automatically if they do not already exist
+CREATE_DIRECTORIES=no
+
+# Full path of the directory containing the "@myprog@" program
+BIN_DIR=@sbindir@
+
+# The full path of the directory where incoming files will be placed.
+INCOMING_DIR=${statedirectory}/incoming
+
+# The full path of the directory where files will be placed for processing.
+PROCESSING_DIR=${statedirectory}/processing
+
+# The full path of the directory where rejected files will be placed.
+ERROR_DIR=${statedirectory}/error
+
+# The mode in which the sender will run.  Valid values are "server"
+# and "client".
+MODE=server
+
+# The name of this sender instance
+IDENTIFIER=sender-1
+
+# The PORT or HOST:PORT pair upon which the server listens for
+# incoming connections.  This is only required when running in server
+# mode.  If HOST is not provided, the server listens on any address.
+# HOST may be a name or an IP address. If HOST is an IPv6 address,
+# enclose it in square brackets, and enclose the entire value in
+# single quotes to prevent interpretation by the shell.
+#PORT=10000
+#PORT='machine.test.org:9999'
+#PORT='192.168.100.10:9998'
+#PORT='[2001:db8:c0:a8::64:a]:9997'
+PORT=
+
+# Only one of RECEIVER_SERVERS or RECEIVER_CLIENTS needs to be
+# specified.
+#
+# These variables specify the receiver(s) to which the sender will
+# send its files.  These variables are multi-line values, where each
+# line has the value for one rwreceiver.  The variable to specify and
+# its syntax depends on whether rwsender is running in client or
+# server mode (see the MODE variable above).
+#
+# If the sender is in client mode, then RECEIVER_SERVERS must be
+# specified.  The lines can have either of the following formats:
+#     <identifier>  <host>:<port>  <file-regexp>
+#     <identifier>  <host>:<port>
+#
+# If the sender is in server mode, then RECEIVER_CLIENTS must be
+# specified.  The lines can have either of the following formats:
+#     <identifier>  <file-regexp>
+#     <identifier>
+#
+# The <identifier> is the string identifier that was specified when
+# the rwreceiver process was started (that is, its --ident value).
+#
+# When rwsender is in client mode, set RECEIVER_SERVERS to tell
+# rwsender how to connect to each rwreceiver server.  The <host> is
+# the name or IP address of the machine where rwreceiver is listening,
+# and <port> is its port.  When <host> is an IPv6 address,
+# enclose it in brackets.
+#
+# The <file-regexp> is optional.  It specifies that only file names
+# matching the given regular expression will be sent to that receiver.
+# See the --filter switch in the rwsender(8) man page for details on
+# how it is used.  The regular expressions are POSIX 1003.2 "modern"
+# or "extended" regular expressions, roughly akin to those used by
+# egrep.  Documentation might be found in the regex(7) or re_format(7)
+# man pages on your system.
+#
+# The items on each line must be separated by one or more space and/or
+# tab characters.  Leading and trailing whitespace on each line is
+# ignored.  Whitespace within the <file-regexp> is significant, and
+# will be considered part of the regular expression.
+#
+# In the following templates, the line(s) for your receivers must be
+# inserted between the line beginning:
+#     RECEIVER_SERVERS=`cat <<'END_RECEIVERS'
+# (or similarly for RECEIVER_CLIENTS) and the line beginning:
+#     END_RECEIVERS
+# Do not modify these lines or the backquote on the following line.
+#
+# When using "MODE=client" above, specify the rwreceiver servers to
+# connect to:
+RECEIVER_SERVERS=`cat <<'END_RECEIVERS' # Do not modify this line
+    receiver-1  machine.test.org:9999
+    receiver-2  192.168.100.10:9998     ^[^_]*_netflow_
+    receiver-3  [2001:db8:c0:a8::64:a]:9997
+END_RECEIVERS
+` #Do not modify this line or the previous line
+
+# When using "MODE=server" above, specify the rwreceiver clients that
+# will be connecting to this sender:
+RECEIVER_CLIENTS=`cat <<'END_RECEIVERS' # Do not modify this line
+    receiver-1
+    receiver-2                          ^[^_]*_netflow_
+    receiver-3
+END_RECEIVERS
+` #Do not modify this line or the previous line
+
+# File priorities
+#
+# Files can be prioritized such that some files are always sent before
+# other files.  Files are chosen by regular expression, and are
+# assigned a priority from 0 to 100.
+#
+# The priorities are a list of lines, with each line describing a
+# single priority.  The lines follow the following format:
+#     <priority>  <file-regexp>
+#
+# <priority> is an integer from 0 to 100 (inclusive).  The first
+# regular expression a file matches will get the matching priority.
+#
+# Regular expressions follow the same format as those in RECEIVERS
+# above.
+#
+# The items on each line must be separated by one or more space and/or
+# tab characters.  Leading and trailing whitespace on each line is
+# ignored.  Whitespace within the <file-regexp> is significant, and
+# will be considered part of the regular expression.
+#
+# For information on how rwsender uses priority levels, see the
+# rwsender(8) man page.
+#
+# No priorities are necessary.
+#
+# In this template, the line should be inserted between the line
+# beginning: PRIORITIES=`cat <<'END_PRIORITIES'
+# and the line beginning: END_PRIORITIES
+# Do not modify these lines or the backquote on the following line.
+#
+PRIORITIES=`cat <<'END_PRIORITIES' # Do not modify this line
+    100  ^S[0-3]_
+     25  ^S[7-9]_
+END_PRIORITIES
+` #Do not modify this line or the previous line
+
+# Local directories
+#
+# rwsender may copy its incoming files to directories on the local
+# machine.  To enable this, specify each directory on its own line in
+# one of the following formats:
+#     <local-dir> <file-regexp>
+#     <local-dir>
+#
+# <local-dir> is the complete path of a directory.  The name may not
+# contain any variable names---for example, do NOT use $statedirectory
+# here.  At present, <local-dir> must not contain whitespace.
+#
+# The <file-regexp> is optional.  It specifies that only file names
+# matching the given regular expression will be copied into that local
+# directory.  Regular expressions follow the same format as those in
+# RECEIVERS above.  If using a <file-regexp>, see also the description
+# of LOCAL_IDENT below.
+#
+# The items on each line must be separated by one or more space and/or
+# tab characters.  Leading and trailing whitespace on each line is
+# ignored.  Whitespace within the <file-regexp> is significant, and
+# will be considered part of the regular expression.  <local-dir> may
+# not contain any whitespace characters.
+#
+# No local directories are necessary.
+#
+# In this template, the line should be inserted between the line
+# beginning: LOCAL_DIRS=`cat <<'END_LOCAL_DIRS'
+# and the line beginning: END_LOCAL_DIRS
+# Do not modify these lines or the backquote on the following line.
+#
+LOCAL_DIRS=`cat <<'END_LOCAL_DIRS' # Do not modify this line
+    /var/rwsender/local-dir1
+    /var/rwsender/local-dir2   ^S[7-9]_
+END_LOCAL_DIRS
+` #Do not modify this line or the previous line
+
+# When copying files to a local directory and using the <file-regexp>
+# feature, an identifier will automatically be generated for that
+# directory/regular-expression pair.  The identifier is created by
+# appending an increasing integer value to the following string.  Make
+# certain this identifier does not conflict with those in the
+# RECEIVERS variables above.
+#
+LOCAL_IDENT=auto-ident
+
+# When copying files to a local directory, by default rwsender creates
+# the files as hard links (if possible) to each other and to files in
+# the processing directory.  However, if some process
+# modifies-in-place a copy in a local-directoy that will affect all
+# files.  To force rwsender to create a complete copy, change
+# LOCAL_COPIES from "link" to "copy".
+#
+LOCAL_COPIES=link
+
+
+# Interval between attempts to check the INCOMING_DIR for new files,
+# in seconds.  This may be left blank, and will default to 15.
+POLLING_INTERVAL=
+
+
+###
+
+# When using the optional GnuTLS support (which must be compiled into
+# rwsender), the full path the CA file (TLS_CA) must be specified,
+# as well as either the full path to the program-specific PKCS#12 file
+# (TLS_PKCS12) or the full paths to the program-specific certificate
+# (TLS_CERT) and key (TLS_KEY) files.
+#
+# If the PKCS#12 file is password protected, you must set the
+# RWSENDER_TLS_PASSWORD environment variable to the password prior
+# to starting rwsender.
+
+# The full path to the root CA file, PEM encoded
+TLS_CA=
+
+# The full path to the program specific PKCS#12 file, DER encoded
+TLS_PKCS12=
+
+# The full path to the program specific key file, PEM encoded
+TLS_KEY=
+
+# The full path to the program specific certificate file, PEM encoded
+TLS_CERT=
+
+###
+
+# The type of logging to use.  Valid values are "legacy" and "syslog".
+LOG_TYPE=syslog
+
+# The lowest level of logging to actually log.  Valid values are:
+# emerg, alert, crit, err, warning, notice, info, debug
+LOG_LEVEL=info
+
+# The full path of the directory where the log files will be written
+# when LOG_TYPE is "legacy".
+LOG_DIR=${statedirectory}/log
+
+# The full path of the directory where the PID file will be written
+PID_DIR=${LOG_DIR}
+
+# The user this program runs as; root permission is required only when
+# rwsender listens on a privileged port.
+USER=root
+#USER=`whoami`  # run as user invoking the script
+
+# Extra options to pass to rwsender
+EXTRA_OPTIONS=

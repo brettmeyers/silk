@@ -1,0 +1,123 @@
+=pod
+
+=head1 NAME
+
+B<rwpcut> - Outputs a tcpdump dump file as ASCII
+
+=head1 SYNOPSIS
+
+  rwpcut [--columnar]
+         [--delimiter=DELIMITER]
+         [--epoch-time]
+         [--fields=PRINT_FIELDS]
+         [--integer-ips]
+         [--zero-pad-ips]
+         FILE...
+
+=head1 DESCRIPTION
+
+B<rwpcut> outputs tcpdump files in an easy to parse way.  It
+supports a user-defined list of fields to output and a
+user-defined delimiter between columns.
+
+=head1 OPTIONS
+
+Option names may be abbreviated if the abbreviation is unique or
+is an exact match for an option.
+
+OUTPUT SWITCHES
+
+=over 4
+
+=item B<--columnar>
+
+Pad each field with whitespace so that it always takes up
+the same number of columns.  The two payload printing
+fields, payhex and payascii, never pad with whitespace.
+
+=item B<--delimiter>=I<DELIMITER>
+
+DELIMITER is used as the delimiter between columns instead
+of the default '|'.
+
+=item B<--epoch-time>
+
+Display the timestamp as epoch time seconds instead of a
+formatted timestamp.
+
+=item B<--fields>=I<PRINT_FIELDS>
+
+PRINT_FIELDS is a comma-separated list of fields to
+include in the output.  The available fields are:
+
+timestamp - packet timestamp
+sip       - source IP address.
+dip       - destination IP address
+sport     - source port
+dport     - destination port
+proto     - IP protocol
+payhex    - Payload printed as a hex stream
+payascii  - Payload printed as an ascii stream.
+Non-printing characters are represented
+with periods.
+
+=item B<--integer-ips>
+
+Display IP addresses as integers instead of in dotted quad
+notation.
+
+=item B<--zero-pad-ips>
+
+Pad dotted quad notation IP addresses so that each quad
+occupies three columns.
+
+=back
+
+=head1 EXAMPLES
+
+In the following examples, the dollar sign (C<$>) represents the shell
+prompt.  The text after the dollar sign represents the command line.
+
+=for comment
+Lines have been wrapped for improved readability, and the back slash
+(C<\>) is used to indicate a wrapped line.
+
+ $ rwpcut --fields=sip,dip,sport,dport,proto --columnar data.dmp
+
+                sip|            dip|sport|dport|proto|
+    220.245.221.126|  192.168.1.100|21776| 6882|    6|
+    220.245.221.126|  192.168.1.100|21776| 6882|    6|
+
+
+ $ rwpcut --fields=timestamp,payhex data.dmp
+
+(Carriage returns mid-payload added for legibility)
+
+    timestamp|payhex|
+    2005-04-20 04:28:59.091470|4500003cd85840003206f3e2dcf5dd7
+    ec0a8016455101ae2811b6bce00000000a002ffff59990000020405ac0
+    10303000101080a524dc5cc00000000|
+    2005-04-20 04:29:02.057390|4500003cd88c40003206f3aedcf5dd7
+    ec0a8016455101ae2811b6bce00000000a002ffff59930000020405ac0
+    10303000101080a524dc5d200000000|
+
+=head1 SEE ALSO
+
+B<rwptoflow(1)>, B<silk(7)>
+
+=head1 BUGS
+
+Note that payhex and payascii do not whitespace pad themselves
+if B<--columnar> is used.
+
+The payascii field does not escape the delimiter character in
+any way, so care should be taken when parsing it.
+
+=cut
+
+$SiLK: rwpcut.pod cd09f0a5fcc6 2014-06-14 15:43:33Z mthomas $
+
+Local Variables:
+mode:text
+indent-tabs-mode:nil
+End:

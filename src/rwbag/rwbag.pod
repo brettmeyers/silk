@@ -1,0 +1,414 @@
+=pod
+
+=head1 NAME
+
+B<rwbag> - Build a binary Bag from SiLK Flow records.
+
+=head1 SYNOPSIS
+
+  rwbag [--sip-flows=OUTPUTFILE] [--dip-flows=OUTPUTFILE]
+        [--sport-flows=OUTPUTFILE] [--dport-flows=OUTPUTFILE]
+        [--proto-flows=OUTPUTFILE] [--sensor-flows=OUTPUTFILE]
+        [--input-flows=OUTPUTFILE] [--output-flows=OUTPUTFILE]
+        [--nhip-flows=OUTPUTFILE]
+        [--sip-packets=OUTPUTFILE] [--dip-packets=OUTPUTFILE]
+        [--sport-packets=OUTPUTFILE] [--dport-packets=OUTPUTFILE]
+        [--proto-packets=OUTPUTFILE] [--sensor-packets=OUTPUTFILE]
+        [--input-packets=OUTPUTFILE] [--output-packets=OUTPUTFILE]
+        [--nhip-packets=OUTPUTFILE]
+        [--sip-bytes=OUTPUTFILE] [--dip-bytes=OUTPUTFILE]
+        [--sport-bytes=OUTPUTFILE] [--dport-bytes=OUTPUTFILE]
+        [--proto-bytes=OUTPUTFILE] [--sensor-bytes=OUTPUTFILE]
+        [--input-bytes=OUTPUTFILE] [--output-bytes=OUTPUTFILE]
+        [--nhip-bytes=OUTPUTFILE]
+        [--note-add=TEXT] [--note-file-add=FILE]
+        [--print-filenames] [--copy-input=PATH]
+        [--compression-method=COMP_METHOD]
+        [--ipv6-policy={ignore,asv4,mix,force,only}]
+        [--site-config-file=FILENAME]
+        {[--xargs] | [--xargs=FILENAME] | [FILE [FILE ...]]}
+
+  rwbag --help
+
+  rwbag --version
+
+=head1 DESCRIPTION
+
+B<rwbag> reads SiLK Flow records and builds a Bag.  Source IP address,
+destination IP address, next hop IP address, source port, destination
+port, protocol, input interface index, output interface index, or
+sensor ID may be used as the unique key by which to count volumes.
+Flows, packets, or bytes may be used as the counter.
+
+B<rwbag> reads SiLK Flow records from the files named on the command
+line or from the standard input when no file names are specified and
+B<--xargs> is not present.  To read the standard input in addition to
+the named files, use C<-> or C<stdin> as a file name.  If an input
+file name ends in C<.gz>, the file will be uncompressed as it is read.
+When the B<--xargs> switch is provided, B<rwbag> will read the names
+of the files to process from the named text file, or from the standard
+input if no file name argument is provided to the switch.  The input
+to B<--xargs> must contain one file name per line.
+
+If adding a value to a key would cause the value to overflow the
+maximum value that Bags support, the key's value will be set to the
+maximum and processing will continue.  In addition, if this is the
+first value to overflow in this Bag, a warning will be printed to the
+standard error.
+
+If B<rwbag> runs out of memory, it will exit immediately.  The output
+Bag files will remain behind, each with a size of 0 bytes.
+
+Use B<rwbagcat(1)> to see the contents of a bag.  To create a bag from
+textual input or from an IPset, use B<rwbagbuild(1)>.  B<rwbagtool(1)>
+allows you to manipulate binary bag files.
+
+=head1 OPTIONS
+
+Option names may be abbreviated if the abbreviation is unique or is an
+exact match for an option.  A parameter to an option may be specified
+as B<--arg>=I<param> or S<B<--arg> I<param>>, though the first form is
+required for options that take optional parameters.
+
+At least one of the following output flags must be defined.  For each,
+I<OUTPUTFILE> is the name of a non-existent file, a named pipe, or the
+keyword C<stdout> to write the binary Bag to the standard output.
+Only one switch may use the standard output as its output stream.
+
+=over 4
+
+=item B<--sip-flows>=I<OUTPUTFILE>
+
+Count number of flows by unique source IP.
+
+=item B<--sip-packets>=I<OUTPUTFILE>
+
+Count number of packets by unique source IP.
+
+=item B<--sip-bytes>=I<OUTPUTFILE>
+
+Count number of bytes by unique source IP.
+
+=item B<--dip-flows>=I<OUTPUTFILE>
+
+Count number of flows by unique destination IP.
+
+=item B<--dip-packets>=I<OUTPUTFILE>
+
+Count number of packets by unique destination IP.
+
+=item B<--dip-bytes>=I<OUTPUTFILE>
+
+Count number of bytes by unique destination IP.
+
+=item B<--sport-flows>=I<OUTPUTFILE>
+
+Count number of flows by unique source port.
+
+=item B<--sport-packets>=I<OUTPUTFILE>
+
+Count number of packets by unique source port.
+
+=item B<--sport-bytes>=I<OUTPUTFILE>
+
+Count number of bytes by unique source port.
+
+=item B<--dport-flows>=I<OUTPUTFILE>
+
+Count number of flows by unique destination port.
+
+=item B<--dport-packets>=I<OUTPUTFILE>
+
+Count number of packets by unique destination port.
+
+=item B<--dport-bytes>=I<OUTPUTFILE>
+
+Count number of bytes by unique destination port.
+
+=item B<--proto-flows>=I<OUTPUTFILE>
+
+Count number of flows by unique protocol.
+
+=item B<--proto-packets>=I<OUTPUTFILE>
+
+Count number of packets by unique protocol.
+
+=item B<--proto-bytes>=I<OUTPUTFILE>
+
+Count number of bytes by unique protocol.
+
+=item B<--sensor-flows>=I<OUTPUTFILE>
+
+Count number of flows by unique sensor ID.
+
+=item B<--sensor-packets>=I<OUTPUTFILE>
+
+Count number of packets by unique sensor ID.
+
+=item B<--sensor-bytes>=I<OUTPUTFILE>
+
+Count number of bytes by unique sensor ID.
+
+=item B<--input-flows>=I<OUTPUTFILE>
+
+Count number of flows by unique input interface index.
+
+=item B<--input-packets>=I<OUTPUTFILE>
+
+Count number of packets by unique input interface index.
+
+=item B<--input-bytes>=I<OUTPUTFILE>
+
+Count number of bytes by unique input interface index.
+
+=item B<--output-flows>=I<OUTPUTFILE>
+
+Count number of flows by unique output interface index.
+
+=item B<--output-packets>=I<OUTPUTFILE>
+
+Count number of packets by unique output interface index.
+
+=item B<--output-bytes>=I<OUTPUTFILE>
+
+Count number of bytes by unique output interface index.
+
+=item B<--nhip-flows>=I<OUTPUTFILE>
+
+Count number of flows by unique next hop IP.
+
+=item B<--nhip-packets>=I<OUTPUTFILE>
+
+Count number of packets by unique next hop IP.
+
+=item B<--nhip-bytes>=I<OUTPUTFILE>
+
+Count number of bytes by unique next hop IP.
+
+=item B<--note-add>=I<TEXT>
+
+Add the specified I<TEXT> to the header of every output file as an
+annotation.  This switch may be repeated to add multiple annotations
+to a file.  To view the annotations, use the B<rwfileinfo(1)> tool.
+
+=item B<--note-file-add>=I<FILENAME>
+
+Open I<FILENAME> and add the contents of that file to the header of
+every output file as an annotation.  This switch may be repeated to
+add multiple annotations.  Currently the application makes no effort
+to ensure that I<FILENAME> contains text; be careful that you do not
+attempt to add a SiLK data file as an annotation.
+
+=item B<--print-filenames>
+
+Prints to the standard error the names of input files as they are
+opened.
+
+=item B<--copy-input>=I<PATH>
+
+Copy all binary input to the specified file or named pipe.  I<PATH>
+can be C<stdout> to print flows to the standard output as long as the
+B<--output-path> switch has been used to redirect B<rwbag>'s ASCII
+output.
+
+=item B<--ipv6-policy>=I<POLICY>
+
+Determine how IPv4 and IPv6 flows are handled when SiLK has been
+compiled with IPv6 support.  When the switch is not provided, the
+SILK_IPV6_POLICY environment variable is checked for a policy.  If it
+is also unset or contains an invalid policy, the I<POLICY> is
+B<mix>.  When SiLK has not been compiled with IPv6 support, IPv6
+flows are always ignored, regardless of the value passed to this
+switch or in the SILK_IPV6_POLICY variable.  The supported values for
+I<POLICY> are:
+
+=over
+
+=item ignore
+
+Ignore any flow record marked as IPv6, regardless of the IP addresses
+it contains.  Only IP addresses contained in IPv4 flow records will be
+added to the bag(s).
+
+=item asv4
+
+Convert IPv6 flow records that contain addresses in the ::ffff:0:0/96
+prefix to IPv4 and ignore all other IPv6 flow records.
+
+=item mix
+
+Process the input as a mixture of IPv4 and IPv6 flow records.  When
+creating a bag whose key is an IP address and the input contains IPv6
+addresses outside of the ::ffff:0:0/96 prefix, this policy is
+equivalent to B<force>; otherwise it is equivalent to B<asv4>.
+
+=item force
+
+Convert IPv4 flow records to IPv6, mapping the IPv4 addresses into the
+::ffff:0:0/96 prefix.
+
+=item only
+
+Process only flow records that are marked as IPv6.  Only IP addresses
+contained in IPv6 flow records will be added to the bag(s).
+
+=back
+
+Regardless of the IPv6 policy, when all IPv6 addresses in the bag are
+in the ::ffff:0:0/96 prefix, B<rwbag> treats them as IPv4 addresses
+and writes an IPv4 bag.  When any other IPv6 addresses are present in
+the bag, the IPv4 addresses in the bag are mapped into the
+::ffff:0:0/96 prefix and B<rwbag> writes an IPv6 bag.
+
+=item B<--compression-method>=I<COMP_METHOD>
+
+Specify how to compress the output.  When this switch is not given,
+output to the standard output or to named pipes is not compressed, and
+output to files is compressed using the default chosen when SiLK was
+compiled.  The valid values for I<COMP_METHOD> are determined by which
+external libraries were found when SiLK was compiled.  To see the
+available compression methods and the default method, use the
+B<--help> or B<--version> switch.  SiLK can support the following
+I<COMP_METHOD> values when the required libraries are available.
+
+=over 4
+
+=item none
+
+Do not compress the output using an external library.
+
+=item zlib
+
+Use the B<zlib(3)> library for compressing the output, and always
+compress the output regardless of the destination.  Using zlib
+produces the smallest output files at the cost of speed.
+
+=item lzo1x
+
+Use the I<lzo1x> algorithm from the LZO real time compression library
+for compression, and always compress the output regardless of the
+destination.  This compression provides good compression with less
+memory and CPU overhead.
+
+=item best
+
+Use lzo1x if available, otherwise use zlib.  Only compress the output
+when writing to a file.
+
+=back
+
+=item B<--site-config-file>=I<FILENAME>
+
+Read the SiLK site configuration from the named file I<FILENAME>.
+When this switch is not provided, B<rwbag> searches for the site
+configuration file in the locations specified in the L</FILES>
+section.
+
+=item B<--xargs>
+
+=item B<--xargs>=I<FILENAME>
+
+Causes B<rwbag> to read file names from I<FILENAME> or from the
+standard input if I<FILENAME> is not provided.  The input should have
+one file name per line.  B<rwbag> will open each file in turn and read
+records from it, as if the files had been listed on the command line.
+
+=item B<--help>
+
+Print the available options and exit.
+
+=item B<--version>
+
+Print the version number and information about how SiLK was
+configured, then exit the application.
+
+=back
+
+=head1 EXAMPLES
+
+In the following examples, the dollar sign (C<$>) represents the shell
+prompt.  The text after the dollar sign represents the command line.
+Lines have been wrapped for improved readability, and the back slash
+(C<\>) is used to indicate a wrapped line.
+
+To build both source IP and destination IP Bags of flows:
+
+ $ rwfilter ... --pass=stdout                   \
+   | rwbag --sip-flow=sf.bag --dip-flow=df.bag
+
+To build a Bag containing the number of bytes seen for each /16 prefix
+length of source addresses, use the B<rwnetmask(1)> tool prior to
+feeding the input to B<rwbag>:
+
+ $ rwfilter ... --pass=stdout      \
+   | rwnetmask --4sip-prefix=16    \
+   | rwbag --sip-bytes=sf16.bag
+
+(To print the IP addresses of an existing Bag into /16 prefixes, use
+the B<--network-structure> switch of B<rwbagcat(1)>.)
+
+=head1 ENVIRONMENT
+
+=over 4
+
+=item SILK_CLOBBER
+
+The SiLK tools normally refuse to overwrite existing files.  Setting
+SILK_CLOBBER to a non-empty value removes this restriction.
+
+=item SILK_CONFIG_FILE
+
+This environment variable is used as the value for the
+B<--site-config-file> when that switch is not provided.
+
+=item SILK_DATA_ROOTDIR
+
+This environment variable specifies the root directory of data
+repository.  As described in the L</FILES> section, B<rwbag> may
+use this environment variable when searching for the SiLK site
+configuration file.
+
+=item SILK_PATH
+
+This environment variable gives the root of the install tree.  When
+searching for configuration files, B<rwbag> may use this environment
+variable.  See the L</FILES> section for details.
+
+=back
+
+=head1 FILES
+
+=over 4
+
+=item F<${SILK_CONFIG_FILE}>
+
+=item F<${SILK_DATA_ROOTDIR}/silk.conf>
+
+=item F<@SILK_DATA_ROOTDIR@/silk.conf>
+
+=item F<${SILK_PATH}/share/silk/silk.conf>
+
+=item F<${SILK_PATH}/share/silk.conf>
+
+=item F<@prefix@/share/silk/silk.conf>
+
+=item F<@prefix@/share/silk.conf>
+
+Possible locations for the SiLK site configuration file which are
+checked when the B<--site-config-file> switch is not provided.
+
+=back
+
+=head1 SEE ALSO
+
+B<rwbagbuild(1)>, B<rwbagcat(1)>, B<rwbagtool(1)>, B<rwfileinfo(1)>,
+B<rwfilter(1)>, B<rwnetmask(1)>, B<silk(7)>, B<zlib(3)>
+
+=cut
+
+$SiLK: rwbag.pod cd09f0a5fcc6 2014-06-14 15:43:33Z mthomas $
+
+Local Variables:
+mode:text
+indent-tabs-mode:nil
+End:

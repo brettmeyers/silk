@@ -1,0 +1,421 @@
+=pod
+
+=head1 NAME
+
+B<rwsender> - Watch directory for files and transfer them to rwreceiver(s)
+
+=head1 SYNOPSIS
+
+  rwsender --mode=server --server-port=[HOST:]PORT
+        --client-ident=IDENT [--client-ident=IDENT ...]
+        --identifier=IDENT --incoming-directory=DIR
+        [ --tls-ca=PEM_FILE
+          { { --tls-cert=PEM_FILE --tls-key=PEM_FILE }
+            | --tls-pkcs12=DER_FILE } ]
+        --processing-directory=DIR --error-directory=DIR
+        [--local-directory=[[IDENT]:]DIR
+          [--local-directory=[[IDENT]:]DIR ...]]
+        [--unique-local-copies]
+        [--filter=IDENT:REGEXP] [--priority=NUM:REGEXP]
+        [--polling-interval=NUM] [--block-size=NUM]
+        { --log-destination=DESTINATION
+          | --log-pathname=FILE_PATH
+          | --log-directory=DIR_PATH [--log-basename=LOG_BASENAME]
+            [--log-post-rotate=COMMAND] }
+        [--log-level=LEVEL] [--log-sysfacility=NUMBER]
+        [--pidfile=FILE_PATH] [--no-chdir] [--no-daemon]
+
+  rwsender --mode=client --server-address=IDENT:HOST:PORT
+        [--server-address=IDENT:HOST:PORT ...]
+        --identifier=IDENT --incoming-directory=DIR
+        [ --tls-ca=PEM_FILE
+          { { --tls-cert=PEM_FILE --tls-key=PEM_FILE }
+            | --tls-pkcs12=DER_FILE } ]
+        --processing-directory=DIR --error-directory=DIR
+        [--local-directory=[[IDENT]:]DIR
+          [--local-directory=[[IDENT]:]DIR ...]]
+        [--unique-local-copies]
+        [--filter=IDENT:REGEXP] [--priority=NUM:REGEXP]
+        [--polling-interval=NUM] [--block-size=NUM]
+        { --log-destination=DESTINATION
+          | --log-pathname=FILE_PATH
+          | --log-directory=DIR_PATH [--log-basename=LOG_BASENAME]
+            [--log-post-rotate=COMMAND] }
+        [--log-level=LEVEL] [--log-sysfacility=NUMBER]
+        [--pidfile=FILE_PATH] [--no-chdir] [--no-daemon]
+
+  rwsender --help
+
+  rwsender --version
+
+=head1 DESCRIPTION
+
+B<rwsender> is a daemon which watches an incoming directory for files.
+When files are added, they are moved into a processing directory and
+then transferred over the network to one or more B<rwreceiver(8)>
+processes.
+
+Any file in the incoming directory whose size is 0 bytes or whose name
+begins with a dot C<.> is ignored.
+
+Either B<rwsender> or B<rwreceiver> may act as the B<server> with the
+other acting as the B<client>.  That is, an B<rwsender> server may
+listen for connections from B<rwreceiver> clients, or an B<rwsender>
+client may attempt to connect to one or more B<rwreceiver> servers.
+
+In addition, each B<rwsender> and B<rwreceiver> is configured with an
+identifier of its own and the identifier(s) of the B<rwreceiver>(s) or
+B<rwsender>(s) that may connect to it.  The connection will not
+established if the identifier provided by other process is not
+recognized.
+
+Every B<rwsender> that communicates with the same B<rwreceiver> must
+have a unique identifier; likewise, every B<rwreceiver> that
+communicates with the same B<rwsender> must have a unique identifier.
+Ideally, the identifier should provide some information about where
+the B<rwsender> or B<rwreceiver> program is running and what sort of
+data it is transferring.
+
+=head1 OPTIONS
+
+Option names may be abbreviated if the abbreviation is unique or is an
+exact match for an option.  A parameter to an option may be specified
+as B<--arg>=I<param> or B<--arg> I<param>, though the first form is
+required for options that take optional parameters.
+
+The following set of switches are required:
+
+=over 4
+
+=item B<--identifier>=I<IDENT>
+
+Use the name I<IDENT> when establishing a connection with an
+B<rwreceiver> process.  The identifier should contain only printable,
+non-whitespace characters; the following characters are illegal: colon
+(C<:>), slash (C</> and C<\>), period (C<.>), and comma (C<,>).
+
+=item B<--mode>=I<MODE>
+
+Specify how the connection between B<rwsender> and B<rwreceiver>(s)
+should be established.  When I<MODE> is B<server>, B<rwsender> will
+listen for connections from B<rwreceiver> clients; when I<MODE> is
+B<client>, B<rwsender> will attempt to connect to B<rwreceiver>
+servers.
+
+=item B<--incoming-directory>=I<DIR>
+
+Watch the directory I<DIR> for files to transfer.  B<rwsender> ignores
+any files in this directory that are empty or whose names begin with a
+dot (C<.>).  In addition, new files will only be considered when their
+size is constant for one polling-interval after they are first
+noticed.
+
+=item B<--processing-directory>=I<DIR>
+
+Use I<DIR> as a location to cache files until they are successfully
+transferred.
+
+=item B<--error-directory>=I<DIR>
+
+Move a file that is rejected by an B<rwreceiver> (for example, because
+it has a duplicate filename) to the subdirectory I<IDENT> of I<DIR>,
+where I<IDENT> is the identifier of the B<rwreceiver> that rejected
+the file.
+
+=back
+
+When running in B<server> mode, the following switches are required:
+
+=over 4
+
+=item B<--server-port>=B<[>I<HOST>B<:]>I<PORT>
+
+Listen for incoming B<rwreceiver> client connections on I<PORT> as
+I<HOST>.  If I<HOST> is omitted, B<rwsender> will listen on any
+address.  I<HOST> may be name or an IP address; when I<HOST> is an
+IPv6 address, enclose it in square brackets.
+
+=item B<--client-ident>=I<IDENT>
+
+Allow connections from an B<rwreceiver> client whose identifier is
+I<IDENT>.  This switch may be repeated to allow multiple B<rwreceiver>
+clients to connect.
+
+=back
+
+When running in B<client> mode, the following switch is required:
+
+=over 4
+
+=item B<--server-address>=I<IDENT>:I<HOST>:I<PORT>
+
+Attempt to connect to the B<rwreceiver> server listening to port
+number I<PORT> on the machine I<HOST>.  The connection will be dropped
+unless the B<rwreceiver> identifies itself as I<IDENT>.  This switch
+may be repeated to connect to multiple B<rwreceiver> servers.  I<HOST>
+may be a name or an IP address; when I<HOST> is an IPv6 address, it
+must be enclosed in brackets.
+
+=back
+
+When SiLK is built with the GnuTLS (Transport Layer Security) library,
+the following switches are available.  Using these switches allows
+B<rwsender> and B<rwreceiver> to use an encrypted/authenticated
+channel for their communication.  Use GnuTLS's B<certtool(1)> program
+to create the PEM (Privacy Enhanced Mail) file.
+
+=over 4
+
+=item B<--tls-ca>=I<PEM_FILE>
+
+Sets the Certificate Authority file to the given I<PEM_FILE> file,
+thereby enabling encryption using TLS.  This switch must be used in
+conjunction with either the B<--tls-pkcs12> option, or the
+B<--tls-cert> and the B<--tls-key> options.
+
+=item B<--tls-cert>=I<PEM_FILE>
+
+Sets B<rwsender>'s encryption certificate for TLS to the given
+I<PEM_FILE> file.  This switch must be used in conjunction with the
+B<--tls-ca> and B<--tls-key> options.
+
+=item B<--tls-key>=I<PEM_FILE>
+
+Sets B<rwsender>'s encryption key for TLS to the given I<PEM_FILE>.
+This switch must be used in conjunction with the B<--tls-ca> and
+B<--tls-cert> options.
+
+=item B<--tls-pkcs12>=I<DER_FILE>
+
+Sets B<rwsender>'s encryption certificate and key for TLS to the given
+I<DER_FILE>.  This switch must be used in conjunction with the
+B<--tls-ca> option.  B<rwsender> will use the value in the
+RWSENDER_TLS_PASSWORD environment variable to decrypt the PKCS#12
+file.  If this variable is not set, B<rwsender> assumes the password
+is the empty string.
+
+=back
+
+One of the following logging switches is required:
+
+=over 4
+
+=item B<--log-destination>=I<DESTINATION>
+
+Specify the destination where logging messages are written.  When
+I<DESTINATION> begins with a slash C</>, it is treated as a file
+system path and all log messages are written to that file; there is no
+log rotation.  When I<DESTINATION> does not begin with C</>, it must
+be one of the following strings:
+
+=over 4
+
+=item C<none>
+
+Messages are not written anywhere.
+
+=item C<stdout>
+
+Messages are written to the standard output.
+
+=item C<stderr>
+
+Messages are written to the standard error.
+
+=item C<syslog>
+
+Messages are written using the B<syslog(3)> facility.
+
+=item C<both>
+
+Messages are written to the syslog facility and to the standard error
+(this option is not available on all platforms).
+
+=back
+
+=item B<--log-directory>=I<DIR_PATH>
+
+Use I<DIR_PATH> as the directory where the log files are written.
+I<DIR_PATH> must be a complete directory path.  The log files have the
+form
+
+ DIR_PATH/LOG_BASENAME-YYYYMMDD.log
+
+where I<YYYYMMDD> is the current date and I<LOG_BASENAME> is the
+application name or the value passed to the B<--log-basename> switch
+when provided.  The log files are rotated: At midnight local time, a
+new log is opened, the previous file is closed, and the command
+specified by B<--log-post-rotate> is invoked on the previous day's log
+file.  (Old log files are not removed by B<rwsender>; the
+administrator should use another tool to remove them.)  When this
+switch is provided, a process-ID file (PID) is also written in this
+directory unless the B<--pidfile> switch is provided.
+
+=item B<--log-pathname>=I<FILE_PATH>
+
+Use I<FILE_PATH> as the complete path to the log file.  The log file
+is not rotated.
+
+=back
+
+The following switches are optional:
+
+=over 4
+
+=item B<--local-directory>=[[I<IDENT>]:]I<DIR>
+
+Create a duplicate of each incoming file in the directory I<DIR>.
+This option may be specified multiple times to create multiple
+duplicates.  The duplicate is made by a hard link to the file in the
+processing-directory if possible, otherwise a complete copy is made
+(see also B<--unique-local-copies>).  If I<IDENT> is specified,
+filters can be used to determine which files get copied to I<DIR>.
+See L<--filter|/"B<--filter>=I<IDENT>:I<REGEXP>"> for filter details.
+When I<DIR> contains the colon character and no I<IDENT> is wanted, a
+single colon can precede I<DIR> to designate an empty I<IDENT>.
+
+=item B<--unique-local-copies>
+
+Force the duplicate file created in each local-directory to be a
+complete copy of the file in the processing-directory instead of a
+hard link to the file.  Using hard links saves disk space and is
+faster than making a complete copy; however, any modification-in-place
+to one file affects all files.  This switch is ignored when the
+B<--local-directory> switch is not provided.
+
+=item B<--filter>=I<IDENT>:I<REGEXP>
+
+Configure B<rwsender> to transfer files matching the regular
+expression I<REGEXP> to the B<rwreceiver> whose identifier is
+I<IDENT>, or to copy files to the local directory labeled as I<IDENT>.
+This switch may be repeated.  When this switch is not provided, all
+B<rwreceiver>s and local directories get all files.  When this switch
+is provided, any files not matching a I<REGEXP> are left in the
+incoming directory and are not transferred.
+
+The regular expression must be a POSIX 1003.2 I<modern> or I<extended>
+regular expressions, roughly akin to those used by B<egrep(1)>.
+Documentation might be found in the B<regex(7)> or B<re_format(7)>
+manual pages on your system.
+
+=item B<--priority>=I<NUM>:I<REGEXP>
+
+Set the priority of files that match I<REGEXP> to I<NUM>.  I<NUM> must
+be an integer between 0 and 100 inclusive.  In the current version of
+B<rwsender>, priorities 0 through 50 get grouped into a single I<low>
+priority bin, and priorities 51 through 100 get grouped into a single
+I<high> priority bin.  Files in the high priority bin are generally
+be sent before files in the low priority bin.  The default priority of
+a file is 50.  This switch can be repeated for multiple priorities.
+
+=item B<--polling-interval>=I<NUM>
+
+Configure B<rwsender> to check the incoming directory for new files
+every I<NUM> seconds.  The default polling interval is 15 seconds.
+
+=item B<--block-size>=I<NUM>
+
+Specify the chunk size in bytes that B<rwsender> uses when sending
+files to B<rwreceiver>s.  The default number of bytes is 8192; the
+valid range is 256 to 65535.
+
+=item B<--log-level>=I<LEVEL>
+
+Set the severity of messages that will be logged.  The levels from
+most severe to least are: C<emerg>, C<alert>, C<crit>, C<err>,
+C<warning>, C<notice>, C<info>, C<debug>.  The default is C<info>.
+
+=item B<--log-sysfacility>=I<NUMBER>
+
+Set the facility that B<syslog(3)> uses for logging messages.  This
+switch takes a number as an argument.  The default is a value that
+corresponds to C<LOG_USER> on the system where B<rwsender> is running.
+This switch produces an error unless B<--log-destination>=syslog is
+specified.
+
+=item B<--log-basename>=I<LOG_BASENAME>
+
+Use I<LOG_BASENAME> in place of the application name in the name of
+I<log> files in the log directory.  See the description of the
+B<--log-directory> switch.  This switch does B<not> affect the name of
+the process-ID file.
+
+=item B<--log-post-rotate>=I<COMMAND>
+
+Run I<COMMAND> on the previous day's log file after log rotation.
+When this switch is not specified, the previous day's log file is
+compressed with B<gzip(1)>.  When the switch is specified and
+I<COMMAND> is the empty string, no action is taken on the log file.
+Each occurrence of the string C<%s> in I<COMMAND> will be replaced
+with the full path to the log file, and each occurrence of C<%%> will
+be replaced with C<%>.  If any other character follows C<%>,
+B<rwsender> exits with an error.  Specifying this switch without also
+using B<--log-directory> is an error.
+
+=item B<--pidfile>=I<FILE_PATH>
+
+Set the complete path to the file in which B<rwsender> writes its
+process ID (PID) when it is running as a daemon.  No PID file is
+written when B<--no-daemon> is given.  When this switch is not
+present, no PID file is written unless the B<--log-directory> switch
+is specified, in which case the PID is written to
+F<I<LOGPATH>/rwsender.pid>.
+
+=item B<--no-chdir>
+
+Do not change directory to the root directory.  When B<rwsender>
+becomes a daemon process, it changes its current directory to the root
+directory so as to avoid potentially running on a mounted file system.
+Specifying B<--no-chdir> prevents this behavior, which may be useful
+during debugging.  The application does not change its directory when
+B<--no-daemon> is given.
+
+=item B<--no-daemon>
+
+Force B<rwsender> to run in the foreground---it does not become a
+daemon process.  This may be useful during debugging.
+
+=item B<--help>
+
+Print the available options and exit.
+
+=item B<--version>
+
+Print the version number and information about how SiLK was
+configured, then exit the application.
+
+=back
+
+=head1 ENVIRONMENT
+
+=over 4
+
+=item RWSENDER_TLS_PASSWORD
+
+Specifies the password to use to decrypt the PKCS#12 file specified in
+the B<--tls-pkcs12> switch.
+
+=back
+
+=head1 SEE ALSO
+
+B<rwreceiver(8)>, B<silk(7)> B<syslog(3)>, B<certtool(1)>,
+B<egrep(1)>, B<gzip(1)>, B<regex(7)>, B<re_format(7)>,
+I<SiLK Installation Handbook>
+
+=head1 BUGS
+
+An attempt should be made to use a unique name for each file put into
+the incoming directory.  When a file is added to the incoming
+directory that has the same name as a file in the processing
+directory, the file added to the incoming directoy replaces the
+existing file in the processing directory.
+
+=cut
+
+$SiLK: rwsender.pod 5f1d69707e38 2013-03-22 21:10:51Z mthomas $
+
+Local Variables:
+mode:text
+indent-tabs-mode:nil
+End:

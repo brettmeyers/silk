@@ -1,0 +1,535 @@
+=pod
+
+=head1 NAME
+
+B<rwcount> - Print traffic summary across time
+
+=head1 SYNOPSIS
+
+  rwcount [--bin-size=SIZE] [--load-scheme=LOADSCHEME]
+        [--start-epoch=START_TIME] [--end-epoch=END_TIME]
+        [--skip-zeroes] [--bin-slots] [--epoch-slots]
+        [--timestamp-format=FORMAT] [--no-titles]
+        [--no-columns] [--column-separator=CHAR]
+        [--no-final-delimiter] [{--delimited | --delimited=CHAR}]
+        [--print-filenames] [--copy-input=PATH] [--output-path=PATH]
+        [--pager=PAGER_PROG] [--site-config-file=FILENAME]
+        [{--legacy-timestamps | --legacy-timestamps={1,0}}]
+        {[--xargs] | [--xargs=FILENAME] | [FILE [FILE ...]]}
+
+  rwcount --help
+
+  rwcount --version
+
+=head1 DESCRIPTION
+
+B<rwcount> summarizes SiLK flow records across time.  It counts the
+records in the input stream, and groups their byte and packet totals
+into time bins.  B<rwcount> produces textual output with one row for
+each bin.
+
+B<rwcount> reads SiLK Flow records from the files named on the command
+line or from the standard input when no file names are specified and
+B<--xargs> is not present.  To read the standard input in addition to
+the named files, use C<-> or C<stdin> as a file name.  If an input
+file name ends in C<.gz>, the file will be uncompressed as it is read.
+When the B<--xargs> switch is provided, B<rwcount> will read the names
+of the files to process from the named text file, or from the standard
+input if no file name argument is provided to the switch.  The input
+to B<--xargs> must contain one file name per line.
+
+B<rwcount> splits each flow record into bins whose size is determined
+by the argument to the B<--bin-size> switch.  When that switch is not
+provided, B<rwcount> uses 30-second bins by default.
+
+The first row of data B<rwcount> prints is the bin that contains the
+earliest record that appears in the input.  After the first row,
+B<rwcount> prints a row for every bin until it prints the final row
+for the bin containing the most recent record.  The B<--start-time>
+and B<--end-time> switches allow you to use a specific time for the
+first row and the final row.  B<rwcount> prints rows for bins that
+contain no data unless the B<--skip-zero> switch is specified.
+
+=head2 Load Scheme
+
+A router or other flow generator summarizes the traffic it sees into
+records.  In addition to the five-tuple (source port and address,
+destination port and address, and protocol), the record has its start
+time, end time, total byte count, and total packet count.  There is no
+way to know how the bytes and packets were distributed during the
+duration of the record: their distribution could be front-loaded,
+back-loaded, uniform, et cetera.
+
+When the start and end times of a individual flow record put that
+record into a single bin, B<rwcount> can simply add that record's
+volume (byte and packet counts) to the bin.
+
+When the duration of a flow record causes it to span multiple bins,
+B<rwcount> must to told how to allocate the volume among the bins.
+The B<--load-scheme> switch determines this, and it has supports the
+following allocation schemes:
+
+=over 4
+
+=item time-proportional
+
+Divides the total volume of the flow by the duration of the flow, and
+multiplies the quotient by the time spent in the bin.  Thus, the
+volume the flow contributes to a bin is proportional to the time the
+flow spent in the bin.  This models a flow where the volume/second
+ratio is uniform.
+
+=item bin-uniform
+
+Divides the volume of the flow by the number of bins the flow spans,
+and adds the quotient to each of the bins.  In this scheme, the
+volume/bin ratio is uniform.
+
+=item start-spike
+
+Adds the total volume for the flow into the bin containing the start
+time of the flow.  This models a flow that is front-loaded to the
+point where the entire volume is a single spike occurring in the
+initial millisecond of flow.
+
+=item middle-spike
+
+Determines the time at the midpoint of the flow, and adds the entire
+volume for the flow into the bin containing that time.
+
+=item end-spike
+
+Adds the total volume for the flow into the bin containing the end
+time of the flow.  This models a flow that is back-loaded to the point
+where the entire volume is a single spike occurring in final
+millisecond of the flow.
+
+=item maximum-volume
+
+Adds the entire volume for the flow into I<every> bin that contains
+any part of the flow.  In theory, the distribution of the bytes in the
+record could be a spike that occurs at any point during the flow's
+duration.  This scheme allows one to determine, in aggregate, the
+maximum possible volume that could have occurred during this bin.  In
+this scheme, the C<Records> column gives the number of records that
+were active during the bin.
+
+=item minimum-volume
+
+Acts as though the volume for the flow occurred in some other bin.  It
+is possible that a record that spans multiple bins did not contribute
+any volume to the current bin.  This scheme allows one to determine,
+in aggregate, the minimum possible volume that may have occurred
+during this bin.  The C<Records> column in this scheme, as in the
+C<maximum-volume> scheme, gives the number of flow records that were
+active during the bin.
+
+=back
+
+Be aware that the "spike" load-schemes allocate the entire flow to a
+single bin. This can create the impression that there is more traffic
+occurring during a particular time window that the physical network
+supports.
+
+The C<maximum-volume> and C<minimum-volume> schemes are used to
+compute the maximum and minimum volumes that could have been
+transferred during any one bin.  C<maximum-volume> intentionally
+over-counts the flow volume and C<minimum-volume> intentionally
+under-counts.
+
+To see the effect of the various load-schemes, suppose B<rwcount> is
+using 60-second bins and the input contains two records.  The first
+record begins at 12:03:50, ends at 12:06:20, and contains 12,600 bytes
+(60 bytes/second for 210 seconds).  This record may contribute to bins
+at 12:03, 12:04, 12:05, and 12:06.  The second record begins at
+12:04:05 and lasts 15 seconds; this record's volume always contributes
+its 200 bytes to the 12:04 bin.  The B<--load-scheme> option splits
+the byte-counts of the records as follows:
+
+ BIN                 12:03:00    12:04:00    12:05:00    12:06:00
+                    
+ time-proportional        600        3800        3600        1200
+ bin-uniform             3150        3350        3150        3150
+ start-spike            12600         200           0           0
+ middle-spike               0         200       12600           0
+ end-spike                  0         200           0       12600
+ maximum-volume         12600       12800       12600       12600
+ minimum-volume             0         200           0           0
+
+For the record that spans multiple bins: the C<time-proportional>
+scheme assumes 60 bytes/second, the C<bin-uniform> scheme divides the
+volume evenly by the four bins, the C<middle-spike> scheme assumes all
+the volume occurs at 12:05:05, the C<maximum-volume> scheme adds the
+volume to every bin, and the C<minimum-volume> scheme ignores the
+record.
+
+=head1 OPTIONS
+
+Option names may be abbreviated if the abbreviation is unique or is an
+exact match for an option.  A parameter to an option may be specified
+as B<--arg>=I<param> or S<B<--arg> I<param>>, though the first form is
+required for options that take optional parameters.
+
+=over 4
+
+=item B<--bin-size>=I<SIZE>
+
+Denote the size of each time bin, in seconds; defaults to 30 seconds.
+B<rwcount> supports millisecond size bins; I<SIZE> may be a floating
+point value equal to or greater than than 0.001.
+
+=item B<--load-scheme>=I<LOADSCHEME>
+
+Specify how a flow record that spans multiple bins allocates its bytes
+and packets among the bins.  The default scheme is
+C<time-proportional>, which assumes the volume/second ratio of the
+flow record is constant.  See the L</Load Scheme> section for
+additional information on the load-scheme choices.  The I<LOADSCHEME>
+may be one of the following names or numbers; names may be abbreviated
+to the shortest prefix that is unique.
+
+=over 4
+
+=item time-proportional,4
+
+Allocate the volume in proportion to the amount of time the flow spent
+in the bin.
+
+=item bin-uniform,0
+
+Allocate the volume evenly across the bins that contain any part of
+the flow's duration.
+
+=item start-spike,1
+
+Allocate the entire volume to the bin containing the start time of the
+flow.
+
+=item middle-spike,3
+
+Allocate the entire volume to the bin containing the time at the
+midpoint of the flow.
+
+=item end-spike,2
+
+Allocate the entire volume to the bin containing the end time of the
+flow.
+
+=item maximum-volume,5
+
+Allocate the entire volume to I<all> of the bins containing any part
+of the flow.
+
+=item minimum-volume,6
+
+Allocate the flow's volume to a bin only if the flow is completely
+contained within the bin; otherwise ignore the flow.
+
+=back
+
+=item B<--start-time>=I<START_TIME>
+
+Denote the time to use for the first bin.  I<START_TIME> may be
+specified as seconds since the UNIX epoch or in
+C<yyyy/mm/dd:HH[:MM[:SS[.sss]]]> format.  A C<T> may be used in place
+of C<:> to separate the day and hour.  Whether the date strings
+represent times in UTC or the local timezone depend on how SiLK was
+compiled, which you can determine from the C<Timezone support> setting
+in the output from B<rwcount --version>.
+
+=item B<--end-time>=I<END_TIME>
+
+Denote the time to use for the final bin.  When neither I<START_TIME>
+nor I<END_TIME> are not specified to the millisecond, the ceiling of
+I<END_TIME> is used.  I<END_TIME> will be adjusted so that the number
+of bins is an integer value.  When both I<START_TIME> and I<END_TIME>
+are used, B<rwcount> will allocate bins for the entire time span
+before it begins processing data, or exit abnormally if it cannot
+allocate the required memory.
+
+=item B<--skip-zeroes>
+
+Disable printing of bins with no traffic.  By default, all bins are
+printed.
+
+=item B<--bin-slots>
+
+Use the internal bin index as the label for each bin in the output;
+the default is to label each bin with the time in a human-readable
+format.
+
+=item B<--epoch-slots>
+
+Use the UNIX epoch time (number of seconds since midnight UTC on
+1970-01-01) as the label for each bin in the output; the default is to
+label each bin with the time in a human-readable format.  This switch
+is equivalent to B<--timestamp-format=epoch>.
+
+=item B<--timestamp-format>=I<FORMAT>
+
+Specify how timestamps will be printed.  When this switch is not
+specified, timestamps are printed in the default format, and the
+timezone is UTC unless SiLK was compiled with local timezone support.
+I<FORMAT> is a comma-separated list of a format and/or a timezone.
+The format is one of:
+
+=over 4
+
+=item default
+
+Print the timestamps as C<I<YYYY>/I<MM>/I<DD>TI<hh>:I<mm>:I<ss>>.
+
+=item iso
+
+Print the timestamps as S<C<I<YYYY>-I<MM>-I<DD> I<hh>:I<mm>:I<ss>>>.
+
+=item m/d/y
+
+Print the timestamps as S<C<I<MM>/I<DD>/I<YYYY> I<hh>:I<mm>:I<ss>>>.
+
+=item epoch
+
+Print the timestamps as the number of seconds since 00:00:00 UTC on
+1970-01-01.
+
+=back
+
+When a timezone is specified, it is used regardless of the default
+timezone support compiled into SiLK.  The timezone is one of:
+
+=over 4
+
+=item utc
+
+Use Coordinated Universal Time to print timestamps.
+
+=item local
+
+Use the TZ environment variable or the local timezone.
+
+=back
+
+=item B<--no-titles>
+
+Turn off column titles.  By default, titles are printed.
+
+=item B<--no-columns>
+
+Disable fixed-width columnar output.
+
+=item B<--column-separator>=I<C>
+
+Use specified character between columns and after the final column.
+When this switch is not specified, the default of 'B<|>' is used.
+
+=item B<--no-final-delimiter>
+
+Do not print the column separator after the final column.  Normally a
+delimiter is printed.
+
+=item B<--delimited>
+
+=item B<--delimited>=I<C>
+
+Run as if B<--no-columns> B<--no-final-delimiter> B<--column-sep>=I<C>
+had been specified.  That is, disable fixed-width columnar output; if
+character I<C> is provided, it is used as the delimiter between
+columns instead of the default 'B<|>'.
+
+=item B<--print-filenames>
+
+Print to the standard error the names of input files as they are
+opened.
+
+=item B<--copy-input>=I<PATH>
+
+Copy all binary input to the specified file or named pipe.  I<PATH>
+can be C<stdout> to print flows to the standard output as long as the
+B<--output-path> switch has been used to redirect B<rwcount>'s ASCII
+output.
+
+=item B<--output-path>=I<PATH>
+
+Determine where the output of B<rwcount> (ASCII text) is written.  If
+this option is not given, output is written to the standard output.
+
+=item B<--pager>=I<PAGER_PROG>
+
+When output is to a terminal, invoke the program I<PAGER_PROG> to
+view the output one screen full at a time.  This switch overrides the
+SILK_PAGER environment variable, which in turn overrides the PAGER
+variable.  If the value of the pager is determined to be the empty
+string, no paging will be performed and all output will be printed to
+the terminal.
+
+=item B<--site-config-file>=I<FILENAME>
+
+Read the SiLK site configuration from the named file I<FILENAME>.
+When this switch is not provided, B<rwcount> searches for the site
+configuration file in the locations specified in the L</FILES>
+section.
+
+=item B<--legacy-timestamps>
+
+=item B<--legacy-timestamps>=I<NUM>
+
+When I<NUM> is not specified or is 1, this switch is equivalent to
+B<--timestamp-format=m/d/y>.  Otherwise, the switch has no effect.
+This switch is deprecated as of SiLK 3.0.0, and it will be removed
+in the SiLK 4.0 release.
+
+=item B<--xargs>
+
+=item B<--xargs>=I<FILENAME>
+
+Cause B<rwcount> to read file names from I<FILENAME> or from the
+standard input if I<FILENAME> is not provided.  The input should have
+one file name per line.  B<rwcount> will open each file in turn and
+read records from it, as if the files had been listed on the command
+line.
+
+=item B<--help>
+
+Print the available options and exit.
+
+=item B<--version>
+
+Print the version number and information about how SiLK was
+configured, then exit the application.
+
+=item B<--start-epoch>=I<START_TIME>
+
+Alias the B<--start-time> switch.  This switch is deprecated as of
+SiLK 3.8.0.
+
+=item B<--end-epoch>=I<START_TIME>
+
+Alias the B<--end-time> switch.  This switch is deprecated as of
+SiLK 3.8.0.
+
+=back
+
+=head1 EXAMPLES
+
+In the following examples, the dollar sign (C<$>) represents the shell
+prompt.  The text after the dollar sign represents the command line.
+Lines have been wrapped for improved readability, and the back slash
+(C<\>) is used to indicate a wrapped line.
+
+To count all web traffic on Jan 1, 2003, into 1 hour bins:
+
+ $ rwfilter --pass=stdout --start-date=2003/01/01:00        \
+        --end-date=2003/01/01:24 --proto=6 --aport=80       \
+   | rwcount --bin-size=3600
+                Date|       Records|          Bytes|      Packets|
+ 2003/01/01T00:00:00|      12947.00|     1968190.00|     34312.00|
+ 2003/01/01T01:00:00|      65318.00|     5783959.00|    100143.00|
+ 2003/01/01T02:00:00|      13765.00|     1895933.00|     36121.00|
+ 2003/01/01T03:00:00|      69599.00|     7062388.00|    144130.00|
+ 2003/01/01T04:00:00|     204717.00|    18491693.00|    385293.00|
+ 2003/01/01T05:00:00|      18664.00|     2352966.00|     45296.00|
+ ....
+
+To force the hourly bins in the previous example to run from 30
+minutes past the hour, use the B<--start-time> switch:
+
+ $ rwfilter ... --pass=stdout       \
+   | rwcount --bin-size=3600 --start-time=2002/12/31:23:30
+
+=head1 ENVIRONMENT
+
+=over 4
+
+=item SILK_PAGER
+
+When set to a non-empty string, B<rwcount> automatically invokes this
+program to display its output a screen at a time.  If set to an empty
+string, B<rwcount> does not automatically page its output.
+
+=item PAGER
+
+When set and SILK_PAGER is not set, B<rwcount> automatically invokes
+this program to display its output a screen at a time.
+
+=item SILK_CLOBBER
+
+The SiLK tools normally refuse to overwrite existing files.  Setting
+SILK_CLOBBER to a non-empty value removes this restriction.
+
+=item SILK_CONFIG_FILE
+
+This environment variable is used as the value for the
+B<--site-config-file> when that switch is not provided.
+
+=item SILK_DATA_ROOTDIR
+
+This environment variable specifies the root directory of data
+repository.  As described in the L</FILES> section, B<rwcount> may
+use this environment variable when searching for the SiLK site
+configuration file.
+
+=item SILK_PATH
+
+This environment variable gives the root of the install tree.  When
+searching for configuration files, B<rwcount> may use this environment
+variable.  See the L</FILES> section for details.
+
+=item TZ
+
+When a SiLK installation is built to use the local timezone (to
+determine if this is the case, check the C<Timezone support> value in
+the output from B<rwcount --version>), the value of the TZ environment
+variable determines the timezone in which B<rwcount> displays and
+parses timestamps.  If the TZ environment variable is not set, the
+default timezone is used.  Setting TZ to 0 or the empty string causes
+timestamps to be displayed in and parsed as UTC.  The value of the TZ
+environment variable is ignored when the SiLK installation uses utc.
+For system information on the TZ variable, see B<tzset(3)>.
+
+=back
+
+=head1 FILES
+
+=over 4
+
+=item F<${SILK_CONFIG_FILE}>
+
+=item F<${SILK_DATA_ROOTDIR}/silk.conf>
+
+=item F<@SILK_DATA_ROOTDIR@/silk.conf>
+
+=item F<${SILK_PATH}/share/silk/silk.conf>
+
+=item F<${SILK_PATH}/share/silk.conf>
+
+=item F<@prefix@/share/silk/silk.conf>
+
+=item F<@prefix@/share/silk.conf>
+
+Possible locations for the SiLK site configuration file which are
+checked when the B<--site-config-file> switch is not provided.
+
+=back
+
+=head1 SEE ALSO
+
+B<rwfilter(1)>, B<rwuniq(1)>, B<silk(7)>
+
+=head1 BUGS
+
+Unlike B<rwuniq(1)>, B<rwcount> does not support counting the number
+of distinct IPs in a bin.  However, using the B<--bin-time> switch on
+B<rwuniq> can provide time-based binning similar to what B<rwcount>
+supports.  Note that B<rwuniq> always bins by the each record's
+start-time (similar to B<rwcount --load-factor=1>), and there is no
+support in B<rwuniq> for dividing a SiLK record among multiple time
+bins.
+
+=cut
+
+$SiLK: rwcount.pod cd09f0a5fcc6 2014-06-14 15:43:33Z mthomas $
+
+Local Variables:
+mode:text
+indent-tabs-mode:nil
+End:

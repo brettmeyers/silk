@@ -1,0 +1,520 @@
+=pod
+
+=head1 NAME
+
+B<rwsetcat> - Print the IP addresses in a binary IPset file
+
+=head1 SYNOPSIS
+
+  rwsetcat [--count-ips] [--print-statistics] [--print-ips]
+        [--cidr-blocks | --cidr-blocks=0 | --cidr-blocks=1]
+        [--network-structure | --network-structure=STRUCTURE]
+        [--ip-ranges]
+        [--ip-format=FORMAT] [--integer-ips] [--zero-pad-ips]
+        [--no-columns] [--column-separator=C] [--no-final-delimiter]
+        [{--delimited | --delimited=C}]
+        [--print-filenames | --print-filenames=0 | --print-filenames=1]
+        [--pager=PAGER_PROG] [SET_FILE...]
+
+  rwsetcat --help
+
+  rwsetcat --version
+
+=head1 DESCRIPTION
+
+When run with no switches, B<rwsetcat> reads each IPset file given on
+the command line and prints its constituent IP addresses to the
+standard output.  When the input IPset contains IPv4 data, B<rwsetcat>
+prints one IP address per line; when the IPset contains IPv6 data,
+B<rwsetcat> prints the IPs as CIDR blocks.  If no file names are
+listed on the command line, B<rwsetcat> will attempt to read an IPset
+from the standard input.
+
+B<rwsetcat> can produce additional information about IPset files, such
+as the number of IPs they contain, the number of IPs at the /8, /16,
+/24, and /27 levels, and the minimum and maximum IPs.
+
+To create an IPset file from SiLK Flow records, use B<rwset(1)>.
+B<rwsetbuild(1)> creates an IPset from textual input.  The
+B<--coverset> switch on B<rwbagtool(1)> creates an IPset from a binary
+SiLK Bag.
+
+=head1 OPTIONS
+
+Option names may be abbreviated if the abbreviation is unique or is an
+exact match for an option.  A parameter to an option may be specified
+as B<--arg>=I<param> or S<B<--arg> I<param>>, though the first form is
+required for options that take optional parameters.
+
+=over 4
+
+=item B<--count-ips>
+
+Print a count of the number of IP addresses in the IPset file.  This
+switch disables the printing of the IP addresses in the IPset file.
+See B<--print-ips> for more information.  When B<--count-ips> is
+specified and more than one IPset file is provided, B<rwsetcat>
+prepends the name of the input file and a colon to the IP address
+count.  See the description of the B<--print-filenames> switch for
+more information.
+
+=item B<--print-statistics>
+
+Print statistics about the IPset.  The statistics include the minimum
+IP address, the maximum IP address, and, for each CIDR block of /8,
+/16, /24, /27, and /32, the number of blocks occupied and what
+percentage of coverage that represents.  This switch disables the
+printing of the IP addresses in the IPset.  See B<--print-ips> for
+more information.  When B<--print-statistics> is specified and more
+than one IPset file is provided, B<rwsetcat> prints the name of the
+input file, a colon, and a newline prior to printing the statistics.
+See the description of the B<--print-filenames> switch for more
+information.
+
+=item B<--print-ips>
+
+Force printing of the IP addresses, even when the B<--count-ips> or
+B<--print-statistics> option is provided.
+
+=item B<--cidr-blocks>
+
+=item B<--cidr-blocks>=B<0>
+
+=item B<--cidr-blocks>=B<1>
+
+When an argument is not provided to the switch or when the argument is
+1, print the IPs in the IPset file, grouping sequential IPs into the
+largest possible CIDR block.  If the argument is 0, print the
+individual IPs in the IPset file.  By default, B<rwsetcat> prints
+individual IPs for IPv4 IPsets, and CIDR blocks for IPv6 IPsets.  See
+also the B<--ip-ranges> switch.  This switch cannot be combined with
+the B<--network-structure> switch.
+
+=item B<--network-structure>
+
+=item B<--network-structure>=I<STRUCTURE>
+
+For each numeric value in I<STRUCTURE>, group the IPs in the IPset
+into a netblock of that size and print the number of hosts and,
+optionally, print the number of smaller, occupied netblocks that each
+larger netblock contains.  When I<STRUCTURE> begins with C<v6:>, the
+IPs in the IPset are treated as IPv6 addresses, and any IPv4 addresses
+are mapped into the ::ffff:0:0/96 netblock.  Otherwise, the IPs are
+treated as IPv4 addresses, and any IPv6 address outside the
+::ffff:0:0/96 netblock is ignored.  Aside from the initial C<v6:> (or
+C<v4:>, for consistency), I<STRUCTURE> has one of following forms:
+
+=over 4
+
+=item 1
+
+I<NETBLOCK_LIST>B</>I<SUMMARY_LIST>.  Group IPs into the sizes
+specified in either I<NETBLOCK_LIST> or I<SUMMARY_LIST>.  B<rwsetcat>
+prints a row for each occupied netblock specified in I<NETBLOCK_LIST>,
+where the row lists the base IP of the netblock, the number of hosts,
+and the number of smaller, occupied netblocks having a size that
+appears in either I<NETBLOCK_LIST> or I<SUMMARY_LIST>.  (The values in
+I<SUMMARY_LIST> are only summarized; they are not printed.)
+
+=item 2
+
+I<NETBLOCK_LIST>B</>.  Similar to the first form, except all occupied
+netblocks are printed, and there are no netblocks that are only
+summarized.
+
+=item 3
+
+I<NETBLOCK_LIST>B<S>.  When the character C<S> appears anywhere in the
+I<NETBLOCK_LIST>, B<rwsetcat> provides a default value for the
+I<SUMMARY_LIST>.  That default is 8,16,24,27 for IPv4, and 48,64 for
+IPv6.
+
+=item 4
+
+I<NETBLOCK_LIST>.  When neither C<S> nor C</> appear in I<STRUCTURE>,
+the output does not include the number of smaller, occupied netblocks.
+
+=item 5
+
+Empty.  When I<STRUCTURE> is empty or only contains C<v6:> or C<v4:>,
+the I<NETBLOCK_LIST> prints a single row for the total network (the /0
+netblock) giving the number of hosts and the number of smaller,
+occupied netblocks using the same default list specified in form 3.
+
+=back
+
+I<NETBLOCK_LIST> and I<SUMMARY_LIST> contain a comma separated list of
+numbers between 0 (the total network) and the size for an individual
+host (32 for IPv4 or 128 for IPv6).  The characters C<T> and C<H> may
+be used as aliases for 0 and the host netblock, respectively.  In
+addition, when parsing the lists as IPv4 netblocks, the characters
+C<A>, C<B>, C<C>, and C<X> are supported as aliases for 8, 16, 24, and
+27, respectively.  A comma is not required between adjacent letters.
+The B<--network-structure> switch disables printing of the IPs in the
+IPset file; specify the C<H> argument to the switch to print each
+individual IP address.
+
+=item B<--ip-ranges>
+
+Cause the output to contain three pipe-delimited (B<|>) columns: the
+first is the number of IPs in the contiguous range, the second is the
+start of the range, and the final is the end of the range.  This
+prints the IPset in the fewest number of lines.
+
+=item B<--ip-format>=I<FORMAT>
+
+Specify how IP addresses will be printed.  When this switch is not
+specified, IPs are printed in the canonical format.  The I<FORMAT> is
+one of:
+
+=over 4
+
+=item canonical
+
+Print IP addresses in their canonical form: dotted quad for IPv4
+(C<127.0.0.1>) and hexadectet for IPv6 (C<2001:db8::1>).  Note that
+IPv6 addresses in ::ffff:0:0/96 and some IPv6 addresses in ::/96 will
+be printed as a mixture of IPv6 and IPv4.
+
+=item zero-padded
+
+Print IP addresses in their canonical form, but add zeros to the
+output so it fully fills the width of column.  The addresses
+C<127.0.0.1> and C<2001:db8::1> are printed as C<127.000.000.001> and
+C<2001:0db8:0000:0000:0000:0000:0000:0001>, respectively.
+
+=item decimal
+
+Print IP addresses as integers in decimal format.  The addresses
+C<127.0.0.1> and C<2001:db8::1> are printed as C<2130706433> and
+C<42540766411282592856903984951653826561>, respectively.
+
+=item hexadecimal
+
+Print IP addresses as integers in hexadecimal format.  The addresses
+C<127.0.0.1> and C<2001:db8::1> are printed as C<7f000001> and
+C<20010db8000000000000000000000001>, respectively.
+
+=item force-ipv6
+
+Print all IP addresses in the canonical form for IPv6 without using
+any IPv4 notation.  Any IPv4 address is mapped into the ::ffff:0:0/96
+netblock.  The addresses C<127.0.0.1> and C<2001:db8::1> are printed
+as C<::ffff:7f00:1> and C<2001:db8::1>, respectively.
+
+=back
+
+=item B<--integer-ips>
+
+Print IP addresses as integers.  This switch is equivalent to
+B<--ip-format=decimal>, it is deprecated as of SiLK 3.7.0, and it will
+be removed in the SiLK 4.0 release.
+
+=item B<--zero-pad-ips>
+
+Print IP addresses as fully-expanded, zero-padded values in their
+canonical form.  This switch is equivalent to
+B<--ip-format=zero-padded>, it is deprecated as of SiLK 3.7.0, and it
+will be removed in the SiLK 4.0 release.
+
+=item B<--no-columns>
+
+Disable fixed-width columnar output when printing the output from the
+B<--network-structure> or B<--ip-ranges> switch.
+
+=item B<--column-separator>=I<C>
+
+Use specified character between columns produced by the
+B<--network-structure> and B<--ip-ranges> switches.  This character is
+also used after the final column when B<--ip-ranges> is specified.
+When this switch is not specified, the default of 'B<|>' is used.
+
+=item B<--no-final-delimiter>
+
+Do not print the column separator after the final column in the output
+produced by B<--ip-ranges>.  Normally a delimiter is printed.
+
+=item B<--delimited>
+
+=item B<--delimited>=I<C>
+
+Run as if B<--no-columns> B<--no-final-delimiter> B<--column-sep>=I<C>
+had been specified.  That is, disable fixed-width columnar output; if
+character I<C> is provided, it is used as the delimiter between
+columns instead of the default 'B<|>'.
+
+=item B<--print-filenames>
+
+=item B<--print-filenames>=B<0>
+
+=item B<--print-filenames>=B<1>
+
+If an argument is not provided to the switch or if the argument is 1,
+print the name of the IPset file prior to printing information about
+the IPset file regardless of the number of IPset files specified on
+the command line or the type of information to be printed.  If the
+switch is provided and its argument is 0, suppress printing the name
+of the IPset file regardless of the number of IPset files or type of
+information.  When the switch is not provided, B<rwsetcat>'s behavior
+depends on the type of information to be printed and on the number of
+input IPset files: If multiple IPset files are provided and
+B<--count-ips> or B<--print-statistics> is given, B<rwsetcat> prints
+the name of a file, a colon (B<:>), a newline (unless B<--count-ips>
+was specified), and the requested information; otherwise, B<rwsetcat>
+does not print the file name.
+
+=item B<--pager>=I<PAGER_PROG>
+
+When output is to a terminal, invoke the program I<PAGER_PROG> to view
+the output one screen full at a time.  This switch overrides the
+SILK_PAGER environment variable, which in turn overrides the PAGER
+variable.  If the value of the pager is determined to be the empty
+string, no paging will be performed and all output will be printed to
+the terminal.
+
+=item B<--help>
+
+Print the available options and exit.
+
+=item B<--version>
+
+Print the version number and information about how SiLK was
+configured, then exit the application.
+
+=back
+
+=head1 EXAMPLES
+
+In the following examples, the dollar sign (B<$>) represents the shell
+prompt.  Some input lines are split over multiple lines in order to
+improve readability, and a backslash (B<\>) is used to indicate such
+lines.
+
+By default, B<rwsetcat> prints the contents of an IPset.
+
+ $ rwsetcat sample.set
+ 10.1.2.250
+ 10.1.2.251
+ 10.1.2.252
+ 10.1.2.253
+ 10.1.2.254
+ 10.1.2.255
+ 10.1.3.0
+ 10.1.3.1
+ 10.1.3.2
+ 10.1.3.3
+ 10.1.3.4
+
+Use the B<--cidr-blocks> switch to print the contents in CIDR
+notation.
+
+ $ rwsetcat --cidr-blocks sample.set
+ 10.1.2.250/31
+ 10.1.2.252/30
+ 10.1.3.0/30
+ 10.1.3.4
+
+B<rwsetcat> will read the IPset file from the standard input when no
+file name is given on the command line.
+
+ $ cat sample.set | rwsetcat --cidr-blocks
+ 10.1.2.250/31
+ 10.1.2.252/30
+ 10.1.3.0/30
+ 10.1.3.4
+
+When multiple IPset files are specified on the command line,
+B<rwsetcat> prints the contents of each file one after the other.
+
+ $ rwsetcat --cidr-blocks sample.set sample.set
+ 10.1.2.250/31
+ 10.1.2.252/30
+ 10.1.3.0/30
+ 10.1.3.4
+ 10.1.2.250/31
+ 10.1.2.252/30
+ 10.1.3.0/30
+ 10.1.3.4
+
+To print the union of multiple the IPset files, use B<rwsettool(1)> to
+join the files and have B<rwsetcat> print the result.
+
+ $ rwsettool --union sample.set sample.set | rwsetcat --cidr-blocks
+ 10.1.2.250/31
+ 10.1.2.252/30
+ 10.1.3.0/30
+ 10.1.3.4
+
+To see contiguous IPs printed as ranges, use the B<--ip-ranges>
+switch.  The columns contain the length of the range, its starting IP,
+and its ending IP.
+
+ $ rwsetcat --ip-ranges sample.set
+         11|     10.1.2.250|       10.1.3.4|
+
+Add the B<--ip-format=decimal> switch to see contiguous IPs printed as
+ranges of integers.
+
+ $ rwsetcat --ip-ranges --ip-format=decimal sample.set
+         11| 167838458| 167838468|
+
+Use the B<--delimited> switch to produce the same output as a list of
+comma separated values.
+
+ $ rwsetcat --ip-ranges --ip-format=decimal --delimited=, sample.set
+ 11,167838458,167838468
+
+The UNIX B<cut(1)> tool can be used to remove the number of IPs in the
+range, so that the output only contains the starting and ending IPs.
+
+ $ rwsetcat --ip-ranges --ip-format=decimal --delimited=, sample.set \
+     | cut -d"," -f2,3
+ 167838458,167838468
+
+The B<--count-ips> switch will print the number IPs in the IPset.
+
+ $ rwsetcat --count-ips sample.set
+ 11
+
+When counting the IPs in multiple IPset files, B<rwsetcat> prepends
+the file name and a colon to the count.  (The C<-> argument causes
+B<rwsetcat> to read the standard input in addition to the named file.)
+
+ $ cat sample.set | rwsetcat --count-ips sample.set -
+ sample.set:11
+ -:11
+
+Provide an argument of B<0> to B<--print-filenames> to suppress
+printing of the input IPset file name.
+
+ $ cat sample.set \
+     | rwsetcat --count-ips --print-filenames=0 sample.set -
+ 11
+ 11
+
+Use the B<--print-filenames> switch to force B<rwsetcat> to print the
+file name when only one IPset is given.
+
+ $ rwsetcat --count-ips --print-filenames sample.set
+ sample.set:11
+
+The B<--print-filenames> switch also causes B<rwsetcat> to print the
+file name when it normally would not.
+
+ $ rwsetcat --ip-ranges --ip-format=decimal --print-filenames sample.set
+ sample.set:
+         11| 167838458| 167838468|
+
+To see the contents of the IPset and get a count of IPs, use
+multiple options.
+
+ $ rwsetcat --count-ips --cidr-blocks sample.set
+ 11
+ 10.1.2.250/31
+ 10.1.2.252/30
+ 10.1.3.0/30
+ 10.1.3.4
+
+For text-based sorting, use the B<--ip-format=zero-padded> switch to
+force three digits per octet.
+
+ $ rwsetcat --ip-format=zero-padded --cidr-blocks sample.set
+ 010.001.002.250/31
+ 010.001.002.252/30
+ 010.001.003.000/30
+ 010.001.003.004
+
+For numerical sorting, print the IPs as integers.
+
+ $ rwsetcat --ip-format=decimal sample.set
+ 167838458
+ 167838459
+ 167838460
+ 167838461
+ 167838462
+ 167838463
+ 167838464
+ 167838465
+ 167838466
+ 167838467
+ 167838468
+
+Use B<--print-statistics> to get a summary of the IPset file.
+
+ $ rwsetcat --print-statistics --print-filenames sample.set
+ sample.set:
+ Network Summary
+         minimumIP = 10.1.2.250
+         maximumIP = 10.1.3.4
+                 11 hosts (/32s),    0.000000% of 2^32
+                  1 occupied /8,     0.390625% of 2^8
+                  1 occupied /16,    0.001526% of 2^16
+                  2 occupied /24s,   0.000012% of 2^24
+                  2 occupied /27s,   0.000001% of 2^27
+
+The B<--network-structure> switch "rolls-up" the IPs into larger blocks.
+
+ $ rwsetcat --network-structure=TABCXS sample.set
+         10.1.2.224/27     | 6 hosts
+       10.1.2.0/24         | 6 hosts in 1 /27
+         10.1.3.0/27       | 5 hosts
+       10.1.3.0/24         | 5 hosts in 1 /27
+     10.1.0.0/16           | 11 hosts in 2 /24s and 2 /27s
+   10.0.0.0/8              | 11 hosts in 1 /16, 2 /24s, and 2 /27s
+ TOTAL                     | 11 hosts in 1 /8, 1 /16, 2 /24s, and 2 /27s
+
+You may specify arbitrary blocks for the B<--network-structure>
+switch.
+
+ $ rwsetcat --network-structure=23,24 sample.set
+   10.1.2.0/24       | 6
+   10.1.3.0/24       | 5
+ 10.1.2.0/23         | 11
+
+ $ rwsetcat --network=23,24/24 sample.set
+   10.1.2.0/24       | 6 hosts
+   10.1.3.0/24       | 5 hosts
+ 10.1.2.0/23         | 11 hosts in 2 /24s
+
+ $ rwsetcat --network=T,23/24 sample.set
+   10.1.2.0/23         | 11 hosts in 2 /24s
+ TOTAL                 | 11 hosts in 1 /23 and 2 /24s
+
+To see the IPs generated by B<rwset(1)> without creating an
+intermediate IPset file, have B<rwset> send its output to the standard
+output, and have B<rwsetcat> read from the standard input.
+
+  $ rwfilter ... --pass=stdout | rwset --sip=stdout | rwsetcat
+  192.168.1.1
+  192.168.1.2
+
+=head1 ENVIRONMENT
+
+=over 4
+
+=item SILK_PAGER
+
+When set to a non-empty string, B<rwsetcat> automatically invokes this
+program to display its output a screen at a time.  If set to an empty
+string, B<rwsetcat> does not automatically page its output.
+
+=item PAGER
+
+When set and SILK_PAGER is not set, B<rwsetcat> automatically invokes
+this program to display its output a screen at a time.
+
+=back
+
+=head1 SEE ALSO
+
+B<rwset(1)>, B<rwsetbuild(1)>, B<rwsettool(1)>, B<rwsetmember(1)>,
+B<rwbagtool(1)>, B<silk(7)>, B<cut(1)>
+
+=cut
+
+$SiLK: rwsetcat.pod 8b39dddcaab4 2013-12-06 21:47:40Z mthomas $
+
+Local Variables:
+mode:text
+indent-tabs-mode:nil
+End:

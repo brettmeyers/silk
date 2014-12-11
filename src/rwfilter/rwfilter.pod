@@ -1,0 +1,1953 @@
+=pod
+
+=head1 NAME
+
+B<rwfilter> - Choose which SiLK Flow records to process
+
+=head1 SYNOPSIS
+
+  rwfilter INPUT_ARGS OUTPUT_ARGS PARTITIONING_ARGS [MISC_ARGS]
+
+Selection switches, input switches, or input files are required:
+
+  rwfilter ...
+        {{ [--class=CLASS] [--type={all | TYPE[,TYPE ...]}]
+           | [--flowtype=CLASS/TYPE[,CLASS/TYPE ...]] }
+         [--data-rootdir=ROOT_DIRECTORY] [--print-missing-files]
+         [--sensors=SENSOR[,SENSOR ...]]
+         [--start-date=YYYY/MM/DD[:HH] [--end-date=YYYY/MM/DD[:HH]]] }
+        | [--input-pipe=INPUT_PATH]
+        | [--xargs] | [--xargs=INPUT_PATH]
+        | [INPUT_PATH [INPUT_PATH...]]
+
+One or more output switches are required:
+
+  rwfilter ...
+        [--all-destination=ALL_PATH [--all-destination=ALL_PATH ...]]
+        [--fail-destination=FAIL_PATH [--fail-destination=FAIL_PATH ...]]
+        [--pass-destination=PASS_PATH [--pass-destination=PASS_PATH ...]]
+        [{ --print-statistics[=STATS_PATH]
+           | --print-volume-statistics[=STATS_PATH] }]
+
+One or more partitioning switches are required:
+
+  rwfilter ...
+        [--ack-flag=SCALAR] [--active-time=TIME_WINDOW]
+        [{--any-address=IP_WILDCARD | --not-any-address=IP_WILDCARD}]
+        [--any-cc=COUNTRY_CODE_LIST]
+        [{--any-cidr=IP_OR_CIDR_LIST | --not-any-cidr=IP_OR_CIDR_LIST}]
+        [--any-index=INTEGER_LIST]
+        [{--anyset=IP_SET_FILENAME | --not-anyset=IP_SET_FILENAME}]
+        [--aport=INTEGER_LIST] [--application=INTEGER_LIST]
+        [--attributes=ATTRIBUTES_LIST]
+        [--bytes=INTEGER_RANGE] [--bytes-per-packet=DECIMAL_RANGE]
+        [--cwr-flag=SCALAR]
+        [{--daddress=IP_WILDCARD | --not-daddress=IP_WILDCARD}]
+        [--dcc=COUNTRY_CODE_LIST]
+        [{--dcidr=IP_OR_CIDR_LIST | --not-dcidr=IP_OR_CIDR_LIST}]
+        [{--dipset=IP_SET_FILENAME | --not-dipset=IP_SET_FILENAME}]
+        [--dport=INTEGER_LIST] [--dtype=SCALAR]
+        [--duration=DECIMAL_RANGE] [--ece-flag=SCALAR]
+        [--etime=TIME_WINDOW] [--fin-flag=SCALAR]
+        [--flags-all=HIGH_MASK_FLAGS_LIST]
+        [--flags-initial=HIGH_MASK_FLAGS_LIST]
+        [--flags-session=HIGH_MASK_FLAGS_LIST]
+        [--icmp-code=INTEGER_LIST] [--icmp-type=INTEGER_LIST]
+        [--input-index=INTEGER_LIST] [--ip-version=INTEGER_LIST]
+        [--ippair-any=FILENAME] [--ipport-any=FILENAME]
+        [{--next-hop-id=IP_WILDCARD | --not-next-hop-id=IP_WILDCARD}]
+        [{--nhcidr=IP_OR_CIDR_LIST | --not-nhcidr=IP_OR_CIDR_LIST}]
+        [{--nhipset=IP_SET_FILENAME | --not-nhipset=IP_SET_FILENAME}]
+        [--output-index=INTEGER_LIST] [--packets=INTEGER_RANGE]
+        [--pmap-file=MAPNAME:PATH [--pmap-file=MAPNAME:PATH ...]
+         { [--pmap-src-MAPNAME=LABELS] [--pmap-dst-MAPNAME=LABELS]
+           [--pmap-any-MAPNAME=LABELS] } ]
+        [--protocol=INTEGER_LIST] [--psh-flag=SCALAR]
+        [--python-expr=PYTHON_EXPR]
+        [--python-file=FILENAME [--python-file=FILENAME ...]]
+        [--rst-flag=SCALAR]
+        [{--saddress=IP_WILDCARD | --not-saddress=IP_WILDCARD}]
+        [--scc=COUNTRY_CODE_LIST]
+        [{--scidr=IP_OR_CIDR_LIST | --not-scidr=IP_OR_CIDR_LIST}]
+        [{--sipset=IP_SET_FILENAME | --not-sipset=IP_SET_FILENAME}]
+        [--sport=INTEGER_LIST] [--stime=TIME_WINDOW] [--stype=SCALAR]
+        [--syn-flag=SCALAR] [--tcp-flags=TCP_FLAGS]
+        [--tuple-file=TUPLE_FILENAME { [--tuple-fields=FIELDS]
+                                       [--tuple-direction=DIRECTION]
+                                       [--tuple-delimiter=CHAR] } ]
+        [--urg-flag=SCALAR]
+
+Miscellaneous switches:
+
+  rwfilter ...
+        [--compression-method=COMP_METHOD] [--dry-run]
+        [--max-fail-records=N] [--max-pass-records=N]
+        [--note-add=TEXT] [--note-file-add=FILE]
+        [--plugin=PLUGIN [--plugin=PLUGIN ...]]
+        [--print-filenames] [--site-config-file=FILENAME]
+        [--threads=N]
+
+Help switches:
+
+  rwfilter [--pmap-file=MAPNAME:PATH [--pmap-file=MAPNAME:PATH ...]]
+        [--plugin=PLUGIN ...] [--python-file=PATH]
+        [--data-rootdir=ROOT_DIRECTORY] [--site-config-file=FILENAME]
+        --help
+
+  rwfilter --version
+
+=head1 DESCRIPTION
+
+B<rwfilter> serves two purposes: (1) It acts as an interface to the
+data store to select which SiLK Flow records to process, and (2) it
+partitions those records into one or more I<pass> and/or I<fail>
+streams.
+
+The L</Selection Switches> let one choose flow records from the SiLK
+data store by specifying where the flow was collected (its sensor),
+the date of collection, and/or the flow's direction.  The act of
+selecting records from the data store is sometimes called a "data
+pull".
+
+The L</Partitioning Switches> describe various types of traffic
+behavior (e.g., TCP traffic, or all traffic going to port 80).  When a
+flow record matches all of the behaviors, it can be written to a
+I<pass> stream (i.e., file).  If a record fails to match any of these
+behavior predicates, it can be written to a I<fail> stream.  (You may
+also write every record B<rwfilter> reads to an I<all> stream.)  These
+output streams from B<rwfilter> are always binary SiLK Flow records.
+The output must be either written to a file or piped into another tool
+in the SiLK Suite, and B<rwfilter> complains if it determines you
+are attempting to send the stream to a terminal.  To view the records,
+pipe the records into B<rwcut(1)>.
+
+In addition to the partitioning switches built in to B<rwfilter>,
+additional partitioning predicates can be created as C or PySiLK
+plug-ins, and these can be loaded into B<rwfilter> using the
+B<--plugin> and/or B<--python-file> switches as described below.
+
+Instead of using the selection switches to choose flow records from
+the data store, B<rwfilter> can apply the partitioning switches to
+existing files of SiLK flow records---such as files generated by a
+previous invocation of B<rwfilter>.  To run B<rwfilter> in this mode,
+you may
+
+=over 4
+
+=item *
+
+specify, on the command line, the files and/or named pipes from which
+B<rwfilter> should read SiLK Flow records.  Specifying C<stdin> or
+C<-> or the command line causes B<rwfilter> to read flow records
+from the standard input.
+
+=item *
+
+use the B<--input-pipe> switch to specify a named pipe, or specify
+C<stdin> or C<-> as the argument to this switch to have B<rwfilter>
+read flow records from the standard input.
+
+=item *
+
+use the B<--xargs> switch to specify a file that contains the names of
+the input files to process.  When B<--xargs> is used without an
+argument, B<rwfilter> attempts to read the names of the file from the
+standard input.  The name of each input file must appear on a single
+line.
+
+=back
+
+When B<rwfilter> is reading flow records from input files, some of the
+selection switches act as partitioning switches.  The remaining
+selection switches may not be specified when using the alternate forms
+of input, and it is an error to specify multiple types of input.
+
+Unlike many other tools in the SiLK tool suite, B<rwfilter> requires
+that you specify one or more L</Output Switches> that tell B<rwfilter>
+what types of output to produce.
+
+Finally, there are L</Miscellaneous Switches> that control other
+aspects of B<rwfilter>.
+
+
+=head1 OPTIONS
+
+Option names may be abbreviated if the abbreviation is unique or is an
+exact match for an option.  A parameter to an option may be specified
+as B<--arg>=I<param> or B<--arg> I<param>, though the first form is
+required for options that take optional parameters.
+
+=head2 Selection Switches
+
+To read files from the data store, use the following options to
+specify which files to process.  When B<rwfilter> gets its input from
+files listed on the command line or from the B<--xargs> or
+B<--input-pipe> switches, the first four switches (B<--class>,
+B<--type>, B<--flowtypes>, and B<--sensors>) act as partitioning
+switches, and specifying any other selection switch produces an
+error.
+
+=over 4
+
+=item B<--class>=I<CLASS>
+
+The B<--class> switch is used to specify a group of data to process.
+Only a single class may be selected with the B<--class> switch; for
+multiple classes, use the B<--flowtypes> switch.  Classes are defined
+in the B<silk.conf(5)> site configuration file.  If the B<--class>
+option is not given, the default-class as specified in F<silk.conf> is
+used.  Use B<rwfilter --help> to see the list of available classes
+and the default class.
+
+=item B<--data-rootdir>=I<ROOT_DIRECTORY>
+
+Tell B<rwfilter> to use I<ROOT_DIRECTORY> as the root of the data
+repository, which overrides the location given in the
+SILK_DATA_ROOTDIR environment variable, which in turn overrides the
+location that was compiled into B<rwfilter> (@SILK_DATA_ROOTDIR@).  It
+is an error to specify this switch when files are specified on the
+command line or L</Non-Selection Input Switches> are given.
+
+=item B<--flowtypes>=I<CLASS>/I<TYPE>[,I<CLASS>/I<TYPE> ...]
+
+The B<--flowtype> predicate provides an alternate way to specify
+class/type pairs.  The B<--flowtypes> switch allows a single
+B<rwfilter> invocation to process data from multiple classes.  The
+keyword C<all> may be used for the I<CLASS> and/or I<TYPE> to select
+all classes and/or types.
+
+=item B<--print-missing-files>
+
+This option prints to the standard error the names of the files that
+B<rwfilter>'s file selection switches expected to find but did not.
+This switch is useful for debugging, but the list of files it produces
+can be misleading.  For example, suppose there is a decommissioned
+sensor that still appears in the F<silk.conf> file; B<rwfilter>
+considers these data files as I<missing> even though their absence is
+expected.  Use the output from this switch judiciously.  It is an
+error to specify this switch when files are specified on the command
+line or L</Non-Selection Input Switches> are given.
+
+=item B<--sensors>=I<SENSOR>[,I<SENSOR> ...]
+
+The B<--sensor> switch is used to select data from specific sensors.
+The parameter is a comma separated list of sensor names, sensor IDs
+(integers), and/or ranges of sensor IDs.  Sensors are defined in the
+B<silk.conf(5)> site configuration file, and the B<rwsiteinfo(1)> command
+can be used to print a mapping of sensor names to IDs and classes.
+When the B<--sensor> switch is not specified, the default is to use
+all sensors which are valid for the specified class(es).
+
+=item B<--start-date>=I<YYYY/MM/DD[:HH]>
+
+=item B<--end-date>=I<YYYY/MM/DD[:HH]>
+
+The date predicates indicate which days and hours to consider when
+creating the list of files.  The dates may be expressed as seconds
+since the UNIX epoch or in C<YYYY/MM/DD[:HH]> format, where the hour
+is optional.  A C<T> may be used in place of the C<:> to separate the
+day and hour.  Whether the C<YYYY/MM/DD[:HH]> strings represent times
+in UTC or the local timezone depend on how SiLK was compiled.  To
+determine how your version of SiLK was compiled, see the C<Timezone
+support> setting in the output from B<rwfilter --version>.
+
+When both B<--start-date> and B<--end-date> are specified to hour
+precision, all hours within that time range are processed.
+
+When B<--start-date> is specified to day precision, the hour specified
+in B<--end-date> (if any) is ignored, and files for all dates between
+midnight on B<start-date> and 23:59 on B<end-date> are processed.
+
+When B<--start-date> is specified to hour precision and B<--end-date>
+is specified to day precision, the hour of the start-date is used as
+the hour for the end-date.
+
+When B<--end-date> is not specified and B<--start-date> is specified
+to day precision, files for that complete day are processed.
+
+When B<--end-date> is not specified and B<--start-date> is specified
+to hour precision, files for that single hour are processed.
+
+When neither B<--start-date> nor B<--end-date> is given, B<rwfilter>
+processes all files for the current day.
+
+It is an error to specify B<--end-date> without specifying
+B<--start-date>, or to specify B<--start-date> with the
+L</Non-Selection Input Switches>.
+
+=item B<--type>={C<all> | I<TYPE>[,I<TYPE>]}
+
+The B<--type> predicate further specifies data within the selected
+I<CLASS> by listing the I<TYPE>s of traffic to process.  The switch
+takes a comma-separated list of types or the keyword C<all> which
+specifies all types for the specified I<CLASS>.  Types are defined in
+F<silk.conf>, they typically refer to the direction of the flow, and
+they may vary by class.  When the B<--type> switch is not specified, a
+list of default types is used.  The default-type list is
+determined by the value of I<CLASS>, and the default types generally
+include only incoming traffic.  Use B<rwfilter --help> to see the
+list of available types and the default types for each class.
+
+=back
+
+=head2 Non-Selection Input Switches
+
+Instead of using the L</Selection Switches> to read flow records from
+files in the data store, you can tell B<rwfilter> to process files
+named on the command line or use one (and only one) of the following
+switches.  To have B<rwfilter> read flow records from the standard
+input, specify C<stdin> or C<-> as the name of an input file or use
+the (deprecated) B<--input-pipe> switch.
+
+=over 4
+
+=item B<--input-pipe>=I<INPUT_PATH>
+
+Specify a source for SiLK Flow records, where I<INPUT_PATH> is a named
+pipe or the string C<stdin> or C<-> to represent the standard input.
+You do not need to use this switch, you can simply specify the named
+pipe or the strings C<stdin> or C<-> on the command line.  B<NOTE:>
+This switch is deprecated, and it will be removed in the SiLK 4.0
+release.
+
+=item B<--xargs>
+
+=item B<--xargs>=I<INPUT_PATH>
+
+Tell B<rwfilter> to read file names from I<INPUT_PATH>; if
+I<INPUT_PATH> is not provided, the names of the files are read from
+the standard input.  The input should have one file name per line.
+B<rwfilter> opens each file in turn and read records from it.
+
+=back
+
+=head2 Output Switches
+
+At least one of the following output switches must be provided:
+
+=over 4
+
+=item B<--all-destination>=I<ALL_PATH>
+
+Write every SiLK Flow record to I<ALL_PATH>, where I<ALL_PATH> refers
+to a file, a named pipe, the string C<stderr> to refer to the standard
+error, or the strings C<stdout> or C<-> to refer to
+the standard output.  This switch may be repeated to write all input
+records to multiple locations.
+
+=item B<--fail-destination>=I<FAIL_PATH>
+
+Write SiLK Flow records that have failed ANY of the partitioning
+predicates to I<FAIL_PATH>, where I<FAIL_PATH> refers to a
+non-existent file, a named pipe, the string C<stderr> to refer to the standard
+error, or the strings C<stdout> or C<-> to
+refer to the standard output.  This switch may be repeated to write
+records that fail any predicate to multiple locations.
+
+=item B<--pass-destination>=I<PASS_PATH>
+
+Write SiLK Flow records that have passed ALL of the partitioning
+predicates to I<PASS_PATH>, where I<PASS_PATH> refers to a
+non-existent file, a named pipe, the string C<stderr> to refer to the standard
+error, or the strings C<stdout> or C<-> to
+refer to the standard output.  This switch may be repeated to write
+records that pass every predicate to multiple locations.
+
+=item B<--print-statistics>
+
+=item B<--print-statistics>=I<STATS_PATH>
+
+Print a one line summary specifying the number of files processed, the
+total number of records read, the number of records that passed all
+partitioning predicates, and the number of records that failed.  If
+I<STATS_PATH> is provided, the summary is printed there; otherwise it
+is printed to the standard error.  This switch cannot be mixed with
+B<--print-volume-statistics>.  When running B<rwfilter> with multiple
+threads and B<--max-pass-records> or B<--max-fail-records> is
+specified, the statistics may not match the number of records written
+by B<rwfilter>.
+
+=item B<--print-volume-statistics>
+
+=item B<--print-volume-statistics>=I<STATS_PATH>
+
+Print a four line summary of B<rwfilter>'s processing.  For each of
+all records, records that pass all the partitioning predicates, and
+records that fail, print the number of flow records and the number of
+packets and bytes represented by those flow records.  The output also
+includes the number of files processed.  If I<STATS_PATH> is provided, the
+summary is printed there; otherwise it is printed to the standard
+error.  This switch cannot be mixed with B<--print-statistics>.  When
+running B<rwfilter> with multiple threads and B<--max-pass-records> or
+B<--max-fail-records> is specified, the statistics may not match the
+number of records written by B<rwfilter>.
+
+=back
+
+=head2 Partitioning Switches
+
+B<rwfilter> supports the following partitioning switches, at least one
+of which must be specified (unless the only Output Switch is
+B<--all-destination>).  The switches are B<AND>'ed together; i.e., to
+pass the filter, the record must pass the test implied by each switch.
+Any record that does not pass is written to the
+B<fail-destination>(s), if specified.
+
+Each partitioning switch defines a test.  These tests can be grouped
+into several broad categories; within each category, the tests are
+applied in the order in which the switches appear on the command line.
+The categories of the partitioning tests are:
+
+=over 4
+
+=item *
+
+tests for IP addresses (including the IPset checks), ports, protocol,
+times, TCP flags, byte and packet counts, IP version, application,
+country codes
+
+=item *
+
+tests based on the B<--tuple-file> switch
+
+=item *
+
+tests that use the address type or prefix map mapping files
+
+=item *
+
+tests that use the IP-Association plug-in
+
+=item *
+
+tests based on the B<--python-expr> and B<--python-file> switches
+
+=item *
+
+tests defined in C-plugins and loaded via B<--plugin>
+
+=back
+
+B<Partitioning Switches for IP Addresses>
+
+There are three families of switches that partition based on an IP
+address.  Each family can partition by the source IP, the destination
+IP, the next hop IP, or either source or destination IP.  Each family
+includes a B<--not-*> variant to reverse the sense of the test.
+
+The B<--*cidr>-family takes as its argument an I<IP_OR_CIDR_LIST>,
+which is a single IP address C<10.1.2.3>, a single CIDR block
+C<FF01::/16>, or a comma separated list of IPs and/or CIDR blocks
+C<10.0.1.0/24,10.0.2.3,10.0.4.0/24>.  The I<IP_OR_CIDR_LIST> supports
+IPv4 and IPv6 addresses.
+
+The B<--*address>-family (which includes B<--next-hop-id>) takes as
+its argument an I<IP_WILDCARD>.  An I<IP_WILDCARD> is a single IP
+address, a single CIDR block, or a single SiLK IP Wildcard.  A SiLK IP
+Wildcard can represent multiple IPv4 or IPv6 addresses.  An IP
+Wildcard contains an IP in its canonical form, except each part of the
+IP (where I<part> is an octet for IPv4 or a hexadectet for IPv6) may
+be a single value, a range, a comma separated list of values and
+ranges, or the letter C<x> to signify any value for that part of the
+IP (that is, C<0-255> for IPv4).  You may not specify a CIDR suffix
+when using the IP Wildcard notation.  The following I<IP_WILDCARD>s
+all represent the same value:
+
+ ::ffff:0:0/112
+ ::ffff:0:x
+ ::ffff:0:aaab-ffff,aaaa,0-aaa9
+ ::ffff:0.0.0.0/112
+ ::ffff:0.0.128-254,0-126,255,127.x
+
+The B<--*set>-family requires that you store the IPs in a binary IPset
+file and pass the name of the file to the switch.  IPset files are
+created from SiLK Flow records with B<rwset(1)>, or from textual input
+with B<rwsetbuild(1)>.  Currently, IPsets only support IPv4 addresses.
+
+The next hop address often has a value of 0.0.0.0 since the default
+configuration of SiLK does not store the next hop address in the data
+repository.
+
+The address-partitioning switches are:
+
+=over 4
+
+=item B<--scidr>=I<IP_OR_CIDR_LIST>
+
+Pass the record if its source IP address matches a value in
+I<IP_OR_CIDR_LIST>, a comma separated list of IPs and/or CIDR blocks.
+See also B<--saddress> and B<--sipset>.
+
+=item B<--dcidr>=I<IP_OR_CIDR_LIST>
+
+Pass the record if its destination IP address matches a value in
+I<IP_OR_CIDR_LIST>.  See also B<--daddress> and B<--dipset>.
+
+=item B<--any-cidr>=I<IP_OR_CIDR_LIST>
+
+Pass the record if either its source or its destination IP address
+matches a value in I<IP_OR_CIDR_LIST>.  This switch does I<not>
+consider the next hop IP address.  See also B<--any-address> and
+B<--anyset>.
+
+=item B<--nhcidr>=I<IP_OR_CIDR_LIST>
+
+Pass the record if its next hop IP address matches a value in
+I<IP_OR_CIDR_LIST>.  See also B<--next-hop-id> and B<--nhipset>.
+
+=item B<--not-scidr>=I<IP_OR_CIDR_LIST>
+
+Pass the record if its source IP address does not match a value in
+I<IP_OR_CIDR_LIST>, a comma separated list of IPs and/or CIDR blocks.
+See also B<--not-saddress> and B<--not-sipset>.
+
+=item B<--not-dcidr>=I<IP_OR_CIDR_LIST>
+
+Pass the record if its destination IP address does not match a value
+in I<IP_OR_CIDR_LIST>.  See also B<--not-daddress> and
+B<--not-dipset>.
+
+=item B<--not-any-cidr>=I<IP_OR_CIDR_LIST>
+
+Pass the record if neither its source nor its destination IP address
+matches a value in I<IP_OR_CIDR_LIST>.  See also B<--not-any-address>
+and B<--not-anyset>.
+
+=item B<--not-nhcidr>=I<IP_OR_CIDR_LIST>
+
+Pass the record if its next hop IP address does not match a value in
+I<IP_OR_CIDR_LIST>.  See also B<--not-next-hop-id> and
+B<--not-nhipset>.
+
+=item B<--saddress>=I<IP_WILDCARD>
+
+Pass the record if its source IP address is matched by the SiLK IP
+Wildcard I<IP_WILDCARD>.  To match on multiple IPs, use B<--scidr> or
+create an IPset and use B<--sipset>.
+
+=item B<--daddress>=I<IP_WILDCARD>
+
+Pass the record if its destination IP address is matched by
+I<IP_WILDCARD>, a SiLK IP Wildcard.  See also B<--dcidr> and
+B<--dipset>.
+
+=item B<--any-address>=I<IP_WILDCARD>
+
+Pass the record if either its source or its destination IP address is
+matched by I<IP_WILDCARD>, a SiLK IP Wildcard.  This switch does
+I<not> consider the next hop IP address.  See also B<--any-cidr> and
+B<--anyset>.
+
+=item B<--next-hop-id>=I<IP_WILDCARD>
+
+Pass the record if its next hop IP address is matched by this
+I<IP_WILDCARD>, a SiLK IP Wildcard.  To match on multiple IPs, use
+B<--nhcidr> or create an IPset and use B<--nhipset>.
+
+=item B<--not-saddress>=I<IP_WILDCARD>
+
+Pass the record if its source IP address is I<not> matched by this
+I<IP_WILDCARD>, a SiLK IP Wildcard.  See also B<--not-scidr> and
+B<--not-sipset>.
+
+=item B<--not-daddress>=I<IP_WILDCARD>
+
+Pass the record if its destination IP address is I<not> matched by
+this I<IP_WILDCARD>.  See also B<--not-dcidr> and B<--not-dipset>.
+
+=item B<--not-any-address>=I<IP_WILDCARD>
+
+Pass the record if neither its source nor its destination IP address
+is matched by this I<IP_WILDCARD>.  Does I<not> consider the next hop
+address.  See also B<--not-any-cidr> and B<--not-anyset>.
+
+=item B<--not-next-hop-id>=I<IP_WILDCARD>
+
+Pass the record if its next hop IP address is I<not> matched by this
+I<IP_WILDCARD>.  See also B<--not-nhcidr> and B<--not-nhipset>.
+
+=item B<--sipset>=I<IP_SET_FILENAME>
+
+Pass the record if its source IP address is in the list of IPs
+contained in the binary set file I<IP_SET_FILENAME>.  See also
+B<--scidr>.
+
+=item B<--dipset>=I<IP_SET_FILENAME>
+
+As B<--sipset> for the destination IP address.  See also B<--dcidr>.
+
+=item B<--anyset>=I<IP_SET_FILENAME>
+
+Pass the record if either its source IP address or its destination IP
+address is in the list of IPs contained in the binary set file
+I<IP_SET_FILENAME>.  Does I<not> consider the next hop IP.  See also
+B<--any-cidr>.
+
+=item B<--nhipset>=I<IP_SET_FILENAME>
+
+As B<--sipset> for the next-hop IP address.  See also B<--nhcidr>.
+
+=item B<--not-sipset>=I<IP_SET_FILENAME>
+
+Pass the record if its source IP address is I<not> in the list of IPs
+contained in the binary set file I<IP_SET_FILENAME>.  See also
+B<--not-scidr>.
+
+=item B<--not-dipset>=I<IP_SET_FILENAME>
+
+As B<--not-sipset> for the destination IP address.  See also
+B<--not-dcidr>.
+
+=item B<--not-anyset>=I<IP_SET_FILENAME>
+
+Pass the record if neither its source IP address nor its destination
+IP address is in the list of IPs contained in the binary set file
+I<IP_SET_FILENAME>.  Does I<not> consider the next hop IP.  See also
+B<--not-any-cidr>.
+
+=item B<--not-nhipset>=I<IP_SET_FILENAME>
+
+As B<--not-sipset> for the next hop IP address.  See also
+B<--not-nhcidr>.
+
+=back
+
+
+B<Partitioning Switches for Remainder of Five-Tuple>
+
+The following switches partition based on the protocol and source or
+destination port.  The parameter to each of these switches is an
+I<INTEGER_LIST>, which is a comma-separated list of individual
+non-negative integer values and ranges of those values.  For example,
+C<1,2,3,5-10,99-103>.  A range may be specified without an upper
+limit, such as C<1->, in which case the upper limit is set to the
+maximum value.
+
+=over 4
+
+=item B<--sport>=I<INTEGER_LIST>
+
+Pass the record if its source port is in this I<INTEGER_LIST>,
+possible values are 0-65535.
+
+=item B<--dport>=I<INTEGER_LIST>
+
+Pass the record if its destination port is in this I<INTEGER_LIST>,
+possible values are 0-65535
+
+=item B<--aport>=I<INTEGER_LIST>
+
+Pass the record if its source port and/or its destination port is in
+this I<INTEGER_LIST>, possible values are 0-65535.  For example, use
+B<--aport>=I<25> to see all SMTP conversions regardless or where they
+originated.
+
+=item B<--protocol>=I<INTEGER_LIST>
+
+Pass the record if its IP Suite Protocol is in this I<INTEGER_LIST>,
+possible values are 0-255.
+
+=item B<--icmp-type>=I<INTEGER_LIST>
+
+Pass the record if its ICMP (or ICMPv6) type is in this
+I<INTEGER_LIST>; possible values 0-255.  This switch also verifies
+that the flow's protocol is 1 (or 58 if the flow is IPv6).  It is an
+error to specify a B<--protocol> that does not include 1 and/or 58.
+
+=item B<--icmp-code>=I<INTEGER_LIST>
+
+Pass the record if its ICMP (or ICMPv6) code is in this
+I<INTEGER_LIST>; possible values 0-255.  This switch also verifies
+that the flow's protocol is 1 (or 58 if the flow is IPv6).  It is an
+error to specify a B<--protocol> that does not include 1 and/or 58.
+
+=back
+
+
+B<Partitioning Switches for Time>
+
+These switches partition based on whether the time stamps on the flow
+record occur within the specified time window.  The form of the
+argument is range of two dates, start-window and end-window, each in
+the form C<YYYY/MM/DD[:HH[:MM[:SS[.ssssss]]]]>, for example
+C<2003/01/31:23:45:00.000-2003/01/31:23:59:59.999> represents the last
+fifteen minutes of Jan 31, 2003.  (You may use a C<T> in place of C<:>
+to separate the day and hour; you may also specify the times as
+seconds since the UNIX epoch.)  The start-window and end-window must
+be set to at least day precision.  For the start-window, unspecified
+hour, minute, second, and millisecond values set to 0; for the
+end-window, those values are set to 23, 59, 59, and 999 respectively.
+Thus C<2003/01/31:23-2003/01/31:23> becomes
+C<2003/01/31:23:00:00.000-2003/01/31:23:59:59.999>.  If an end-window
+is not given, it is set to the start-window, giving a window of a
+single millisecond.  The date strings are considered to be in the
+timezone specified when SiLK was compiled, which you can determine
+from the output of B<rwfilter --version>.
+
+=over 4
+
+=item B<--active-time>=I<TIME_WINDOW>
+
+Pass the record if the record was active at ANY time during this
+I<TIME_WINDOW>.  If a single time is specified, pass the record if it
+was active at that instant.
+
+=item B<--stime>=I<TIME_WINDOW>
+
+Pass the record if its starting time is in this I<TIME_WINDOW>.
+
+=item B<--etime>=I<TIME_WINDOW>
+
+As B<--stime> for the ending time.
+
+=item B<--duration>=I<DECIMAL_RANGE>
+
+Pass the record if its duration--that is, the record's end time minus
+its start time, as measured in seconds--is in this I<DECIMAL_RANGE>.
+Use floating point numbers to specify millisecond values.  The range
+should be specified as I<MIN>-I<MAX>; for example, C<5.0-10.031>.  If
+a single value is given, the duration must match that value exactly.
+The upper limit may be omitted; for example, a range of C<1.5-> passes
+records whose duration is at least 1.5 seconds.
+
+=back
+
+
+B<Partitioning Switches for Volume>
+
+The following switches partition based on the volume of the flow; that
+is, the number of bytes or packets.  For additional volume-related
+switches, load the B<flowrate> plug-in as described in the
+B<flowrate(3)> manual page.
+
+These switches accept a range of non-negative integers or decimal
+values.  If the upper limit is omitted, the volume must be at least
+that size.  If the argument is a single value, the volume must match
+that value exactly.
+
+=over 4
+
+=item B<--bytes>=I<INTEGER_RANGE>
+
+Pass the record if its byte count is in this I<INTEGER_RANGE>.
+
+=item B<--packets>=I<INTEGER_RANGE>
+
+Pass the record if its packet count is in this I<INTEGER_RANGE>.
+
+=item B<--bytes-per-packet>=I<DECIMAL_RANGE>
+
+Pass the record if its average bytes per packet count (bytes/packet)
+is in this I<DECIMAL_RANGE>.
+
+=back
+
+
+B<Partitioning Switches for TCP Flags>
+
+When a flow generator creates a flow record from TCP packets, it
+creates a field that is the bitwise OR of the TCP flags from all
+packets that comprise that flow record.  Some flow generators, such as
+B<yaf(1)>, can export two TCP flag fields: one contains the flags on
+the first packet in the flow, and the second contains the bitwise OR
+of the remaining packets.
+
+To partition records based on their TCP flags values, there is a
+recommended set of switches and legacy-supported switches.  The
+switches accept the following letters to represent the named TCP flag:
+C<F>=FIN; C<S>=SYN; C<R>=RST; C<P>=PSH; C<A>=ACK; C<U>=URG; C<E>=ECE;
+C<C>=CWR.
+
+The recommended set of switches take a comma separated list of pairs
+of TCP flags, where the pair is separated by a slash (B</>).  The
+value to the left of the slash is the I<HIGH_SET> and it must be a
+subset of the value to the right of the slash, which is the
+I<MASK_SET>.  For a record to pass the filter, the flags in the
+I<HIGH_SET> must be on and the remaining flags in I<MASK_SET> must be
+off.  Flags not in I<MASK_SET> may have any value.  If a list of pairs
+is given, the record passes if any pair in the list matches.  For
+example, C<--flags-all=S/S,A/A> passes flows that have either the SYN
+or the ACK flag set, C<--flags-all=S/SA> passes flow records where SYN
+is high and ACK is low, and C<--flags-all=/F> passes flows where FIN
+is off.  This list of flag pairs is called a I<HIGH_MASK_FLAGS_LIST>.
+
+The recommended switches for TCP flag partitioning are:
+
+=over 4
+
+=item B<--flags-all>=I<HIGH_MASK_FLAGS_LIST>
+
+Pass the record if any of the I<HIGH_SET>/I<MASK_SET> pairs is true
+when looking at the bitwise OR of the TCP flags across B<all> packets
+in the flow.
+
+=item B<--flags-initial>=I<HIGH_MASK_FLAGS_LIST>
+
+As B<--flags-all>, except this switch considers only the initial
+packet in the flow, for flow generators that can generate that field.
+
+=item B<--flags-session>=I<HIGH_MASK_FLAGS_LIST>
+
+As B<--flags-all>, except this switch considers the bitwise OR of the
+TCP flags across the second through the final packet in the flow; that
+is, ignoring the flags on the first packet.
+
+=back
+
+The TCP-flag partitioning switches supported for legacy reasons are:
+
+=over 4
+
+=item B<--tcp-flags>=I<TCP_FLAGS>
+
+Pass the record if, for any one of its packets, I<any> of the
+specified I<TCP_FLAGS> was on, where I<TCP_FLAGS> contains the letters
+C<F>,C<S>,C<R>,C<P>,C<A>,C<U>,C<E>,C<C>.  For example,
+B<--tcp-flags=ASF> passes records where ACK is set, or SYN is set, or
+FIN is set.
+
+=item B<--ack-flag>={B<0>|B<1>}
+
+Set to 0, only passes records where the ACK Flag is Low,
+Set to 1, only passes records where the ACK Flag is high.
+
+=item B<--cwr-flag>={B<0>|B<1>}
+
+As B<--ack-flag> for the CWR Flag
+
+=item B<--ece-flag>={B<0>|B<1>}
+
+As B<--ack-flag> for the ECE Flag
+
+=item B<--fin-flag>={B<0>|B<1>}
+
+As B<--ack-flag> for the ACK Flag
+
+=item B<--psh-flag>={B<0>|B<1>}
+
+As B<--ack-flag> for the PSH Flag
+
+=item B<--rst-flag>={B<0>|B<1>}
+
+As B<--ack-flag> for the RST Flag
+
+=item B<--syn-flag>={B<0>|B<1>}
+
+As B<--ack-flag> for the SYN Flag
+
+=item B<--urg-flag>={B<0>|B<1>}
+
+As B<--ack-flag> for the URG Flag
+
+=back
+
+
+B<Partitioning Switches for Other Flow Characteristics>
+
+Other than the B<--ip-version> switch, the fields queried by the
+following switches may always be zero.  The default configuration of
+SiLK does not store the fields that contain the SNMP values.  The
+other fields are not present in NetFlow v5, and require use of
+properly-configured enhanced collection software, such as B<yaf(1)>,
+L<http://tools.netsa.cert.org/yaf/>.
+
+=over 4
+
+=item B<--ip-version>={B<4>|B<6>|B<4,6>}
+
+Passes the record if its IP Version is in the specified list.  This
+switch determines how IPv4 and IPv6 flow records are handled when SiLK
+has been compiled with IPv6 support.  When the argument to this switch
+is C<4>, B<rwfilter> writes records marked as IPv6 to the
+fail-destination, regardless of the IP addresses it contains.  When
+the argument to this switch is C<6>, B<rwfilter> writes records marked
+as IPv4 to the fail-destination.  When SiLK has not been compiled with
+IPv6 support, the only legal value for this switch is C<4>, and any
+IPv6 flows in the input ignored (that is, they are not written to
+either the pass-destination nor the fail-destination).
+
+=item B<--application>=I<INTEGER_LIST>
+
+Some flow generation software can inspect the contents of the packets
+that comprise a flow and use traffic signatures to label the content
+of the flow.  SiLK calls this label the I<application>; B<yaf> refers
+to it as the I<appLabel> (see the B<applabel(1)> manual page in the
+yaf distribution).  The application value is the port number that is
+traditionally used for that type of traffic (see the F</etc/services>
+file on most UNIX systems).  For example, traffic that the flow
+generator recognizes as FTP has a value of 21, even if that
+traffic is being routed through the standard HTTP/web S<port (80)>.
+The flow generator uses a value for 0 if the application cannot be
+determined.  The B<--application> switch passes the flow if the flow's
+application value is in the specified I<INTEGER_LIST>, which is a
+comma separated list of integers from 0 to 65535 inclusive and ranges
+of those integers.  The list of valid appLabels is determined by your
+site's B<yaf> installation.
+
+=item B<--attributes>=I<ATTRIBUTES_LIST>
+
+The I<attributes> field in SiLK Flow records describes characteristics
+about how the flow record was generated or about the packets that
+comprise the flow record.  The I<ATTRIBUTES_LIST> argument is similar
+to the I<HIGH_MASK_FLAGS_LIST> argument to the B<--flags-all> switch.
+I<ATTRIBUTES_LIST> is a comma separated list of up to 8
+I<HIGH_ATTRIBUTES>/I<MASK_ATTRIBUTES> pairs, where I<HIGH_ATTRIBUTES>
+and I<MASK_ATTRIBUTES> are strings of the characters
+C<S>,C<T>,C<C>,C<F>, and I<HIGH_ATTRIBUTES> is a subset of
+I<MASK_ATTRIBUTES>.  B<rwfilter> passes the record if, for any pair of
+attributes in the list, the attributes listed in I<HIGH_ATTRIBUTES>
+are set and the remaining attributes in I<MASK_ATTRIBUTES> are
+not-set.  The valid I<attributes> are:
+
+=over 4
+
+=item C<S>
+
+All the packets in this flow record are exactly the same size.
+
+=item C<T>
+
+The flow generator prematurely created a record for a long-lived
+session due to the connection's lifetime reaching the I<active
+timeout> of the flow generator.  (Also, when B<yaf> is run with the
+B<--silk> switch, it prematurely creates a flow and marks it with
+C<T> if the byte count of the flow cannot be stored in a 32-bit
+value.)
+
+=item C<C>
+
+The flow generator created this flow as a continuation of long-running
+connection, where the previous flow for this connection met a timeout.
+
+=item C<F>
+
+The flow generator saw additional packets in this flow following a
+packet with the FIN flag set (excluding ACK packets).
+
+=back
+
+For a long-lived connection spanning several flow records, the first
+flow record is marked with a C<T> indicating that it hit the
+active timeout.  The second through next-to-last records are
+marked with C<CT> indicating that the flow is a continuation of a
+connection that timed out and that this flow also timed out.  The
+final flow is marked with a C<C>, indicating that it was created
+as a continuation of an active flow.
+
+=item B<--input-index>=I<INTEGER_LIST>
+
+Pass the record if its C<in> field is in this I<INTEGER_LIST>, which
+is a comma separated list of integers from 0 to 65535, inclusive, and
+ranges of those integers.  When present, the C<in> field normally
+contains the incoming SNMP interface, but it may contain the vlanId if
+the packing tools were configured to capture it (see
+B<sensor.conf(5)>).
+
+=item B<--output-index>=I<INTEGER_LIST>
+
+Pass the record if its C<out> field is in this
+I<INTEGER_LIST>.  When present, the C<out> field normally contains the
+outgoing SNMP interface, but it may contain the postVlanId if the
+packing tools were configured to capture it.
+
+=item B<--any-index>=I<INTEGER_LIST>
+
+Pass the record if its C<in> field or if its C<out> field is in this
+I<INTEGER_LIST>.
+
+=back
+
+
+B<Selection Switches Acting as Partitioning Switches>
+
+The following four switches are normally file selection switches, that
+is they select which files B<rwfilter> reads within the data
+repository.  However, when B<rwfilter> gets input without querying the
+data repository (that is, from files listed on the command line, from
+files specified by B<--xargs>, or from the B<--input-pipe>), these
+switches become partitioning switches and determine whether a record
+is written to the pass-destination or fail-destination.
+
+=over
+
+=item B<--class>=I<CLASS>
+
+Pass the record if its class is I<CLASS> and its type is listed in the
+B<--type> switch, or its type is in the default type list for I<CLASS>
+when B<--type> is not specified.  Use B<rwfilter --help> to see the
+list of available classes and types, and the defaults.
+
+=item B<--flowtypes>=I<CLASS>/I<TYPE>[,I<CLASS>/I<TYPE> ...]
+
+Pass the record its if class/type value is one of those listed.  The
+keyword C<all> may be used for the I<CLASS> and/or I<TYPE> to select
+all classes and/or types.  This switch cannot be used when either
+B<--class> or B<--type> is used.  Use B<rwfilter --help> to see the
+list of available classes and types.
+
+=item B<--sensors>=I<SENSOR>[,I<SENSOR> ...]
+
+Pass the record if its sensor is one of those listed.  The parameter
+is a comma separated list of sensor names, sensor IDs (integers),
+and/or ranges of sensor IDs.  Use the B<rwsiteinfo(1)> command to see the
+list of sensors.
+
+=item B<--type>={C<all> | I<TYPE>[,I<TYPE>]}
+
+Pass the record if its type is one of those listed and its class is
+specified by B<--class>, or its class is the default class when the
+B<--class> switch is not specified.  Use B<rwfilter --help> to see
+the list of available classes and types, and the defaults.
+
+=back
+
+
+B<Partitioning Switches that use Additional Mapping Files>
+
+Additional partitioning switches are available that allow one to
+partition flow records depending on a label, where the label is
+computed from an IP address or port on the record and an additional
+mapping file.
+
+=over 4
+
+=item B<--pmap-file>=I<MAPNAME>:I<PATH>
+
+=item B<--pmap-file>=I<PATH>
+
+Instruct B<rwfilter> to load the mapping file located at I<PATH> and
+create new switches B<--pmap-src-I<MAPNAME>>,
+B<--pmap-dst-I<MAPNAME>>, and B<--pmap-any-I<MAPNAME>>.  When
+I<MAPNAME> is provided, it is used to refer to the switches
+specific to that prefix map.  If I<MAPNAME> is not provided,
+B<rwfilter> checks the prefix map file to see if a map-name was
+specified when the file was created.  If no map-name is available,
+B<rwfilter> creates legacy switches as described below.  Multiple
+B<--pmap-file> switches are supported as long as each uses a unique
+map-name.  The B<--pmap-file> switch(es) must precede all other
+B<--pmap-*> switches.  For more information, see B<pmapfilter(3)>.
+
+=item B<--pmap-src-I<MAPNAME>>=I<LABELS>
+
+If the prefix map associated with I<MAPNAME> is an IP prefix map, this
+matches records with a source IPv4 address that maps to a label
+contained in the list of labels in I<LABELS>.
+
+If the prefix map associated with I<MAPNAME> is a proto-port prefix
+map, this matches records with a protocol and source port combination
+that maps to a label contained in the list of labels in I<LABELS>.
+
+=item B<--pmap-dst-I<MAPNAME>>=I<LABELS>
+
+Similar to B<--pmap-src-I<MAPNAME>>, but uses the destination IP or
+the protocol and destination port.
+
+=item B<--pmap-any-I<MAPNAME>>=I<LABELS>
+
+If the prefix map associated with I<MAPNAME> is an IP prefix map, this
+matches records with a source IP address or a destination IP address
+that maps to a label contained in the list of labels in I<LABELS>.
+
+If the prefix map associated with I<MAPNAME> is a port/protocol prefix
+map, this matches records with a protocol and source port or
+destination port combination that maps to a label contained in the
+list of labels in I<LABELS>.
+
+=item B<--pmap-saddress>=I<LABELS>
+
+=item B<--pmap-daddress>=I<LABELS>
+
+=item B<--pmap-any-address>=I<LABELS>
+
+These are deprecated switches created by B<pmapfilter> that correspond
+to B<--pmap-src-I<MAPNAME>>, B<--pmap-dst-I<MAPNAME>>, and
+B<--pmap-any-I<MAPNAME>>, respectively.  These switches are available
+when an IP prefix map is used that is not associated with a
+I<MAPNAME>.
+
+=item B<--pmap-sport-proto>=I<LABELS>
+
+=item B<--pmap-dport-proto>=I<LABELS>
+
+=item B<--pmap-any-port-proto>=I<LABELS>
+
+These are deprecated switches created by B<pmapfilter> that correspond
+to B<--pmap-src-I<MAPNAME>>, B<--pmap-dst-I<MAPNAME>>, and
+B<--pmap-any-I<MAPNAME>>, respectively.  These switches are available
+when a proto-port prefix map is used that is not associated with a
+I<MAPNAME>.
+
+=item B<--scc>=I<COUNTRY_CODE_LIST>
+
+=item B<--dcc>=I<COUNTRY_CODE_LIST>
+
+=item B<--any-cc>=I<COUNTRY_CODE_LIST>
+
+Pass the record if one its IP addresses maps to a country code that is
+specified in I<COUNTRY_CODE_LIST>.  For B<--scc>, the source IP must
+match.  For B<--dcc>, the destination IP must match.  For B<--any-cc>,
+either the source or the destination must match.  I<COUNTRY_CODE_LIST>
+is a comma separated list of lowercase two-letter country
+codes---based on the Root-Zone Whois Index (see for example
+L<http://www.iana.org/cctld/cctld-whois.htm>)---as well as the
+following special codes:
+
+=over 4
+
+=item C<-->
+
+N/A (e.g. private and experimental reserved addresses)
+
+=item C<a1>
+
+anonymous proxy
+
+=item C<a2>
+
+satellite provider
+
+=item C<o1>
+
+other
+
+=back
+
+For example: C<cx,uk,kr,jp,-->.  To use this switch, the country code
+mapping file must be available in the default location, or in the
+location specified by the SILK_COUNTRY_CODES environment variable. See
+B<ccfilter(3)> for details.
+
+=item B<--stype>={B<0>|B<1>|B<2>|B<3>}
+
+=item B<--dtype>={B<0>|B<1>|B<2>|B<3>}
+
+Pass a flow record depending on whether the IP address is internal,
+external, or non-routable.  These switches use the mapping file
+specified by the SILK_ADDRESS_TYPES environment variable, or the
+F<address_types.pmap> mapping file, as described in B<addrtype(3)>.
+When the parameter is 0, pass the record if its source (B<--stype>) IP
+address or destination (B<--dtype>) IP address is non-routable.  When
+1, pass if internal.  When 2, pass if external (i.e., routable but not
+internal).  When 3, pass if not internal (non-routable or external).
+
+=back
+
+
+B<Partitioning Switches across Multiple Fields>
+
+The B<--tuple-*> family of switches allows the user to partition flow
+records based on multiple values of the five-tuple.
+
+=over 4
+
+=item B<--tuple-file>=I<TUPLE_FILENAME>
+
+This switch provides support for partitioning by arbitrary subsets of
+the basic five-tuple:
+
+ {source-ip,destination-ip,source-port,destination-ip-port,protocol}
+
+A SiLK Flow record passes the test when the record's fields match
+one of the tuples; if the SiLK record does not match any tuple, the
+record fails.  The tuples are read from the text file
+I<TUPLE_FILENAME> which must contain lines of delimited fields.  The
+default delimiter is C<|>, but may be specified with the
+B<--tuple-delimiter> switch.  Each field contains one member of the
+tuple; the fields may appear in any order.  The fields may represent
+any subset of the five-tuple, but each line in the file must define
+the same subset.  A field that is present but has no value
+generates an error.  If you want the field to match any value, it is
+best that you not include that field in your input.
+
+In addition to the tuple-lines, I<TUPLE_FILENAME> may contain blank
+lines and comments (which begin with C<#> and continue to the end of
+the line).  The first line of I<TUPLE_FILENAME> may contain a title
+labeling the fields in the file.  This title line is ignored when
+the B<--tuple-fields> switch is given.
+
+The IP fields may contain an IPv4 address, an integer, or a IP in CIDR
+block notation.  Comma-separated lists (C<80,443>) and ranges
+(C<0-1023,8080>) are supported for the ports and protocol fields.
+B<NOTE:> Currently the code is not clever in its support for CIDR
+notation and ranges in that each occurrence is fully expanded.  When
+this occurs, the memory required to hold the search tree quickly
+grows.
+
+=item B<--tuple-fields>=I<FIELDS>
+
+I<FIELDS> contains the list of fields (columns) to parse from the
+I<TUPLE_FILENAME> in the order in which they appear in the file.  When
+this switch is not provided, B<rwfilter> treats the first line in
+I<TUPLE_FILENAME> as a title line and attempts to determine the fields
+(a la B<rwtuc(1)>); B<rwfilter> exits if it cannot determine the
+fields.
+
+I<FIELDS> is a comma separated list of field-names, field-integers,
+and ranges of field-integers; a range is specified by separating the
+start and end of the range with a hyphen (B<->).  Names can be
+abbreviated to their shortest unique prefix.  The field names and
+their descriptions are:
+
+=over 4
+
+=item sIP,sip,1
+
+source IP address
+
+=item dIP,dip,2
+
+destination IP address
+
+=item sPort,sport,3
+
+source port
+
+=item dPort,dport,4
+
+destination port
+
+=item protocol,5
+
+IP protocol
+
+=back
+
+=item B<--tuple-direction>=I<DIRECTION>
+
+Allows you to change the comparison between the tuple and the SiLK
+Flow record.  This switch allows one to look for traffic in the
+reverse direction (or both directions) without having to write all of
+the rules twice.  The available directions are:
+
+=over 4
+
+=item forward
+
+The tuple's fields are compared against the corresponding fields on
+the flow; that is, sIP is compared with sIP, dIP with dIP, sPort with
+sPort, dPort with dPort, and protocol with protocol.  This is the
+default.
+
+=item reverse
+
+The tuple's fields are compared against the opposite fields on the
+flow; that is, sIP is compared with dIP, dIP with sIP, sPort with
+dPort, dPort with sPort, and protocol with protocol.
+
+=item both
+
+Both of the above comparisons are performed.
+
+=back
+
+=item B<--tuple-delimiter>=I<CHAR>
+
+Specifies the character separating the input fields.  When the switch
+is not provided, the default of C<|> is used.
+
+=back
+
+
+B<Partitioning Switches that use the PySiLK Plug-in>
+
+The SiLK Python plug-in, F<silkpython.so>, provides support for
+filtering by expressions or complex functions written in the Python
+programming language.  See the B<silkpython(3)> and B<pysilk(3)>
+manual pages for information and examples for how to use Python to
+manipulate SiLK data structures.  When multiple Partitioning Switches
+are given, the Python plug-in is the next-to-last to be invoked.
+Only the code specified by the B<--plugin> switch is called after the
+Python code.
+
+=over 4
+
+=item B<--python-file>=I<FILENAME>
+
+Pass the record if the result of the processing the flow with the
+function named B<rwfilter()> in I<FILENAME> is true.  The function
+should take a single B<silk.RWRec> object as an argument.  See
+B<silkpython(3)> for details.
+
+=item B<--python-expr>=I<PYTHON_EXPRESSION>
+
+Pass the record if the result of the processing the flow with the
+specified I<PYTHON_EXPRESSION> is true.  The expression is evaluated
+as if it appeared in the following context:
+
+ from silk import *
+ def rwfilter(rec):
+     return (PYTHON_EXPRESSION)
+
+=back
+
+
+B<Partitioning Switches that use the IP-Association Plug-In>
+
+The IPA plug-in, F<ipafilter.so>, provides switches that can partition
+flows using data in an IP Association database.  For this plug-in to
+be available, SiLK must be compiled with IPA support and IPA must be
+configured.  See B<ipafilter(3)> and
+L<http://tools.netsa.cert.org/ipa/> for additional information.
+
+=over 4
+
+=item B<--ipa-src-expr>=I<IPA_EXPR>
+
+Use I<IPA_EXPR> to partition flows based on the source IP of the flow
+matching the I<IPA_EXPR> expression.
+
+=item B<--ipa-dst-expr>=I<IPA_EXPR>
+
+Use I<IPA_EXPR> to partition flows based on the destination IP of the
+flow matching the I<IPA_EXPR> expression.
+
+=item B<--ipa-any-expr>=I<IPA_EXPR>
+
+Use I<IPA_EXPR> to partition flows based on either the source or
+destination IP of the flow matching the I<IPA_EXPR> expression.
+
+=back
+
+
+=head2 Miscellaneous Switches
+
+=over 4
+
+=item B<--compression-method>=I<COMP_METHOD>
+
+Specify how to compress the output.  When this switch is not given,
+output to the standard output or to named pipes is not compressed, and
+output to files is compressed using the default chosen when SiLK was
+compiled.  The valid values for I<COMP_METHOD> are determined by which
+external libraries were found when SiLK was compiled.  To see the
+available compression methods and the default method, use the
+B<--help> or B<--version> switch.  SiLK can support the following
+I<COMP_METHOD> values when the required libraries are available.
+
+=over 4
+
+=item none
+
+Do not compress the output using an external library.
+
+=item zlib
+
+Use the B<zlib(3)> library for compressing the output, and always
+compress the output regardless of the destination.  Using zlib
+produces the smallest output files at the cost of speed.
+
+=item lzo1x
+
+Use the I<lzo1x> algorithm from the LZO real time compression library
+for compression, and always compress the output regardless of the
+destination.  This compression provides good compression with less
+memory and CPU overhead.
+
+=item best
+
+Use lzo1x if available, otherwise use zlib.  Only compress the output
+when writing to a file.
+
+=back
+
+=item B<--dry-run>
+
+Perform a sanity check on the input arguments to check that the
+arguments are acceptable.  In addition, prints to the standard output
+the names of the files that would be accessed (and the names of
+missing files if B<--print-missing> is specified).  B<rwfglob(1)> can
+also be used to generate the lists of files that B<rwfilter> would
+access.
+
+=item B<--help>
+
+Print the available options and exit.  Options that add fields (for
+example, options that load plug-ins, prefix maps, or PySiLK
+extensions) can be specified before the B<--help> switch so that the
+new options appear in the output.  The available classes and types
+are included in output; you may specify a different root directory
+or site configuration file before B<--help> to see the classes and
+types available for that site.
+
+=item B<--max-fail-records>=I<N>
+
+Write I<N> records to each B<--fail-destination>.  B<rwfilter>
+stops reading input once it has written these I<N> records unless
+B<--pass-destination> or B<--all-destination> switch(es) are also
+specified.
+
+=item B<--max-pass-records>=I<N>
+
+Write I<N> records to each B<--pass-destination>.  B<rwfilter>
+stops reading input once it has written these I<N> records unless
+B<--fail-destination> or B<--all-destination> switch(es) are also
+specified.
+
+=item B<--note-add>=I<TEXT>
+
+Add the specified I<TEXT> to the header of the output file as an
+annotation.  This switch may be repeated to add multiple annotations
+to a file.  To view the annotations, use the B<rwfileinfo(1)> tool.
+
+=item B<--note-file-add>=I<FILENAME>
+
+Open I<FILENAME> and add the contents of that file to the header of
+the output file as an annotation.    This switch may be repeated to
+add multiple annotations.  Currently the application makes no effort
+to ensure that I<FILENAME> contains text; be careful that you do not
+attempt to add a SiLK data file as an annotation.
+
+=item B<--plugin>=I<PLUGIN>
+
+Augment the partitioning switches by using run-time loading of the
+plug-in (shared object) whose path is I<PLUGIN>.  The switch may be
+repeated to load multiple plug-ins.  The creation of plug-ins is
+described in the B<silk-plugin(3)> manual page.  When multiple
+partitioning switches are given, the code specified by the B<--plugin>
+switch(es) is last to be invoked.  When I<PLUGIN> does not
+contain a slash (C</>), B<rwfilter> attempts to find a file named
+I<PLUGIN> in the directories listed in the L</FILES> section.  If
+B<rwfilter> finds the file, it uses that path.  If I<PLUGIN> contains
+a slash or if B<rwfilter> does not find the file, B<rwfilter> relies
+on your operating system's B<dlopen(3)> call to find the file.  When
+the SILK_PLUGIN_DEBUG environment variable is non-empty, B<rwfilter>
+prints status messages to the standard error as it attempts to find
+and open each of its plug-ins.
+
+=item B<--print-filenames>
+
+Print the names of input files as they are read.  This can be useful
+feedback for a long-running B<rwfilter> process.
+
+=item B<--site-config-file>=I<FILENAME>
+
+Read the SiLK site configuration from the named file I<FILENAME>.
+When this switch is not provided, B<rwfilter> searches for the site
+configuration file in the locations specified in the L</FILES>
+section.
+
+=item B<--threads>=I<N>
+
+Invoke B<rwfilter> with I<N> threads reading the input files.  When
+this switch is not provided, the value in the SILK_RWFILTER_THREADS
+environment variable is used.  If that variable is not set,
+B<rwfilter> runs with a single thread.  Using multiple threads,
+performance of B<rwfilter> is greatly improved for queries that look
+at many files but return few records.  Preliminary testing has found
+that performance peaks around four threads per CPU, but performance
+varies depending on the type of query and the number of records
+returned.
+
+=cut
+
+
+=pod
+
+=item B<--version>
+
+Print the version number and information about how SiLK was
+configured, then exit the application.
+
+=back
+
+=head1 EXAMPLES
+
+In the following examples, the dollar sign (C<$>) represents the shell
+prompt.  The text after the dollar sign represents the command line.
+Lines have been wrapped for improved readability, and the back slash
+(C<\>) is used to indicate a wrapped line.
+
+The most basic filtering involves looking at specific traffic
+over a specific time.  For example:
+
+ $ rwfilter --start-date=2003/02/19:00 --end-date=2003/02/19:23     \
+        --proto=6 --pass-destination=tcp-in.rw
+
+creates a file, F<tcp-in.rw> containing all B<incoming> TCP
+traffic on February 19, 2003.  The B<--start-date> and B<--end-date>
+switches select which files to examine.  The B<--proto> switch
+partitions the flow records into a I<pass> stream (records whose
+protocol is 6---that is, TCP) and a I<fail> stream (all other
+records).  The B<--pass-destination> switch (often shortened to
+B<--pass>) tells B<rwfilter> to write the records that pass the
+B<--proto> test to the file F<tcp-in.rw>.
+
+The F<tcp-in.rw> file contains SiLK Flow data in a binary format.  To
+examine the contents, use the command B<rwcut(1)>.  This query only
+selects incoming traffic because the B<silk.conf(5)> configuration
+file at most sites tells B<rwfilter> to look at incoming traffic
+unless an explicit B<--type> switch is given.
+
+The following query gets all TCP traffic (for the default class) for
+February 19, 2003.
+
+ $ rwfilter --type=all --start-date=2003/02/19  \
+        --proto=6 --pass-destination=alltcp.rw
+
+Note the addition of B<--type=all>.  This query also relies on the
+default behavior of B<--start-date> to consider a full day's worth of
+data when no hour is specified.
+
+The above query gets all traffic for the default class.  If your
+F<silk.conf> file has a single class, that query captures all of
+it.  For F<silk.conf> files that specify multiple classes, the
+following gets all TCP traffic for February 19, 2003:
+
+ $ rwfilter --flowtypes=all/all --start-date=2003/02/19     \
+        --proto=6 --pass-destination=alltcp.rw
+
+To get all non-TCP traffic, there are two approaches.  B<rwfilter>
+does not supply a way to choose a negated set of protocols, but you
+can choose all protocols other than TCP:
+
+ $ rwfilter --start-date=2003/02/19:00 --end-date=2003/02/19:23     \
+        --proto=0-5,7-255 --pass-destination=non-tcp.rw
+
+The other approach is to use the B<--fail-destination> switch (often
+shortened to B<--fail>) that contains the records that failed one or
+more of the partitioning test(s):
+
+ $ rwfilter --start-date=2003/02/19:00 --end-date=2003/02/19:23     \
+        --proto=6 --fail-destination=non-tcp.rw
+
+To print information about the number of flow records that pass a
+filter, use B<--print-volume-statistics>.  This can be combined with
+other output switches.
+
+ $ rwfilter --start-date=2003/02/19:00 --end-date=2003/02/19:23     \
+        --proto=6 --print-volume-stat --pass-destination=tcp-in.rw
+      |        Recs|     Packets|         Bytes|  Files|
+ Total|      515359|     2722887|    1343819719|    180|
+  Pass|      512071|     2706571|    1342851708|       |
+  Fail|        3288|       16316|        968011|       |
+
+If you want to see the number of records in a file produced by
+B<rwfilter>, or to remind yourself how a file was created, use
+B<rwfileinfo(1)>:
+
+ $ rwfileinfo tcp-in.rw
+ tcp-in.rw:
+   format(id)          FT_RWGENERIC(0x16)
+   version             16
+   byte-order          littleEndian
+   compression(id)     lzo1x(2)
+   header-length       208
+   record-length       52
+   record-version      5
+   silk-version        2.4.0
+   count-records       512071
+   file-size           8576160
+   command-lines
+       1  rwfilter --start-date=2003/02/19:00 --end-date=2003/02/19:23 \
+            --proto=6 --print-volume-stat --pass-destination=tcp-in.rw
+
+Once a file is written, B<rwfilter> can process the file again.
+Traffic on port 25 is most likely email (SMTP) traffic.  To split the
+email traffic from the other traffic, use:
+
+ $ rwfilter --aport=25 --pass=mail.rw --fail=not-mail.rw tcp-in.rw
+
+This command puts traffic where the source or destination port was 25
+into the file F<mail.rw>, and all other traffic into the file
+F<not-mail.rw>.  The B<--fail-destination> is an effective way to
+reverse the sense of a test.  For example, to remove traffic on port
+80 from the F<not-mail.rw> file, run the command:
+
+ $ rwfilter --aport=80 --fail=not-mail-web.rw not-mail.rw
+
+To verify that the F<not-mail-web.rw> file does not contain any
+traffic on ports 25 or 80, you can use the B<--print-statistics>
+switch and see that 0 records pass:
+
+ $ rwfilter --aport=25,80 --print-stat not-mail-web.rw
+ Files     1.  Read    54641.  Pass        0. Fail     54641.
+
+The file maintains a history of the commands that created it:
+
+ $ rwfileinfo not-mail-web.rw
+ not-mail-web.rw:
+   format(id)          FT_RWGENERIC(0x16)
+   version             16
+   byte-order          littleEndian
+   compression(id)     lzo1x(2)
+   header-length       364
+   record-length       52
+   record-version      5
+   silk-version        2.4.0
+   count-records       54641
+   file-size           762875
+   command-lines
+       1  rwfilter --start-date=2003/02/19:00 --end-date=2003/02/19:23 \
+            --proto=6 --print-volume-stat --pass-destination=tcp-in.rw
+       2  rwfilter --aport=25 --pass=mail.rw --fail=not-mail.rw        \
+            tcp-in.rw
+       3  rwfilter --aport=80 --fail=not-mail-web.rw not-mail.rw
+
+
+The following finds all outgoing traffic from February 19, 2003, going
+to an external email server.  Traffic going to a server contacts
+that server on its well-known port, and the flow record's destination
+port should hold that well-known port:
+
+ $ rwfilter --type=out --start-date=2003/02/19 --print-volume-stat  \
+        --dport=25 --proto=6
+
+To limit the result to completed connections, select flow records that
+contain at least three packets, use the B<--packets> switch with an
+open-ended range:
+
+ $ rwfilter --type=out --start-date=2003/02/19 --print-volume-stat  \
+        --dport=25 --proto=6 --packets=3-
+
+To limit the search to a particular internal CIDR block, 10.1.2.0/24,
+there are three different IP-partitioning switches you can use.  The
+final approach uses B<rwsetbuild(1)> to create an IPset file from
+textual input.
+
+ $ rwfilter --type=out --start-date=2003/02/19 --print-volume-stat  \
+        --dport=25 --proto=6 --packets=3- --scidr=10.1.2.0/24
+
+ $ rwfilter --type=out --start-date=2003/02/19 --print-volume-stat  \
+        --dport=25 --proto=6 --packets=3- --saddress=10.1.2.x
+
+ $ echo "10.1.2.0/24" | rwsetbuild > my-set.set
+ $ rwfilter --type=out --start-date=2003/02/19 --print-volume-stat  \
+        --dport=25 --proto=6 --packets=3- --sipset=my-set.set
+
+B<rwfilter> does not have to output its records to a file; instead,
+the output from B<rwfilter> can be piped into a another SiLK tool.
+You must still use the B<--pass-destination> switch (or
+B<--fail-destination> or B<--all-destination> switch), but by
+providing the argument of C<stdout> or C<-> to the switch you tell
+B<rwfilter> to write its output to the standard output.
+
+For example, to get the IPs of the external email servers that the
+monitored network contacted, pipe the B<rwfilter> output into
+B<rwset(1)>, and tell B<rwset> to store the destination addresses:
+
+ $ rwfilter --type=out --start-date=2003/02/19 --dport=25           \
+        --proto=6 --packets=3- --scidr=10.1.2.0/24 --pass=stdout    \
+   | rwset --dip-file=external-mail-servers.set
+
+B<rwfilter> can also pipe its output as input to another B<rwfilter>
+command, which allows them to be chained together.  B<rwfilter> does
+not read from the standard input by default; you must explicitly give
+C<stdin> or C<-> as the stream to read:
+
+ $ rwfilter --type=out,outweb --start-date=2003/02/19               \
+        --scidr=10.1.2.0/24 --pass=stdout                           \
+   | rwfilter --proto=17 --pass=udp.rw --fail=stdout stdin          \
+   | rwfilter --proto=6 --pass=stdout --fail=non-tcp-udp.rw stdin   \
+   | rwfilter --aport=25 --pass=mail.rw --fail=stdout stdin         \
+   | rwfilter --aport=80,443 --pass=web.rw                          \
+        --fail=tcp-non-web-mail.rw stdin
+
+This chain of commands looks at outgoing traffic on February 19, 2003,
+originating from the internal net-block 10.1.2.0/24, creates the
+following files:
+
+=over 4
+
+=item F<udp.rw>
+
+Outgoing UDP traffic
+
+=item F<non-tcp-udp.rw>
+
+Outgoing traffic that is neither TCP nor UDP
+
+=item F<mail.rw>
+
+Outgoing TCP traffic on port 25, most of which is probably email
+(SMTP).  Since the query looks at outgoing traffic and the B<--aport>
+switch was used, this file represents email going from the internal
+10.1.2.0/24 to external mail servers, and the responses from any
+internal mail servers that exist in the 10.1.2.0/24 net-block to
+external clients.
+
+=item F<web.rw>
+
+Outgoing TCP traffic on ports 80 and 443, most of which is probably
+web traffic (HTTP,HTTPS).  As with the F<mail.rw> file, this file
+represents queries to external web servers and responses from internal
+web servers.
+
+=item F<tcp-non-web-mail.rw>
+
+Outgoing TCP traffic other than that on ports 25, 80, and 443
+
+=back
+
+Expert users can create even more complicated chains of B<rwfilter>
+commands using named pipes.
+
+
+=head1 ENVIRONMENT
+
+=over 4
+
+=item SILK_RWFILTER_THREADS
+
+The number of threads to use while reading input files or files
+selected from the data store.
+
+=item PYTHONPATH
+
+This environment variable is used by Python to locate modules.  When
+B<--python-file> or B<--python-expr> is specified, B<rwfilter> loads
+Python which in turn loads the PySiLK module which is comprised of
+several files (F<silk/pysilk_nl.so>, F<silk/__init__.py>, etc).  If
+this F<silk/> directory is located outside Python's normal search path
+(for example, in the SiLK installation tree), it may be necessary to
+set or modify the PYTHONPATH environment variable to include the
+parent directory of F<silk/> so that Python can find the PySiLK
+module.  For information on using Python from within B<rwfilter>, see
+B<pysilk(3)>.
+
+=item SILK_PYTHON_TRACEBACK
+
+When set, Python plug-ins output traceback information on Python
+errors to the standard error.
+
+=item SILK_COUNTRY_CODES
+
+This environment variable allows the user to specify the country code
+mapping file that the B<--scc> and B<--dcc> switches use.  The value
+may be a complete path or a file relative to the SILK_PATH.  See the
+L</FILES> section for standard locations of this file.
+
+=item SILK_ADDRESS_TYPES
+
+This environment variable allows the user to specify the address type
+mapping file that the B<--stype> and B<--dtype> switches use.  The
+value may be a complete path or a file relative to the SILK_PATH.  See
+the L</FILES> section for standard locations of this file.
+
+=item SILK_CLOBBER
+
+The SiLK tools normally refuse to overwrite existing files.  Setting
+SILK_CLOBBER to a non-empty value removes this restriction.
+
+=item SILK_CONFIG_FILE
+
+This environment variable is used as the value for the
+B<--site-config-file> when that switch is not provided.
+
+=item SILK_DATA_ROOTDIR
+
+This environment variable specifies the root directory of data
+repository.  This value overrides the compiled-in value, and
+B<rwfilter> uses it unless the B<--data-rootdir> switch is specified.
+In addition, B<rwfilter> may use this value when searching for the
+SiLK site configuration files.  See the L</FILES> section for details.
+
+=item SILK_PATH
+
+This environment variable gives the root of the install tree.  When
+searching for configuration files and plug-ins, B<rwfilter> may use
+this environment variable.  See the L</FILES> section for details.
+
+=item TZ
+
+When a SiLK installation is built to use the local timezone (to
+determine if this is the case, check the C<Timezone support> value in
+the output from B<rwfilter --version>), the value of the TZ
+environment variable determines the timezone in which B<rwfilter>
+parses timestamps.  If the TZ environment variable is not set, the
+default timezone is used.  Setting TZ to 0 or the empty string causes
+timestamps to be parsed as UTC.  The value of the TZ environment
+variable is ignored when the SiLK installation uses utc.  For system
+information on the TZ variable, see B<tzset(3)>.
+
+=item SILK_PLUGIN_DEBUG
+
+When set to 1, B<rwfilter> prints status messages to the standard
+error as it attempts to find and open each of its plug-ins.
+
+=item SILK_LOGSTATS
+
+When set to a non-empty value, B<rwfilter> treats the value as the
+path to an external program to execute with information about this
+B<rwfilter> invocation.  If the value in SILK_LOGSTATS does not
+contain a slash or if it references a file that does not exist, is not
+a regular file, or is not executable, the SILK_LOGSTATS value is
+silently ignored.  The arguments to the external program are:
+
+=over 4
+
+=item *
+
+The application name, i.e., C<rwfilter>.  Note that C<rwfilter> is
+always used as this argument, regardless of the name of the
+executable.
+
+=item *
+
+The version number of this command line, currently C<v0001>.
+
+=item *
+
+The start time of this invocation, as seconds since the UNIX epoch.
+
+=item *
+
+The end time of this invocation, as seconds since the UNIX epoch.
+
+=item *
+
+The number of data files opened for reading.
+
+=item *
+
+The number of records read.
+
+=item *
+
+The number of records written.
+
+=item *
+
+A variable number of arguments that are the complete command line used
+to invoke B<rwfilter>, including the name of the executable.
+
+=back
+
+=item SILK_LOGSTATS_RWFILTER
+
+If set, this environment variable overrides the value specified in
+SILK_LOGSTATS.
+
+=item SILK_LOGSTATS_DEBUG
+
+If the environment variable is set to a non-empty value, B<rwfilter>
+prints messages to the standard error about the SILK_LOGSTATS
+value being used and either the reason why the value cannot be used or
+the arguments to the external program being executed.
+
+=back
+
+=head1 FILES
+
+=over 4
+
+=item F<${SILK_ADDRESS_TYPES}>
+
+=item F<${SILK_PATH}/share/silk/address_types.pmap>
+
+=item F<${SILK_PATH}/share/address_types.pmap>
+
+=item F<@prefix@/share/silk/address_types.pmap>
+
+=item F<@prefix@/share/address_types.pmap>
+
+Possible locations for the address types mapping file required by the
+B<--stype> and B<--dtype> switches.
+
+=item F<${SILK_CONFIG_FILE}>
+
+=item F<ROOT_DIRECTORY/silk.conf>
+
+=item F<${SILK_PATH}/share/silk/silk.conf>
+
+=item F<${SILK_PATH}/share/silk.conf>
+
+=item F<@prefix@/share/silk/silk.conf>
+
+=item F<@prefix@/share/silk.conf>
+
+Possible locations for the SiLK site configuration file which are
+checked when the B<--site-config-file> switch is not provided, where
+F<ROOT_DIRECTORY/> is the directory B<rwfilter> is using as the root
+of the data repository.
+
+=item F<${SILK_COUNTRY_CODES}>
+
+=item F<${SILK_PATH}/share/silk/country_codes.pmap>
+
+=item F<${SILK_PATH}/share/country_codes.pmap>
+
+=item F<@prefix@/share/silk/country_codes.pmap>
+
+=item F<@prefix@/share/country_codes.pmap>
+
+Possible locations for the country code mapping file required by the
+B<--scc> and B<--dcc> switches.
+
+=item F<${SILK_DATA_ROOTDIR}/>
+
+=item F<@SILK_DATA_ROOTDIR@/>
+
+Locations for the root directory of the data repository when the
+B<--data-rootdir> switch is not specified.
+
+=item F<${SILK_PATH}/lib64/silk/>
+
+=item F<${SILK_PATH}/lib64/>
+
+=item F<${SILK_PATH}/lib/silk/>
+
+=item F<${SILK_PATH}/lib/>
+
+=item F<@prefix@/lib64/silk/>
+
+=item F<@prefix@/lib64/>
+
+=item F<@prefix@/lib/silk/>
+
+=item F<@prefix@/lib/>
+
+Directories that B<rwfilter> checks when attempting to load a plug-in.
+
+=back
+
+=head1 NOTES
+
+B<rwfilter> is the most commonly used application in the suite.  It
+provides access to the data files and performs all the basic
+queries.
+
+B<rwfilter> supports a variety of I/O options - in addition to
+reading from the data store, B<rwfilter> results can be chained
+together with named pipes to output results to multiple files
+simultaneously.  An introduction to named pipes is outside the
+scope of this document, however.
+
+Two often underused options are B<--dry-run> and
+B<--print-statistics>.  B<--dry-run> performs a sanity check on the
+arguments and can be used, especially for complicated arguments, to
+check that the arguments are acceptable.  B<--print-statistics> used
+without B<--pass-destination> or B<--fail-destination> simply prints
+aggregate statistics to the standard error on a single line, and it
+can be used to do a quick pass through the data to get aggregate
+counts before going in deeper into the phenomenon being investigated.
+
+B<--print-filename> can be used as a progress meter; during long jobs,
+it shows which file is currently being read by B<rwfilter>.
+B<--print-filename> does not provide meaningful feedback with piped
+input.
+
+Filters are applied in the order given on the command line.  It is
+best to apply the biggest filters first.
+
+The B<rwfilter> command line is written into the header of the
+output file(s).  You may use the B<rwfileinfo(1)> command to see this
+information.
+
+=head1 SEE ALSO
+
+B<rwcut(1)>, B<rwfglob(1)>, B<rwfileinfo(1)>, B<rwset(1)>,
+B<rwtuc(1)>, B<rwsetbuild(1)>, B<rwsiteinfo(1)>, B<addrtype(3)>,
+B<ccfilter(3)>, B<flowrate(3)>, B<ipafilter(3)>, B<pmapfilter(3)>,
+B<pysilk(3)>, B<silkpython(3)>, B<silk-plugin(3)>, B<silk.conf(5)>,
+B<sensor.conf(5)>, B<silk(7)>, B<rwflowpack(8)>, B<yaf(1)>,
+B<applabel(1)>, B<zlib(3)>, B<dlopen(3)>, I<Analysts' Handbook: Using
+SiLK for Network Traffic Analysis>
+
+=cut
+
+$SiLK: rwfilter.pod edfa31676092 2014-07-08 18:22:52Z mthomas $
+
+Local Variables:
+mode:text
+indent-tabs-mode:nil
+End:

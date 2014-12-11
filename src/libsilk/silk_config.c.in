@@ -1,0 +1,352 @@
+/*
+** Copyright (C) 2010-2014 by Carnegie Mellon University.
+**
+** @OPENSOURCE_HEADER_START@
+**
+** Use of the SILK system and related source code is subject to the terms
+** of the following licenses:
+**
+** GNU Public License (GPL) Rights pursuant to Version 2, June 1991
+** Government Purpose License Rights (GPLR) pursuant to DFARS 252.227.7013
+**
+** NO WARRANTY
+**
+** ANY INFORMATION, MATERIALS, SERVICES, INTELLECTUAL PROPERTY OR OTHER
+** PROPERTY OR RIGHTS GRANTED OR PROVIDED BY CARNEGIE MELLON UNIVERSITY
+** PURSUANT TO THIS LICENSE (HEREINAFTER THE "DELIVERABLES") ARE ON AN
+** "AS-IS" BASIS. CARNEGIE MELLON UNIVERSITY MAKES NO WARRANTIES OF ANY
+** KIND, EITHER EXPRESS OR IMPLIED AS TO ANY MATTER INCLUDING, BUT NOT
+** LIMITED TO, WARRANTY OF FITNESS FOR A PARTICULAR PURPOSE,
+** MERCHANTABILITY, INFORMATIONAL CONTENT, NONINFRINGEMENT, OR ERROR-FREE
+** OPERATION. CARNEGIE MELLON UNIVERSITY SHALL NOT BE LIABLE FOR INDIRECT,
+** SPECIAL OR CONSEQUENTIAL DAMAGES, SUCH AS LOSS OF PROFITS OR INABILITY
+** TO USE SAID INTELLECTUAL PROPERTY, UNDER THIS LICENSE, REGARDLESS OF
+** WHETHER SUCH PARTY WAS AWARE OF THE POSSIBILITY OF SUCH DAMAGES.
+** LICENSEE AGREES THAT IT WILL NOT MAKE ANY WARRANTY ON BEHALF OF
+** CARNEGIE MELLON UNIVERSITY, EXPRESS OR IMPLIED, TO ANY PERSON
+** CONCERNING THE APPLICATION OF OR THE RESULTS TO BE OBTAINED WITH THE
+** DELIVERABLES UNDER THIS LICENSE.
+**
+** Licensee hereby agrees to defend, indemnify, and hold harmless Carnegie
+** Mellon University, its trustees, officers, employees, and agents from
+** all claims or demands made against them (and any related losses,
+** expenses, or attorney's fees) arising out of, or relating to Licensee's
+** and/or its sub licensees' negligent use or willful misuse of or
+** negligent conduct or willful misconduct regarding the Software,
+** facilities, or other rights or assistance granted by Carnegie Mellon
+** University under this License, including, but not limited to, any
+** claims of product liability, personal injury, death, damage to
+** property, or violation of any laws or regulations.
+**
+** Carnegie Mellon University Software Engineering Institute authored
+** documents are sponsored by the U.S. Department of Defense under
+** Contract FA8721-05-C-0003. Carnegie Mellon University retains
+** copyrights in all material produced under this contract. The U.S.
+** Government retains a non-exclusive, royalty-free license to publish or
+** reproduce these documents, or allow others to do so, for U.S.
+** Government purposes only pursuant to the copyright license under the
+** contract clause at 252.227.7013.
+**
+** @OPENSOURCE_HEADER_END@
+*/
+
+/*
+**  silk_config
+**
+**    A simple application to give compiler information needed to link
+**    against the libraries that SiLK installs.
+**
+**    Mark Thomas
+**    February 2010
+*/
+
+
+#include <silk/silk.h>
+
+RCSIDENT("$SiLK: silk_config.c.in cd598eff62b9 2014-09-21 19:31:29Z mthomas $");
+
+#include <silk/utils.h>
+#include <silk/sksite.h>
+
+
+/* LOCAL DEFINES AND TYPEDEFS */
+
+/* where to write --help output */
+#define USAGE_FH stdout
+
+
+/* OPTIONS SETUP */
+
+typedef enum {
+    OPT_SILK_VERSION,
+    OPT_COMPILER,
+    OPT_CFLAGS,
+    OPT_INCLUDE,
+    OPT_LIBS,
+    OPT_LIBSILK_LIBS,
+    OPT_LIBSILK_THRD_LIBS,
+    OPT_LIBFLOWSOURCE_LIBS,
+    OPT_DATA_ROOTDIR,
+    OPT_PYTHON_SITE_DIR
+} appOptionsEnum;
+
+static struct option appOptions[] = {
+    {"silk-version",        NO_ARG,       0, OPT_SILK_VERSION},
+    {"compiler",            NO_ARG,       0, OPT_COMPILER},
+    {"cflags",              NO_ARG,       0, OPT_CFLAGS},
+    {"include",             NO_ARG,       0, OPT_INCLUDE},
+    {"libs",                NO_ARG,       0, OPT_LIBS},
+    {"libsilk-libs",        NO_ARG,       0, OPT_LIBSILK_LIBS},
+    {"libsilk-thrd-libs",   NO_ARG,       0, OPT_LIBSILK_THRD_LIBS},
+    {"libflowsource-libs",  NO_ARG,       0, OPT_LIBFLOWSOURCE_LIBS},
+    {"data-rootdir",        NO_ARG,       0, OPT_DATA_ROOTDIR},
+    {"python-site-dir",     NO_ARG,       0, OPT_PYTHON_SITE_DIR},
+    {0,0,0,0}               /* sentinel entry */
+};
+
+static const char *appHelp[] = {
+    ("Print the version of SiLK as a simple string.  Does\n"
+     "\tnot include the additional information that --version prints"),
+    ("Print the compiler used to build SiLK"),
+    ("Print the include paths and compiler flags to use when\n"
+     "\tcompiling a file against the SiLK header files"),
+    ("Print the include paths to use when compiling a file against\n"
+     "\tthe SiLK header files"),
+    ("An alias for --libsilk-libs"),
+    ("Print the linker flags to use when linking a program\n"
+     "\tagainst libsilk"),
+    ("Print the linker flags to use when linking a\n"
+     "\tprogram against libsilk-thrd"),
+    ("Print the linker flags to use when linking a\n"
+     "\tprogram against libflowsource"),
+    ("Print the compiled-in location of data repository,\n"
+     "\tignoring any environment variable settings"),
+    ("Print the directory where the PySiLK module files\n"
+     "\twere installed.  This is empty if PySiLK support is not available"),
+    (char *)NULL
+};
+
+
+/* LOCAL FUNCTION PROTOTYPES */
+
+static int  appOptionsHandler(clientData cData, int opt_index, char *opt_arg);
+
+
+/* FUNCTION DEFINITIONS */
+
+/*
+ *  appUsageLong();
+ *
+ *    Print complete usage information to USAGE_FH.  Pass this
+ *    function to skOptionsSetUsageCallback(); skOptionsParse() will
+ *    call this funciton and then exit the program when the --help
+ *    option is given.
+ */
+static void
+appUsageLong(
+    void)
+{
+#define USAGE_MSG                                                       \
+    ("[SWITCHES]\n"                                                     \
+     "\tPrint configuration information used to link other packages\n"  \
+     "\tagainst the SiLK libraries.  Print the selected option(s),\n"   \
+     "\tor all configuration information if no options provided.\n")
+
+    FILE *fh = USAGE_FH;
+
+    skAppStandardUsage(fh, USAGE_MSG, appOptions, appHelp);
+}
+
+
+/*
+ *  appTeardown()
+ *
+ *    Teardown all modules, close all files, and tidy up all
+ *    application state.
+ *
+ *    This function is idempotent.
+ */
+static void
+appTeardown(
+    void)
+{
+    static int teardownFlag = 0;
+
+    if (teardownFlag) {
+        return;
+    }
+    teardownFlag = 1;
+
+    skAppUnregister();
+}
+
+
+/*
+ *  appSetup(argc, argv);
+ *
+ *    Perform all the setup for this application include setting up
+ *    required modules, parsing options, etc.  This function should be
+ *    passed the same arguments that were passed into main().
+ *
+ *    Returns to the caller if all setup succeeds.  If anything fails,
+ *    this function will cause the application to exit with a FAILURE
+ *    exit status.
+ */
+static void
+appSetup(
+    int                 argc,
+    char              **argv)
+{
+    SILK_FEATURES_DEFINE_STRUCT(features);
+    static int arg_index;
+
+    /* verify same number of options and help strings */
+    assert((sizeof(appHelp)/sizeof(char *)) ==
+           (sizeof(appOptions)/sizeof(struct option)));
+
+    /* register the application */
+    skAppRegister(argv[0]);
+    skAppVerifyFeatures(&features, NULL);
+    skOptionsSetUsageCallback(&appUsageLong);
+
+    /* register the options */
+    if (skOptionsRegister(appOptions, &appOptionsHandler, NULL))
+    {
+        skAppPrintErr("Unable to register options");
+        exit(EXIT_FAILURE);
+    }
+
+    /* register the teardown handler */
+    if (atexit(appTeardown) < 0) {
+        skAppPrintErr("Unable to register appTeardown() with atexit()");
+        appTeardown();
+        exit(EXIT_FAILURE);
+    }
+
+    /* parse the options */
+    arg_index = skOptionsParse(argc, argv);
+    if (arg_index < 0) {
+        /* options parsing should print error */
+        skAppUsage();           /* never returns */
+    }
+
+    /* check for extraneous arguments */
+    if (arg_index != argc) {
+        skAppPrintErr("Too many arguments or unrecognized switch '%s'",
+                      argv[arg_index]);
+        skAppUsage();           /* never returns */
+    }
+
+    return;  /* OK */
+}
+
+
+/*
+ *  status = appOptionsHandler(cData, opt_index, opt_arg);
+ *
+ *    This function is passed to skOptionsRegister(); it will be called
+ *    by skOptionsParse() for each user-specified switch that the
+ *    application has registered; it should handle the switch as
+ *    required---typically by setting global variables---and return 1
+ *    if the switch processing failed or 0 if it succeeded.  Returning
+ *    a non-zero from from the handler causes skOptionsParse() to return
+ *    a negative value.
+ *
+ *    The clientData in 'cData' is typically ignored; 'opt_index' is
+ *    the index number that was specified as the last value for each
+ *    struct option in appOptions[]; 'opt_arg' is the user's argument
+ *    to the switch for options that have a REQUIRED_ARG or an
+ *    OPTIONAL_ARG.
+ */
+static int
+appOptionsHandler(
+    clientData   UNUSED(cData),
+    int                 opt_index,
+    char        UNUSED(*opt_arg))
+{
+    switch ((appOptionsEnum)opt_index) {
+      case OPT_SILK_VERSION:
+        printf("%s\n", SK_PACKAGE_VERSION);
+        break;
+
+      case OPT_DATA_ROOTDIR:
+        printf("%s\n", sksiteGetDefaultRootDir());
+        break;
+
+      case OPT_PYTHON_SITE_DIR:
+        printf("%s\n", SILK_PYTHON_SITE_PKG);
+        break;
+
+      case OPT_COMPILER:
+        printf("%s\n",
+               ("@CC@"));
+        break;
+
+      case OPT_CFLAGS:
+        printf("%s\n",
+               ("-I" INCLUDEDIR " @SK_CPPFLAGS@ @FIXBUF_CFLAGS@"
+                " @SK_CFLAGS@ @CFLAGS@"));
+        break;
+
+      case OPT_INCLUDE:
+        printf("%s\n",
+               ("-I" INCLUDEDIR " @SK_CPPFLAGS@ @FIXBUF_CFLAGS@"));
+        break;
+
+      case OPT_LIBS:
+      case OPT_LIBSILK_LIBS:
+        printf("%s\n",
+               ("@SK_LDFLAGS@ -L" LIBDIR " -lsilk"
+                " @LIBS@"));
+        break;
+
+      case OPT_LIBSILK_THRD_LIBS:
+        printf("%s\n",
+               ("@SK_LDFLAGS@ -L" LIBDIR " -lsilk-thrd -lsilk"
+                " @PTHREAD_LDFLAGS@ @LIBS@"));
+        break;
+
+      case OPT_LIBFLOWSOURCE_LIBS:
+        printf("%s\n",
+               ("@SK_LDFLAGS@ -L" LIBDIR " -lflowsource"
+                " -lsilk-thrd -lsilk"
+#if SK_ENABLE_IPFIX
+                " @FIXBUF_LDFLAGS@"
+#endif
+                " @PTHREAD_LDFLAGS@ @LIBS@"));
+        break;
+    }
+
+    return 0;  /* OK */
+}
+
+
+int main(int argc, char **argv)
+{
+    int i;
+
+    appSetup(argc, argv);                       /* never returns on error */
+
+    /* if nothing was requested, print everything */
+    if (1 == argc) {
+        for (i = 0; appOptions[i].name; ++i) {
+            /* skip --libs which is an alias for --libsilk-libs */
+            if (appOptions[i].val == OPT_LIBS) {
+                continue;
+            }
+            printf("%s: ", appOptions[i].name);
+            appOptionsHandler(NULL, i, (char*)"");
+        }
+    }
+
+    return 0;
+}
+
+
+/*
+** Local Variables:
+** mode:c
+** indent-tabs-mode:nil
+** c-basic-offset:4
+** End:
+*/

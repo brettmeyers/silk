@@ -1,0 +1,19 @@
+# RCSIDENT("$SiLK: proto-port-map.txt e1a850db8d00 2011-06-30 22:28:38Z mthomas $")
+
+mode                proto-port
+
+default             unknown
+
+1         1         ICMP
+
+17        17        UDP
+17/53     17/53     UDP/DNS
+17/67     17/68     UDP/DHCP
+17/123    17/123    UDP/NTP
+
+6         6         TCP
+6/22      6/22      TCP/SSH
+6/25      6/25      TCP/SMTP
+6/80      6/80      TCP/HTTP
+6/443     6/443     TCP/HTTPS
+6/8080    6/8080    TCP/HTTP

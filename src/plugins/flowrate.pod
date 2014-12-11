@@ -1,0 +1,232 @@
+=pod
+
+=head1 NAME
+
+B<flowrate> - SiLK plug-in providing payload and rate filters and fields
+
+=head1 SYNOPSIS
+
+  rwfilter --plugin=flowrate.so [--payload-bytes=INTEGER_RANGE]
+        [--payload-rate=DECIMAL_RANGE]
+        [--bytes-per-second=DECIMAL_RANGE]
+        [--packets-per-second=DECIMAL_RANGE] ...
+
+  rwcut --plugin=flowrate.so --fields=FIELDS ...
+
+  rwgroup --plugin=flowrate.so --fields=FIELDS ...
+
+  rwsort --plugin=flowrate.so --fields=FIELDS ...
+
+  rwstats --plugin=flowrate.so --fields=FIELDS --values=FIELDS ...
+
+  rwuniq --plugin=flowrate.so --fields=FIELDS --values=FIELDS ...
+
+=head1 DESCRIPTION
+
+When loaded into B<rwfilter(1)>, the B<flowrate> plug-in provides
+switches that can partition flows based on bytes of payload and/or on
+the rates of data transfer.
+
+For B<rwcut(1)>, B<rwgroup(1)>, B<rwsort(1)>, B<rwstats(1)>, and
+B<rwuniq(1)>, the B<flowrate> plug-in provides fields that will print,
+sort flows by, and group flows by the bytes of payload,
+bytes-per-packet, bytes-per-second, packets-per-second, and bytes of
+payload per second.  The B<flowrate> plug-in also provides aggregate
+value fields in B<rwstats> and B<rwuniq>.
+
+The payload byte count is determined by subtracting from the total
+byte count in the flow the bytes of overhead used by the packet
+headers.  The payload calculation assumes minimal packet
+headers---that is, there are no options in the packets.  For TCP, the
+switch assumes there are no TCP timestamps in the packets.  Thus, the
+calculated payload will be the maximum possible bytes of payload.  If
+the packet-overhead is larger than the reported number of bytes, the
+value is zero.
+
+The various flow-rate quantities are determined by dividing the
+payload byte count, packet count, or byte count by the duration of the
+flow, giving the average rate across the flow.  When the flow's
+reported duration is zero, a duration of one second is assumed (that
+is, the count is used directly).
+
+The B<flowrate> plug-in must be explicitly loaded into an application
+via the B<--plugin> switch.  The reason for this is due to name
+clashes with existing switches and fields.  For example, adding the
+B<--packets-per-second> switch to B<rwfilter> means any short-cutting
+of the current B<--packets> switch will fail.
+
+=head1 OPTIONS
+
+The B<flowrate> plug-in provides the following options to the
+indicated applications.
+
+=head2 B<rwfilter> Switches
+
+When the B<flowrate> plug-in has been loaded, the following set of
+partitioning switches are added to B<rwfilter>.  To pass the filter,
+the record must pass the test implied by each switch.  The form of the
+argument to each switch is described below.  The partitioning switches
+are:
+
+=over 4
+
+=item B<--payload-bytes>=I<INTEGER_RANGE>
+
+Check whether the payload byte count is within I<INTEGER_RANGE>.
+
+=item B<--payload-rate>=I<DECIMAL_RANGE>
+
+Check whether the average number of payload bytes seen per second in
+the flow is within I<DECIMAL_RANGE>.
+
+=item B<--packets-per-second>=I<DECIMAL_RANGE>
+
+Check whether the average number of packets per second in the flow is
+within I<DECIMAL_RANGE>.
+
+=item B<--bytes-per-second>=I<DECIMAL_RANGE>
+
+Check whether the average number of bytes per second in the flow is
+within I<DECIMAL_RANGE>.
+
+=back
+
+An I<INTEGER_RANGE> is a range of two non-negative integers, and a
+I<DECIMAL_RANGE> is a range of two non-negative decimal values with
+accuracy up to 0.0001.  The ranges are specified as two values
+separated by a hyphen, I<MIN>-I<MAX>; for example C<1-500> or
+C<5.0-10.031>.  If a single value is given (e.g., C<3.14>), the range
+consists of that single value.  The upper limit of the range may be
+omitted, such as C<1->, in which case the upper limit is set to the
+maximum possible value.
+
+=head2 B<rwcut>, B<rwgroup>, B<rwsort>, B<rwstats>, and B<rwuniq> Switches
+
+=over 4
+
+=item B<--fields>=I<FIELDS>
+
+I<FIELDS> refers to a list of fields to use for the operation.  The
+B<flowrate> plug-in adds the following fields for display, sorting,
+and grouping using the B<rwcut(1)>, B<rwgroup(1)>, B<rwsort(1)>,
+B<rwstats(1)>, and B<rwuniq(1)> tools:
+
+=over 4
+
+=item payload-bytes
+
+Print, sort by, or group by the number of bytes of payload.
+
+=item payload-rate
+
+Print, sort by, or group by the bytes of payload seen per second.
+
+=item pckts/sec
+
+Print, sort by, or group by the packets seen per second.
+
+=item bytes/sec
+
+Print, sort by, or group by the bytes seen per second.
+
+=item bytes/packet
+
+Print, sort by, or group by the average number of bytes contained in
+each packet.
+
+=back
+
+=item B<--values>=I<AGGREGATES>
+
+The B<flowrate> plug-in adds the following aggregate value fields to
+B<rwstats> and B<rwuniq>.  I<AGGREGATES> refers to a list of values
+to compute for each bin.  To compute these values, B<flowrate>
+maintains separate sums for the numerator and denominator while
+reading the records, then B<flowrate> computes the ratio when the
+output is generated.
+
+=over 4
+
+=item payload-bytes
+
+Compute the approximate bytes of payload for records in this bin.
+
+=item payload-rate
+
+Compute the average bytes of payload seen per second for records in
+this bin.
+
+=item pckts/sec
+
+Compute the average packets seen per second for records in this bin,
+
+=item bytes/sec
+
+Compute the average bytes seen per second for records in this bin.
+
+=item bytes/packet
+
+Compute the average number of bytes contained in each packet for
+records in this bin.
+
+=back
+
+=back
+
+=head1 ENVIRONMENT
+
+=over 4
+
+=item SILK_PATH
+
+This environment variable gives the root of the install tree.  When
+searching for plug-ins, a SiLK application may use this environment
+variable.  See the L</FILES> section for details.
+
+=item SILK_PLUGIN_DEBUG
+
+When set to 1, the SiLK applications print status messages to the
+standard error as they attempt to find and open the F<flowrate.so>
+plug-in.  A typical invocation using this variable is:
+
+ env SILK_PLUGIN_DEBUG=1 rwcut --plugin=flowrate.so --version
+
+=back
+
+=head1 FILES
+
+=over 4
+
+=item F<${SILK_PATH}/lib64/silk/flowrate.so>
+
+=item F<${SILK_PATH}/lib64/flowrate.so>
+
+=item F<${SILK_PATH}/lib/silk/flowrate.so>
+
+=item F<${SILK_PATH}/lib/flowrate.so>
+
+=item F<@prefix@/lib64/silk/flowrate.so>
+
+=item F<@prefix@/lib64/flowrate.so>
+
+=item F<@prefix@/lib/silk/flowrate.so>
+
+=item F<@prefix@/lib/flowrate.so>
+
+Possible locations for the plug-in.
+
+=back
+
+=head1 SEE ALSO
+
+B<rwcut(1)>, B<rwfilter(1)>, B<rwgroup(1)>, B<rwsort(1)>,
+B<rwstats(1)>, B<rwuniq(1)>, B<silk(7)>
+
+=cut
+
+$SiLK: flowrate.pod 3a8f972758a1 2014-07-19 15:15:27Z mthomas $
+
+Local Variables:
+mode:text
+indent-tabs-mode:nil
+End:

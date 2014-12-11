@@ -1,0 +1,522 @@
+=pod
+
+=head1 NAME
+
+B<rwptoflow> - Generate SiLK Flow records from packet data
+
+=head1 SYNOPSIS
+
+  rwptoflow [--plugin=PLUGIN [--plugin=PLUGIN ...]]
+        [--active-time=YYYY/MM/DD:hh:dd:mm:ss.uuuuuu-YYYY/MM/DD:hh:dd:mm:ss.uuuuuu]
+        [--flow-output=FLOW_PATH] [--packet-pass-output=PCKTS_PASS]
+        [--packet-reject-output=PCKTS_REJECT]
+        [--reject-all-fragments] [--reject-nonzero-fragments]
+        [--reject-incomplete] [--set-sensorid=SCALAR]
+        [--set-inputindex=SCALAR] [--set-outputindex=SCALAR]
+        [--set-nexthopip=IP_ADDRESS] [--print-statistics]
+        [--note-add=TEXT] [--note-file-add=FILE]
+        [--compression-method=COMP_METHOD] TCPDUMP_INPUT
+
+  rwptoflow [--plugin=PLUGIN ...] --help
+
+  rwptoflow --version
+
+=head1 DESCRIPTION
+
+B<rwptoflow> attempts to generate a SiLK Flow record for every
+Ethernet IP IPv4 packet in the B<pcap(3)> (B<tcpdump(1)>) capture file
+I<TCPDUMP_INPUT>.  I<TCPDUMP_INPUT> must contain data captured from an
+Ethernet datalink.
+
+B<rwptoflow> does not attempt to reassemble fragmented packets or to
+combine multiple packets into a single flow record.  B<rwptoflow> is a
+simple program that creates one SiLK Flow record for every IPv4 packet
+in I<TCPDUMP_INPUT>.  (For an alternate approach, consider using the
+B<rwp2yaf2silk(1)> tool as described at the end of this section.)
+
+B<rwptoflow> will read from its standard input if I<TCPDUMP_INPUT> is
+specified as C<stdin>.  The SiLK Flow records are written to the
+specified B<flow-output> file or to the standard output.  The
+application will fail when attempting to read or write binary data
+from or to a terminal.
+
+Packets outside of a user-specified B<active-time> window can be
+ignored.  Additional filtering on the I<TCPDUMP_INPUT> can be
+performed by using B<tcpdump> with an C<expression> filter and piping
+B<tcpdump>'s output into B<rwptoflow>.
+
+In addition to generating flow records, B<rwptoflow> can write pcap
+files containing the packets that it used to generate each flow,
+and/or the packets that were rejected.  Note that packets falling
+outside the B<active-time> window are ignored and are not written to
+the B<packet-reject-output>.
+
+Statistics of the number of packets read, rejected, and written can be
+printed.
+
+B<rwptoflow> will reject any packet that is not an IPv4 Ethernet
+packet and any packet that is too short to contain the Ethernet and IP
+headers.  At the user's request, packets may be rejected when
+
+=over 4
+
+=item *
+
+they are fragmented---either the initial (zero-offset) fragment or a
+subsequent fragment
+
+=item *
+
+they have a non-zero fragment offset
+
+=item *
+
+they are not fragmented or they are the zero-fragment but the capture
+file does not contain enough information about the packet to set
+protocol-specific information---namely the ICMP type and code, the UDP
+source and destination ports, or the TCP source and destination ports
+and flags
+
+=back
+
+Since the input packet formats do not contain some fields normally
+found in NetFlow data, B<rwptoflow> provides a way to set those flow
+values in all packets.  For example, it is possible to set the
+sensor-id manually for a B<tcpdump> source, so that flow data can be
+filtered or sorted by that value later.
+
+=head2 Alternative to B<rwptoflow>
+
+As mentioned above, B<rwptoflow> is a simple program for processing
+Ethernet IP IPv4 packets.  B<rwptoflow> does not:
+
+=over 4
+
+=item *
+
+reassemble fragmented packets
+
+=item *
+
+support IPv6 packets
+
+=item *
+
+combine multiple packets into a single flow record
+
+=item *
+
+support any decoding of packets (e.g., 802.1q)
+
+=back
+
+For these features (and others), you should use the B<yaf(1)>
+application (L<http://tools.netsa.cert.org/yaf/>) to read the pcap
+file and generate an IPFIX stream, and pipe the IPFIX stream into
+B<rwipfix2silk(1)> to convert it to SiLK Flow records.
+
+The B<rwp2yaf2silk(1)> script makes this common usage more convenient
+by wrapping the invocation of B<yaf> and B<rwipfix2silk>.  You give
+B<rwp2yaf2silk> a pcap file and it writes SiLK Flow records.
+
+By default, B<rwptoflow> creates a flow record for I<every> packet,
+fragments and all.  You can almost force B<yaf> to create a flow
+record for every packet: When you give B<yaf> the B<--idle-timeout=0>
+switch, B<yaf> creates a flow record for every complete packet and for
+each packet that it is able to completely reassemble from packet
+fragments.  Any fragmented packets that B<yaf> cannot reassemble are
+dropped.
+
+=head1 OPTIONS
+
+Option names may be abbreviated if the abbreviation is unique or is an
+exact match for an option.  A parameter to an option may be specified
+as B<--arg>=I<param> or B<--arg> I<param>, though the first form is
+required for options that take optional parameters.
+
+=over 4
+
+=item B<--plugin>=I<PLUGIN>
+
+Use the specified plug-in to ignore or reject packets or to modify the
+flow record that is generated from the packet.  The switch may be
+repeated to load multiple plug-ins.  See the L</PLUG-IN SUPPORT>
+section below for details.
+
+=item B<--active-time>=I<YYYY/MM/DD[:hh[:dd[:mm[:ss[.uuuuuu]]]]]>
+
+=item B<--active-time>=I<YYYY/MM/DD[:hh[:dd[:mm[:ss[.uuuuuu]]]]]-YYYY/MM/DD[:hh[:dd[:mm[:ss[.uuuuuu]]]]]>
+
+Ignore all packets whose time falls outside the specified range.  The
+times must be specified to at least day precision.  The start time is
+required; when the end-time is not present, it is treated as infinite.
+The end-time will be rounded-up to instant before the next time
+unit; i.e., an end-time of 2006/08/31:15 is treated as
+2006/08/31:15:59:59.999999.
+
+=item B<--flow-output>=I<FLOW_PATH>
+
+Write the generated SiLK Flow records to the specified file at
+I<FLOW_PATH>.  When this switch is not provided, the flows are written
+to the standard output.
+
+=item B<--packet-pass-output>=I<PCKTS_PASS>
+
+For each generated SiLK Flow record, write the packet that generated
+the flow to the pcap file specified by I<PCKTS_PASS>.  Use C<stdout>
+to write the packets to the standard output.
+
+=item B<--packet-reject-output>=I<PCKTS_REJECT>
+
+Write each packet that occurs within the active-time window but for
+which a SiLK Flow record was B<not> generated to the pcap file
+specified by I<PCKTS_REJECT>.  Use C<stdout> to write the packets to
+the standard output.
+
+The packets that get written to this file may include packets that
+were shorter than that required to get the IP header, non-IPv4
+packets, and packets that get treated as C<reject> packets by the
+following switches.
+
+=item B<--reject-all-fragments>
+
+Do not generate a SiLK Flow record for the packet when the packet is
+fragmented.  This includes the initial (zero-offset) fragment and all
+subsequent fragments.  If B<--packet-reject-output> is specified, the
+packet will be written to that file.
+
+=item B<--reject-nonzero-fragments>
+
+Do not generate a SiLK Flow record for the packet when the packet is
+fragmented B<unless> this is the initial fragment.  That is, reject
+all packets that have a non-zero fragmentation offset.  Normally flow
+records are generated for these packets, but the ports and TCP flag
+information is set to zero.  If B<--packet-reject-output> is
+specified, the packet will be written to that file.
+
+=item B<--reject-incomplete>
+
+Do not generate a SiLK Flow record for the packet when the packet's
+fragmentation-offset is zero yet the packet does not contain enough
+information to completely specify an ICMP, UDP, or TCP record (that is,
+the packet is too short to set the ICMP type and code, the UDP or TCP
+source or destination port, or the TCP flags).  Normally, flow
+records are generated for these packets but the ports and TCP flag
+information is set to zero.  This switch has no effect on packets
+where the protocol is not 1,6, or 17.
+
+This switch does B<not> imply B<--reject-nonzero-fragments>; to
+indicate that I<all> generated flow records must have valid port and
+TCP flag information, specify B<--reject-nonzero-fragments>
+B<--reject-incomplete>.
+
+=item B<--set-sensorid>=I<SCALAR>
+
+Set the sensor ID for all flows to I<SCALAR>.  I<SCALAR> should be an
+integer value between 0 and 65534, inclusive.  When not specified, the
+sensor ID is set to 65535.
+
+=item B<--set-inputindex>=I<SCALAR>
+
+Set the input SNMP index value for all flows to I<SCALAR>.  I<SCALAR>
+should be an integer value between 0 and 65535, inclusive.  When not
+specified, the SNMP input is set to 0.
+
+=item B<--set-outputindex>=I<SCALAR>
+
+Set the output SNMP index value for all flows to I<SCALAR>.  I<SCALAR>
+should be an integer value between 0 and 65535, inclusive.  When not
+specified, the SNMP output is set to 0.
+
+=item B<--set-nexthopip>=I<IP_ADDRESS>
+
+Set the next-hop IP address for all flows to I<IP_ADDRESS>;
+I<IP_ADDRESS> may be in its canonical form or an integer.  When not
+specified, the next-hop IP is set to 0.0.0.0.
+
+=item B<--print-statistics>
+
+Print a summary of the packets that were processed.  This summary
+includes
+
+=over 4
+
+=item *
+
+the total number of packets read
+
+=item *
+
+the number that fell outside the time-window
+
+=item *
+
+the number that were too short to get the IP header
+
+=item *
+
+the number that were not IPv4
+
+=item *
+
+the number that were discarded by a plug-in
+
+=item *
+
+the total number of fragmented packets
+
+=item *
+
+the number of fragments where the offset was zero
+
+=item *
+
+the number of zero-offset packets that were incomplete
+
+=item *
+
+the number of flows written to the output
+
+=back
+
+=item B<--note-add>=I<TEXT>
+
+Add the specified I<TEXT> to the header of the output file as an
+annotation.  This switch may be repeated to add multiple annotations
+to a file.  To view the annotations, use the B<rwfileinfo(1)> tool.
+
+=item B<--note-file-add>=I<FILENAME>
+
+Open I<FILENAME> and add the contents of that file to the header of
+the output file as an annotation.    This switch may be repeated to
+add multiple annotations.  Currently the application makes no effort
+to ensure that I<FILENAME> contains text; be careful that you do not
+attempt to add a SiLK data file as an annotation.
+
+=item B<--compression-method>=I<COMP_METHOD>
+
+Specify how to compress the output.  When this switch is not given,
+output to the standard output or to named pipes is not compressed, and
+output to files is compressed using the default chosen when SiLK was
+compiled.  The valid values for I<COMP_METHOD> are determined by which
+external libraries were found when SiLK was compiled.  To see the
+available compression methods and the default method, use the
+B<--help> or B<--version> switch.  SiLK can support the following
+I<COMP_METHOD> values when the required libraries are available.
+
+=over 4
+
+=item none
+
+Do not compress the output using an external library.
+
+=item zlib
+
+Use the B<zlib(3)> library for compressing the output, and always
+compress the output regardless of the destination.  Using zlib
+produces the smallest output files at the cost of speed.
+
+=item lzo1x
+
+Use the I<lzo1x> algorithm from the LZO real time compression library
+for compression, and always compress the output regardless of the
+destination.  This compression provides good compression with less
+memory and CPU overhead.
+
+=item best
+
+Use lzo1x if available, otherwise use zlib.  Only compress the output
+when writing to a file.
+
+=back
+
+=item B<--help>
+
+Print the available options and exit.  Options that add fields
+can be specified before B<--help> so that the new options appear in
+the output.
+
+=item B<--version>
+
+Print the version number and information about how SiLK was
+configured, then exit the application.
+
+=back
+
+=head1 PLUG-IN SUPPORT
+
+B<rwptoflow> allows the user to provide additional logic to ignore or
+reject packets, or to modify the flow record that is generated from
+the packet.  To do this, the user creates a B<plug-in> that gets
+loaded at run-time by giving B<rwptoflow> the B<--plugin> switch with
+the path to the plug-in as the parameter to the switch.
+
+A plug-in is a shared object file (a.k.a. dynamic library) that is
+compiled from C source code.  The plug-in should have four subroutines
+defined:
+
+=over 4
+
+=item setup()
+
+is called when the object is first loaded.  This is the place to
+initialize global variables to their default values.  If the plug-in
+provides switches of its own, they must be registered in this
+subroutine.
+
+=item initialize()
+
+gets called after all options have been processed but before any
+packets are read from the input.  If this subroutine does not return
+0, the application will quit.
+
+=item ptoflow()
+
+will be called for every packet that B<rwptoflow> is able to convert
+into a flow record just before the flow record is written.  This
+subroutine will I<not> see packets that are short or that are not
+IPv4; it will also not see fragmented packets if
+B<--reject-all-fragments> is specified.
+
+The C<ptoflow()> function is called with two parameters:
+
+=over 4
+
+=item *
+
+a pointer to the C<rwRec> object that B<rwptoflow> created from the
+packet.  The subroutine may modify the record as it sees fit.
+
+=item *
+
+a void pointer that the function may cast to a pointer to the C
+structure:
+
+  typedef struct _sk_pktsrc_t {
+      /* the source of the packets */
+      pcap_t                     *pcap_src;
+      /* the pcap header as returned from pcap_next() */
+      const struct pcap_pkthdr   *pcap_hdr;
+      /* the packet as returned from pcap_next() */
+      const u_char               *pcap_data;
+  } sk_pktsrc_t;
+
+This structure gives the user access to all the information about the
+packet.
+
+=back
+
+The following return values from C<ptoflow()> determines whether
+B<rwptoflow> writes the flow and the packet:
+
+=over 4
+
+=item S< 0 >
+
+Write the flow record to the B<flow-output> and the packet to the
+I<PCKTS_PASS> unless another plug-in instructs otherwise.
+
+=item S< 1 >
+
+Write the flow record to the B<flow-output> and the packet to the
+I<PCKTS_PASS> immediately; do not call the C<ptoflow()> routine on any
+other plug-in.
+
+=item S< 2 >
+
+Treat the packet as a reject: Do I<not> write the flow record; write
+the packet to the I<PCKTS_REJECT> immediately; do not call the
+C<ptoflow()> routine on any other plug-in.
+
+=item S< 3 >
+
+Ignore the packet immediately: Do I<not> write the flow record nor the
+packet; do not call the C<ptoflow()> routine on any other plug-in.
+
+=back
+
+If C<ptoflow()> returns any other value, the B<rwptoflow> application
+will terminate with an error.
+
+=item teardown()
+
+is called as the application exits.  The user can use this routine to
+print results and to free() any data structures that were used.
+
+=back
+
+B<rwptoflow> uses the following rules to find the plug-in: When
+I<PLUGIN> contains a slash (C</>), B<rwptoflow> assumes the path to
+I<PLUGIN> is correct.  Otherwise, B<rwptoflow> will attempt to find
+the file in F<$SILK_PATH/lib/silk>, F<$SILK_PATH/share/lib>,
+F<$SILK_PATH/lib>, and in these directories parallel to the
+application's directory: F<lib/silk>, F<share/lib>, and F<lib>.  If
+B<rwptoflow> does not find the file, it assumes the plug-in is in the
+current directory.  To force B<rwptoflow> to look in the current
+directory first, specify B<--plugin>=./I<PLUGIN>.  When the
+SILK_PLUGIN_DEBUG environment variable is non-empty, B<rwptoflow>
+prints status messages to the standard error as it tries to open each
+of its plug-ins.
+
+=head1 EXAMPLES
+
+In the following examples, the dollar sign (C<$>) represents the shell
+prompt.  The text after the dollar sign represents the command line.
+
+=for comment
+Lines have been wrapped for improved readability, and the back slash
+(C<\>) is used to indicate a wrapped line.
+
+Given the packet capture file F<data.pcap>, convert it to a SiLK flow
+file, F<data.rw>, and copy the packets that B<rwptoflow> understands
+to the file F<good.pcap>:
+
+ $ rwptoflow data.pcap --packet-pass=good.pcap --flow-out=data.rw
+
+Use B<rwfilter> to partition the SiLK Flows records, writing those
+records whose source IPs are found in the IPset file F<sip.set> to
+F<filtered.rw>:
+
+ $ rwfilter --sipset=sip.set --pass=filtered.rw  data.rw
+
+Match the capture file, F<good.pcap>, against the filtered SiLK file,
+in affect generating a capture file which has been filtered by
+F<sip.set>:
+
+ $ rwpmatch --flow-file=filtered.rw good.pcap > filtered.pcap
+
+=head1 ENVIRONMENT
+
+=over 4
+
+=item SILK_PLUGIN_DEBUG
+
+When set to 1, B<rwptoflow> print status messages to the standard
+error as it tries to open each of its plug-ins.
+
+=back
+
+=head1 SEE ALSO
+
+B<rwpmatch(1)>, B<rwpdedupe(1)>, B<rwfileinfo(1)>, B<silk(7)>,
+B<rwp2yaf2silk(1)>, B<rwipfix2silk(1)>, B<yaf(1)>, B<tcpdump(1)>,
+B<pcap(3)>, B<mergecap(1)>, B<zlib(3)>
+
+=head1 NOTES
+
+SiLK supports millisecond timestamps.  When reading packets whose
+timestamps have finer precision, the times are truncated at the
+millisecond position.
+
+The B<mergecap(1)> or B<rwpdedupe(1)> programs can be used to join
+multiple B<tcpdump> capture files in order to convert into a single
+flow file.
+
+=cut
+
+$SiLK: rwptoflow.pod cd09f0a5fcc6 2014-06-14 15:43:33Z mthomas $
+
+Local Variables:
+mode:text
+indent-tabs-mode:nil
+End:

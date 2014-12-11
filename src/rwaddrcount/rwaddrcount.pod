@@ -1,0 +1,486 @@
+=pod
+
+=head1 NAME
+
+B<rwaddrcount> - count activity by IP address
+
+=head1 SYNOPSIS
+
+  rwaddrcount {--print-recs | --print-ips | --print-stat}
+        [--use-dest] [--min-bytes=BYTEMIN] [--max-bytes=BYTEMAX]
+        [--min-records=RECMIN] [--max-records=RECMAX]
+        [--min-packets=PACKMIN] [--max-packets=PACKMAX]
+        [--set-file=PATHNAME] [--sort-ips] [--timestamp-format=FORMAT]
+        [--ip-format=FORMAT] [--integer-ips] [--zero-pad-ips]
+        [--no-titles] [--no-columns] [--column-separator=CHAR]
+        [--no-final-delimiter] [{--delimited | --delimited=CHAR}]
+        [--print-filenames] [--copy-input=PATH] [--output-path=PATH]
+        [--pager=PAGER_PROG] [--site-config-file=FILENAME]
+        [{--legacy-timestamps | --legacy-timestamps=NUM}]
+        {[--xargs] | [--xargs=FILENAME] | [FILE [FILE ...]]}
+
+  rwaddrcount --help
+
+  rwaddrcount --version
+
+=head1 DESCRIPTION
+
+B<rwaddrcount> reads SiLK Flow records, sums the byte-, packet-, and
+record-counts on those records by individual source or destination IP
+address and maintains the time window during which that IP address was
+active.  At the end of the count operation, the results per IP address
+are displayed when the B<--print-recs> switch is given.
+B<rwaddrcount> includes facilities for displaying only those IP
+address whose byte-, packet- or flow-counts are between specified
+minima and maxima.
+
+B<rwaddrcount> reads SiLK Flow records from the files named on the
+command line or from the standard input when no file names are
+specified and B<--xargs> is not present.  To read the standard input
+in addition to the named files, use C<-> or C<stdin> as a file name.
+If an input file name ends in C<.gz>, the file will be uncompressed as
+it is read.  When the B<--xargs> switch is provided, B<rwaddrcount>
+will read the names of the files to process from the named text file,
+or from the standard input if no file name argument is provided to the
+switch.  The input to B<--xargs> must contain one file name per line.
+
+=head1 OPTIONS
+
+Option names may be abbreviated if the abbreviation is unique or is an
+exact match for an option.  A parameter to an option may be specified
+as B<--arg>=I<param> or S<B<--arg> I<param>>, though the first form is
+required for options that take optional parameters.
+
+For the application to operate, one of the three B<--print> options
+must be chosen.
+
+=over 4
+
+=item B<--print-recs>
+
+Print one row for each bin that meets the minima/maxima criteria.
+Each bin contains the IP address, number of bytes, number of packets,
+number of flow records, earliest start time, and latest end time.
+
+=item B<--print-ips>
+
+Print a single column containing the IP addresses for each bin that
+meets the minima/maxima criteria.
+
+=item B<--print-stat>
+
+Print a one or two line summary (plus a title line) that summarizes
+the bins.  The first line is a summary across B<all> bins, and it
+contains the number of unique IP addresses and the sums of the bytes,
+packets, and flow records.  The second line is printed only when one
+or more minima or maxima are specified.  This second line contains the
+same columns as first, and its values are the sums across those bins
+that meet the criteria.
+
+=item B<--use-dest>
+
+Count by destination IP address in the filter record rather than
+source IP.
+
+=item B<--min-bytes>=I<BYTEMIN>
+
+Filtering criterion; for the final output (stats or printing), only
+include count records where the total number of bytes exceeds BYTEMIN
+
+=item B<--min-packets>=I<PACKMIN>
+
+Filtering criterion; for the final output (stats or printing), only
+include count records where the total number of packets exceeds
+PACKMIN
+
+=item B<--min-records>=I<RECMIN>
+
+Filtering criterion; for the final output (stats or printing), only
+include count records where the total number of filter records
+contributing to that count record exceeds RECMIN.
+
+=item B<--max-bytes>=I<BYTEMAX>
+
+Filtering criterion; for the final output (stats or printing), only
+include count records where the total number of bytes is less than
+BYTEMAX.
+
+=item B<--max-packets>=I<PACKMAX>
+
+Filtering criterion; for the final output (stats or printing), only
+include count records where the total number of packets is less than
+PACKMAX.
+
+=item B<--max-records>=I<RECMAX>
+
+Filtering criterion; for the final output (stats or printing), only
+include count records which at most RECMAX filter records contributed
+to.
+
+=item B<--set-file>=I<PATHNAME>
+
+Write the IPs into the B<rwset(1)>-style binary IP-set file named
+PATHNAME.  Use B<rwsetcat(1)> to see the contents of this file.
+
+=item B<--timestamp-format>=I<FORMAT>
+
+Specify how timestamps will be printed.  When this switch is not
+specified, timestamps are printed in the default format, and the
+timezone is UTC unless SiLK was compiled with local timezone support.
+I<FORMAT> is a comma-separated list of a format and/or a timezone.
+The format is one of:
+
+=over 4
+
+=item default
+
+Print the timestamps as I<YYYY>/I<MM>/I<DD>TI<hh>:I<mm>:I<ss>
+
+=item iso
+
+Print the timestamps as I<YYYY>-I<MM>-I<DD> I<hh>:I<mm>:I<ss>
+
+=item m/d/y
+
+Print the timestamps as I<MM>/I<DD>/I<YYYY> I<hh>:I<mm>:I<ss>
+
+=item epoch
+
+Print the timestamps as the number of seconds since 00:00:00 UTC on
+1970-01-01.
+
+=back
+
+When a timezone is specified, it is used regardless of the default
+timezone support compiled into SiLK.  The timezone is one of:
+
+=over 4
+
+=item utc
+
+Use Coordinated Universal Time to print timestamps.
+
+=item local
+
+Use the TZ environment variable or the local timezone.
+
+=back
+
+=item B<--ip-format>=I<FORMAT>
+
+For the B<--print-recs> and B<--print-ips> output formats, specify how
+IP addresses will be printed.  When this switch is not specified, IPs
+are printed in the canonical format.  The I<FORMAT> is one of:
+
+=over 4
+
+=item canonical
+
+Print IP addresses in their canonical form, C<127.0.0.1>.
+
+=item zero-padded
+
+Print IP addresses in their canonical form, but add zeros to the
+output so it fully fills the width of column.  The address
+C<127.0.0.1> is printed as C<127.000.000.001>.
+
+=item decimal
+
+Print IP addresses as integers in decimal format.  The address
+C<127.0.0.1> is printed as C<2130706433>.
+
+=item hexadecimal
+
+Print IP addresses as integers in hexadecimal format.  The address
+C<127.0.0.1> is printed as C<7f000001>.
+
+=item force-ipv6
+
+Print all IP addresses in the canonical form for IPv6 without using
+any IPv4 notation.  Any IPv4 address is mapped into the ::ffff:0:0/96
+netblock.  The address C<127.0.0.1> is printed as C<::ffff:7f00:1>.
+
+=back
+
+=item B<--integer-ips>
+
+Print IP addresses as integers.  This switch is equivalent to
+B<--ip-format=decimal>, it is deprecated as of SiLK 3.7.0, and it will
+be removed in the SiLK 4.0 release.
+
+=item B<--zero-pad-ips>
+
+Print IP addresses as fully-expanded, zero-padded values in their
+canonical form.  This switch is equivalent to
+B<--ip-format=zero-padded>, it is deprecated as of SiLK 3.7.0, and it
+will be removed in the SiLK 4.0 release
+
+=item B<--sort-ips>
+
+For the B<--print-recs> and B<--print-ips> output formats, the results
+are presented sorted by IP address.
+
+=item B<--no-titles>
+
+Turn off column titles.  By default, titles are printed.
+
+=item B<--no-columns>
+
+Disable fixed-width columnar output.
+
+=item B<--column-separator>=I<C>
+
+Use specified character between columns and after the final column.
+When this switch is not specified, the default of 'B<|>' is used.
+
+=item B<--no-final-delimiter>
+
+Do not print the column separator after the final column.  Normally a
+delimiter is printed.
+
+=item B<--delimited>
+
+=item B<--delimited>=I<C>
+
+Run as if B<--no-columns> B<--no-final-delimiter> B<--column-sep>=I<C>
+had been specified.  That is, disable fixed-width columnar output; if
+character I<C> is provided, it is used as the delimiter between
+columns instead of the default 'B<|>'.
+
+=item B<--print-filenames>
+
+Print to the standard error the names of input files as they are
+opened.
+
+=item B<--copy-input>=I<PATH>
+
+Copy all binary input to the specified file or named pipe.  I<PATH>
+can be C<stdout> to print flows to the standard output as long as the
+B<--output-path> switch has been used to redirect B<rwaddrcount>'s
+ASCII output.
+
+=item B<--output-path>=I<PATH>
+
+Determine where the output of B<rwaddrcount> (ASCII text) is written.
+If this option is not given, output is written to the standard output.
+
+=item B<--pager>=I<PAGER_PROG>
+
+When output is to a terminal, invoke the program I<PAGER_PROG> to view
+the output one screen full at a time.  This switch overrides the
+SILK_PAGER environment variable, which in turn overrides the PAGER
+variable.  If the value of the pager is determined to be the empty
+string, no paging will be performed and all output will be printed to
+the terminal.
+
+=item B<--site-config-file>=I<FILENAME>
+
+Read the SiLK site configuration from the named file I<FILENAME>.
+When this switch is not provided, B<rwaddrcount> searches for the site
+configuration file in the locations specified in the L</FILES>
+section.
+
+=item B<--legacy-timestamps>
+
+=item B<--legacy-timestamps>=I<NUM>
+
+Specify the format for human readable timestamps, either the default
+(new) style, C<I<YYYY>/I<MM>/I<DD>TI<hh>:I<mm>:I<ss>>, or the legacy
+style, S<C<I<MM>/I<DD>/I<YYYY> I<hh>:I<mm>:I<ss>>>.  When this switch
+is not present, the timestamps will be in the default format.  When
+this switch is present and no argument is given, timestamps are in the
+legacy format.  When an argument is supplied, timestamps will be in
+the new format if the argument begins with 0, and in the old format if
+the argument begins with 1.  Any other argument to the switch is an
+error.
+
+=item B<--xargs>
+
+=item B<--xargs>=I<FILENAME>
+
+Causes B<rwaddrcount> to read file names from I<FILENAME> or from the
+standard input if I<FILENAME> is not provided.  The input should have
+one file name per line.  B<rwaddrcount> will open each file in turn
+and read records from it, as if the files had been listed on the
+command line.
+
+=item B<--help>
+
+Print the available options and exit.
+
+=item B<--version>
+
+Print the version number and information about how SiLK was
+configured, then exit the application.
+
+=back
+
+=head2 Deprecated Switches
+
+The following switches are deprecated.  They will be removed in
+SiLK 4.0.
+
+=over 4
+
+=item B<--byte-min>=I<BYTEMIN>
+
+Deprecated alias for B<--min-bytes>.
+
+=item B<--packet-min>=I<PACKMIN>
+
+Deprecated alias for B<--min-packets>.
+
+=item B<--rec-min>=I<RECMIN>
+
+Deprecated alias for B<--min-records>.
+
+=item B<--byte-max>=I<BYTEMAX>
+
+Deprecated alias for B<--max-bytes>.
+
+=item B<--packet-max>=I<PACKMAX>
+
+Deprecated alias for B<--max-packets>.
+
+=item B<--rec-max>=I<RECMAX>
+
+Deprecated alias for B<--max-records>.
+
+=back
+
+=head1 EXAMPLES
+
+In the following examples, the dollar sign (C<$>) represents the shell
+prompt.  The text after the dollar sign represents the command line.
+Lines have been wrapped for improved readability, and the back slash
+(C<\>) is used to indicate a wrapped line.
+
+To print out a set of IP's with exactly one tcp record during the time
+period, use:
+
+ $ rwfilter --start-date=2003/09/01:00 --end-date=2003/09/01:12     \
+        --proto=6 --pass=stdout                                     \
+   | rwaddrcount --max-records=1 --print-ips
+
+In general, to print out record information, use B<rwaddrcount>
+with B<--print-recs>
+
+ $ rwfilter --start-date=2003/01/17:00 --end-date=2003/01/17:23     \
+        --proto=6 --pass=stdout                                     \
+   | rwaddrcount --print-rec | head -3
+
+  10.10.10.1|  65792| 147|  21| 2003/01/17T00:19:01| 2003/01/17T02:00:13|
+  10.10.10.2| 110744|  89|   7| 2003/01/17T01:21:42| 2003/01/17T01:39:21|
+  10.10.10.3|    864|  18|   6| 2003/01/17T00:20:33| 2003/01/17T01:25:38|
+
+=head1 ENVIRONMENT
+
+=over 4
+
+=item SILK_PAGER
+
+When set to a non-empty string, B<rwcut> automatically invokes this
+program to display its output a screen at a time.  If set to an empty
+string, B<rwcut> does not automatically page its output.
+
+=item PAGER
+
+When set and SILK_PAGER is not set, B<rwcut> automatically invokes
+this program to display its output a screen at a time.
+
+=item SILK_CLOBBER
+
+The SiLK tools normally refuse to overwrite existing files.  Setting
+SILK_CLOBBER to a non-empty value removes this restriction.
+
+=item SILK_CONFIG_FILE
+
+This environment variable is used as the value for the
+B<--site-config-file> when that switch is not provided.
+
+=item SILK_DATA_ROOTDIR
+
+This environment variable specifies the root directory of data
+repository.  As described in the L</FILES> section, B<rwaddrcount> may
+use this environment variable when searching for the SiLK site
+configuration file.
+
+=item SILK_PATH
+
+This environment variable gives the root of the install tree.  When
+searching for configuration files, B<rwaddrcount> may use this
+environment variable.  See the L</FILES> section for details.
+
+=item TZ
+
+When a SiLK installation is built to use the local timezone (to
+determine if this is the case, check the C<Timezone support> value in
+the output from B<rwaddrcount --version>), the value of the TZ
+environment variable determines the timezone in which B<rwaddrcount>
+displays timestamps.  If the TZ environment variable is not set, the
+default timezone is used.  Setting TZ to 0 or the empty string causes
+timestamps to be displayed in UTC.  The value of the TZ environment
+variable is ignored when the SiLK installation uses utc.  For system
+information on the TZ variable, see B<tzset(3)>.
+
+=back
+
+=head1 FILES
+
+=over 4
+
+=item F<${SILK_CONFIG_FILE}>
+
+=item F<${SILK_DATA_ROOTDIR}/silk.conf>
+
+=item F<@SILK_DATA_ROOTDIR@/silk.conf>
+
+=item F<${SILK_PATH}/share/silk/silk.conf>
+
+=item F<${SILK_PATH}/share/silk.conf>
+
+=item F<@prefix@/share/silk/silk.conf>
+
+=item F<@prefix@/share/silk.conf>
+
+Possible locations for the SiLK site configuration file which are
+checked when the B<--site-config-file> switch is not provided.
+
+=back
+
+=head1 SEE ALSO
+
+B<rwset(1)>, B<rwsetcat(1)>, B<rwstats(1)>, B<rwtotal(1)>,
+B<rwuniq(1)>, B<silk(7)>
+
+=head1 NOTES
+
+B<rwaddrcount> only supports IPv4 addresses, and it will not be
+modified to support IPv6 addresses.  To produce output similar to
+B<rwaddrcount> for IPv6 addresses, use B<rwuniq(1)>:
+
+ rwuniq --fields=sip --values=bytes,packets,records,stime,etime
+
+When used in an IPv6 environment, B<rwaddrcount> converts IPv6 flow
+records that contain addresses in the ::ffff:0:0/96 prefix to IPv4 and
+processes them.  IPv6 records having addresses outside of that prefix
+are ignored.
+
+B<rwaddrcount> uses a fairly large hashtable to store data, but it is
+likely that as the amount of data expands, the application will take
+more time to process data.
+
+Similar binning of records are produced by B<rwstats(1)>,
+B<rwtotal(1)>, and B<rwuniq(1)>.
+
+To generate a list of IP addresses without the volume information, use
+B<rwset(1)>.
+
+=cut
+
+$SiLK: rwaddrcount.pod cd09f0a5fcc6 2014-06-14 15:43:33Z mthomas $
+
+Local Variables:
+mode:text
+indent-tabs-mode:nil
+End:

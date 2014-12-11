@@ -1,0 +1,369 @@
+#! @PERL@
+#
+# Copyright (C) 2006-2014 by Carnegie Mellon University.
+#
+# @OPENSOURCE_HEADER_START@
+#
+# Use of the SILK system and related source code is subject to the terms
+# of the following licenses:
+#
+# GNU Public License (GPL) Rights pursuant to Version 2, June 1991
+# Government Purpose License Rights (GPLR) pursuant to DFARS 252.227.7013
+#
+# NO WARRANTY
+#
+# ANY INFORMATION, MATERIALS, SERVICES, INTELLECTUAL PROPERTY OR OTHER
+# PROPERTY OR RIGHTS GRANTED OR PROVIDED BY CARNEGIE MELLON UNIVERSITY
+# PURSUANT TO THIS LICENSE (HEREINAFTER THE "DELIVERABLES") ARE ON AN
+# "AS-IS" BASIS. CARNEGIE MELLON UNIVERSITY MAKES NO WARRANTIES OF ANY
+# KIND, EITHER EXPRESS OR IMPLIED AS TO ANY MATTER INCLUDING, BUT NOT
+# LIMITED TO, WARRANTY OF FITNESS FOR A PARTICULAR PURPOSE,
+# MERCHANTABILITY, INFORMATIONAL CONTENT, NONINFRINGEMENT, OR ERROR-FREE
+# OPERATION. CARNEGIE MELLON UNIVERSITY SHALL NOT BE LIABLE FOR INDIRECT,
+# SPECIAL OR CONSEQUENTIAL DAMAGES, SUCH AS LOSS OF PROFITS OR INABILITY
+# TO USE SAID INTELLECTUAL PROPERTY, UNDER THIS LICENSE, REGARDLESS OF
+# WHETHER SUCH PARTY WAS AWARE OF THE POSSIBILITY OF SUCH DAMAGES.
+# LICENSEE AGREES THAT IT WILL NOT MAKE ANY WARRANTY ON BEHALF OF
+# CARNEGIE MELLON UNIVERSITY, EXPRESS OR IMPLIED, TO ANY PERSON
+# CONCERNING THE APPLICATION OF OR THE RESULTS TO BE OBTAINED WITH THE
+# DELIVERABLES UNDER THIS LICENSE.
+#
+# Licensee hereby agrees to defend, indemnify, and hold harmless Carnegie
+# Mellon University, its trustees, officers, employees, and agents from
+# all claims or demands made against them (and any related losses,
+# expenses, or attorney's fees) arising out of, or relating to Licensee's
+# and/or its sub licensees' negligent use or willful misuse of or
+# negligent conduct or willful misconduct regarding the Software,
+# facilities, or other rights or assistance granted by Carnegie Mellon
+# University under this License, including, but not limited to, any
+# claims of product liability, personal injury, death, damage to
+# property, or violation of any laws or regulations.
+#
+# Carnegie Mellon University Software Engineering Institute authored
+# documents are sponsored by the U.S. Department of Defense under
+# Contract FA8721-05-C-0003. Carnegie Mellon University retains
+# copyrights in all material produced under this contract. The U.S.
+# Government retains a non-exclusive, royalty-free license to publish or
+# reproduce these documents, or allow others to do so, for U.S.
+# Government purposes only pursuant to the copyright license under the
+# contract clause at 252.227.7013.
+#
+# @OPENSOURCE_HEADER_END@
+#
+##############################################################################
+#
+#  rwp2yaf2silk
+#
+#    Convert a pcap file to a SiLK file via YAF | RWIPFIX2SILK.
+#    See the full usage at the bottom of this file
+#
+#    Mark Thomas
+#    November 2006
+#
+#  RCSIDENT("$SiLK: rwp2yaf2silk.in cd09f0a5fcc6 2014-06-14 15:43:33Z mthomas $")
+#
+##############################################################################
+
+$^W = 1;
+use strict;
+use Getopt::Long qw(GetOptions);
+use Pod::Usage qw(pod2usage);
+
+
+# The default programs and arguments
+
+# YAF program and arguments
+our $YAF_PROG = 'yaf';
+our @YAF_ARGS = qw(--silk --uniflow --out -);
+
+# rwipfix2silk command and arguments
+our $RWIPFIX2SILK_PROG = '@rwipfix2silk@';
+our @RWIPFIX2SILK_ARGS = qw();
+
+parse_options();
+convert();
+
+exit 0;
+
+
+#  convert
+#
+#    Opens the input and output streams.  Reads each input line,
+#    converts it to an 'rwcut' like line, and then writes that to
+#    rwipfix2silk for conversion into a SiLK Flow record.
+#
+#    If --dry-run was specified, the commands are printed but they are
+#    not invoked.
+#
+sub convert
+{
+    # The commands
+    our ($INPUT_COMMAND, $OUTPUT_COMMAND);
+    our ($YAF_PROG, $RWIPFIX2SILK_PROG);
+
+    our ($DRY_RUN);
+    if ($DRY_RUN)
+    {
+        my $chain = "$INPUT_COMMAND | $OUTPUT_COMMAND\n";
+        $chain =~ s/\|\s*/| \\\n    /g;
+        print $chain;
+        exit 0;
+    }
+
+    # Use UTC to avoid timezone issues
+    $ENV{TZ} = "";
+
+    # Open the sink first
+    open (OUTPUT, "| $OUTPUT_COMMAND")
+        or die("Problem invoking $RWIPFIX2SILK_PROG: $!\n",
+               "\tCommand was '$OUTPUT_COMMAND'\n");
+    binmode OUTPUT;
+
+    # Now open the source
+    open (INPUT, "$INPUT_COMMAND |")
+        or die("Problem invoking $YAF_PROG: $!\n",
+               "\tCommand was '$INPUT_COMMAND'\n");
+    binmode INPUT;
+
+    while (<INPUT>)
+    {
+        print OUTPUT;
+    }
+
+    close INPUT
+        or warn($!
+                ? "Error closing $YAF_PROG: $!\n"
+                : "Exit status $? from $YAF_PROG\n");
+    close OUTPUT
+        or warn($!
+                ? "Error closing $RWIPFIX2SILK_PROG: $!\n"
+                : "Exit status $? from $RWIPFIX2SILK_PROG\n");
+}
+# convert
+
+
+#  parse_options
+#
+#    Parse the user's options and produce the commands that will be
+#    invoked.
+#
+sub parse_options
+{
+    # globals
+    our ($YAF_PROG, $RWIPFIX2SILK_PROG);
+    our (@YAF_ARGS, @RWIPFIX2SILK_ARGS);
+    our ($INPUT_COMMAND, $OUTPUT_COMMAND);
+
+    # get basename of script
+    my $name = $0;
+    $name =~ s{.*/}{};
+
+    # local vars
+    my ($help, $man, $version, $input, $output);
+
+    # process options.  see "man Getopt::Long"
+    GetOptions('help|?' => \$help,
+               'man' => \$man,
+               'version' => \$version,
+
+               'in=s' => \$input,
+               'out=s' => \$output,
+
+               'dry-run' => sub { our $DRY_RUN = 1; },
+
+               'yaf-program=s' => \$YAF_PROG,
+               'yaf-args=s' => sub { shift; push @YAF_ARGS, @_; },
+
+               'rwipfix2silk-program=s' => \$RWIPFIX2SILK_PROG,
+               'rwipfix2silk-args=s' => sub{shift;push @RWIPFIX2SILK_ARGS,@_;},
+        ) or pod2usage(2);
+
+    # help?
+    if ($help) {
+        pod2usage(-exitval => 0);
+    }
+    if ($man) {
+        pod2usage(-exitval => 0, -verbose => 2);
+    }
+    if ($version) {
+        print_version_exit();
+    }
+
+    unless (defined $input) {
+        pod2usage(-msg => "$name: the --in switch is required");
+    }
+    if ($input eq 'stdin') {
+        $input = '-';
+    }
+    if ($input eq '-' && -t STDIN) {
+        die("$name: Cannot read binary data from",
+            " standard input connected to a terminal\n");
+    }
+    unless (defined $output) {
+        pod2usage(-msg => "$name: the --out switch is required");
+    }
+    if ($output eq '-') {
+        $output = 'stdout';
+    }
+    if ($output eq 'stdout' && -t STDOUT) {
+        die("$name: Cannot write binary data to",
+            " standard output connected to a terminal\n");
+    }
+
+    if (@ARGV)
+    {
+        die "$name: Unexpected argument: '@ARGV'\n";
+    }
+
+    $INPUT_COMMAND = "$YAF_PROG @YAF_ARGS --in $input";
+
+    $OUTPUT_COMMAND = ("$RWIPFIX2SILK_PROG @RWIPFIX2SILK_ARGS ".
+                       "--silk-output=$output");
+
+    for my $prog ($YAF_PROG, $RWIPFIX2SILK_PROG)
+    {
+        my $rv = system "$prog --version </dev/null >/dev/null 2>&1";
+        if ($rv || $? != 0) {
+            die "$name: Unable to run $prog\n";
+        }
+    }
+}
+# parse_options
+
+
+sub print_version_exit
+{
+    # get basename of script
+    my $name = $0;
+    $name =~ s{.*/}{};
+
+    my $pkg = '@PACKAGE_STRING@' || 'SiLK';
+    my $bugs = '@PACKAGE_BUGREPORT@' || 'UNKNOWN';
+
+    print <<EOF;
+$name: Part of $pkg
+Copyright (C) 2001-2014 by Carnegie Mellon University
+GNU Public License (GPL) Rights pursuant to Version 2, June 1991.
+Government Purpose License Rights (GPLR) pursuant to DFARS 252.227.7013.
+Send bug reports, feature requests, and comments to $bugs.
+EOF
+    exit;
+}
+
+
+__END__
+
+=pod
+
+=head1 NAME
+
+B<rwp2yaf2silk> - Convert PCAP data to SiLK Flow Records with YAF
+
+=head1 SYNOPSIS
+
+  rwp2yaf2silk --in=INPUT_SPEC --out=FILE [--dry-run]
+      [--yaf-program=YAF] [--yaf-args='ARG1 ARG2']
+      [--rwipfix2silk-program=RWIPFIX2SILK] [--rwipfix2silk-args='ARG1 ARG2']
+
+  rwp2yaf2silk --help
+
+  rwp2yaf2silk --man
+
+  rwp2yaf2silk --version
+
+=head1 DESCRIPTION
+
+B<rwp2yaf2silk> is a script to convert a B<pcap(3)> file, such as that
+produced by B<tcpdump(1)>, to a single file of SiLK Flow records.  The
+script assumes that the B<yaf(1)> and B<rwipfix2silk(1)> commands are
+available on your system.
+
+The B<--in> and B<--out> switches are required.  Note that the B<--in>
+switch is processed by B<yaf>, and the B<--out> switch is processed by
+B<rwipfix2silk>.
+
+For information on reading live pcap data and using B<rwflowpack(8)>
+to store that data in hourly files, see the I<SiLK Installation
+Handbook>.
+
+Normally B<yaf> groups multiple packets into flow records.  You can
+almost force B<yaf> to create a flow record for every packet so that
+its output is similar to that of B<rwptoflow(1)>: When you give B<yaf>
+the B<--idle-timeout=0> switch, B<yaf> creates a flow record for every
+complete packet and for each packet that it is able to completely
+reassemble from packet fragments.  Any fragmented packets that B<yaf>
+cannot reassemble are dropped.
+
+=head1 OPTIONS
+
+Option names may be abbreviated if the abbreviation is unique or is an
+exact match for an option.  A parameter to an option may be specified
+as B<--arg>=I<param> or B<--arg> I<param>, though the first form is
+required for options that take optional parameters.
+
+=over 4
+
+=item B<--in>=I<INPUT_SPEC>
+
+Read the pcap records from I<INPUT_SPEC>.  Often I<INPUT_SPEC> is the
+name of the pcap file to read or the string string C<-> or C<stdin> to
+read from standard input.  To process multiple pcap files, create a
+text file that lists the names of the pcap files.  Specify the text
+file as I<INPUT_SPEC> and use C<--yaf-args=caplist> to tell B<yaf> the
+I<INPUT_SPEC> contains the names of pcap files.
+
+=item B<--out>=I<FILE>
+
+Write the SiLK Flow records to I<FILE>.  The string C<stdout> or C<->
+may be used for the standard output, as long as it is not connected to
+a terminal.
+
+=item B<--dry-run>
+
+Do not invoke any commands, just print the commands that would be
+invoked.
+
+=item B<--yaf-program>=I<YAF>
+
+Use I<YAF> as the location of the B<yaf> program.  When not specified,
+B<rwp2yaf2silk> assumes there is a program B<yaf> on your $PATH.
+
+=item B<--yaf-args>=I<ARGS>
+
+Pass the additional I<ARGS> to the B<yaf> program.
+
+=item B<--rwipfix2silk-program>=I<RWIPFIX2SILK>
+
+Use I<RWIPFIX2SILK> as the location of the B<rwipfix2silk> program.
+When not specified, B<rwp2yaf2silk> assumes there is a program
+B<rwipfix2silk> on your $PATH.
+
+=item B<--rwipfix2silk-args>=I<ARGS>
+
+Pass the additional I<ARGS> to the B<rwipfix2silk> program.
+
+=item B<--help>
+
+Display a brief usage message and exit.
+
+=item B<--man>
+
+Display full documentation for B<rwp2yaf2silk> and exit.
+
+=item B<--version>
+
+Print the version number and exit the application.
+
+=back
+
+=head1 SEE ALSO
+
+B<yaf(1)>, B<rwipfix2silk(1)>, B<rwflowpack(8)>, B<rwptoflow(1)>,
+B<silk(7)>, B<tcpdump(1)>, B<pcap(3)>, I<SiLK Installation Handbook>
+
+=cut
+
+# Local Variables:
+# mode:perl
+# indent-tabs-mode:nil
+# End:

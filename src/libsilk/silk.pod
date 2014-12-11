@@ -1,0 +1,672 @@
+=pod
+
+=head1 NAME
+
+B<SiLK> - the System for Internet-Level Knowledge
+
+=head1 DESCRIPTION
+
+SiLK is a collection of traffic analysis tools developed by the CERT
+Network Situational Awareness Team (CERT NetSA) to facilitate security
+analysis of large networks.  The SiLK tool suite supports the
+efficient collection, storage, and analysis of network flow data,
+enabling network security analysts to rapidly query large historical
+traffic data sets.  SiLK is ideally suited for analyzing traffic on
+the backbone or border of a large, distributed enterprise or mid-sized
+ISP.
+
+A SiLK installation consists of two categories of applications: the
+analysis suite and the packing system.
+
+=head2 Analysis suite
+
+The SiLK analysis suite is a collection of command-line tools for
+processing SiLK Flow records created by the SiLK packing system.
+These tools read binary files containing SiLK Flow records and
+partition, sort, and count these records.  The most important analysis
+tool is B<rwfilter(1)>, an application for querying the central data
+repository for SiLK Flow records that satisfy a set of filtering
+options.  The tools are intended to be combined in various ways to
+perform an analysis task.  A typical analysis uses UNIX pipes and
+intermediate data files to share data between invocations of tools.
+
+The tools, configuration files, and plug-in modules that make up the
+analysis tools are listed below, roughly grouped by functionality.
+
+I<Filtering, sorting, and display>
+
+B<rwfilter(1)> partitions SiLK Flow records into one or more 'pass'
+and/or 'fail' output streams.  B<rwfilter> is the primary tool for
+pulling flows from the data store.
+
+B<silk.conf(5)> is the configuration file naming the Classes, Types,
+and Sensors available at your installation.
+
+B<rwsort(1)> sorts SiLK Flow records using a user-specified key
+comprised of record attributes, and writes the records to the named
+output path or to the standard output.  Users can define new key
+fields using plug-ins written in C or PySiLK.
+
+B<rwcut(1)> prints the attributes of SiLK Flow records in a delimited,
+columnar, human-readable format.  Users can define new printable
+attributes using plug-ins written in C or PySiLK.
+
+I<SiLK Python Extension>
+
+B<pysilk(3)>. PySiLK, the SiLK Python extension, allows one to read,
+manipulate, and write SiLK Flow records, IPsets, and Bags from within
+Python.  PySiLK may be used in a stand-alone Python program or to
+write plug-ins for several SiLK applications.  This document describes
+the objects, methods, and functions that PySiLK provides.  The next
+entry describes using PySiLK from within a plug-in.
+
+B<silkpython(3)>.  The SiLK Python plug-in provides a way to use
+PySiLK to define new partitioning rules for B<rwfilter(1)>, new key
+fields for B<rwcut(1)>, B<rwgroup(1)>, and B<rwsort(1)>, and new key
+or value fields for B<rwstats(1)> and B<rwuniq(1)>.
+
+I<Counting and statistics>
+
+B<rwuniq(1)> bins (groups) SiLK Flow records by a user-specified key
+comprised of record attributes and prints the total byte, packet,
+and/or flow counts for each bin.  B<rwuniq> can also print distinct
+source IP and destination IP counts.  Users can define new key fields
+and value fields using plug-ins written in C or PySiLK.
+
+B<rwcount(1)> summarizes SiLK Flow records across time, producing
+textual output with counts of bytes, packets, and flow records for
+each time bin.
+
+B<rwstats(1)> summarizes SiLK Flow records by a user-specified key
+comprised of record attributes, computes values from the flow records
+that match each key, sorts the results by the value to generate a
+Top-N or Bottom-N list, and prints the results.  Users can define new
+key fields and value fields using plug-ins written in C or PySiLK.
+
+B<rwtotal(1)> summarizes SiLK Flow records by a specified key and
+prints the sum of the byte, packet, and flow counts for flows matching
+the key.
+
+B<rwaddrcount(1)> summarizes SiLK flow records by the source or
+destination IP and prints the byte, packet, and flow counts for each
+IP.
+
+I<IPset, Bag, and Prefix Map manipulation>
+
+B<rwset(1)> reads SiLK Flow records and generates binary IPset file(s)
+containing the source IP addresses or destination IP addresses seen on
+the flow records.
+
+B<rwsetbuild(1)> reads (textual) IP addresses in dotted-quad or CIDR
+notation from an input file or from the standard input and writes a
+binary IPset file.
+
+B<rwsetcat(1)> prints the contents of a binary IPset file as text.
+Additional information about the IPset file can be printed.
+
+B<rwsettool(1)> performs union, intersection, difference, and sampling
+functions on the input IPset files, generating a new IPset file.
+
+B<rwsetmember(1)> determines whether the IP address specified on the
+command line is contained in an IPset.
+
+B<rwbag(1)> reads SiLK Flow records and builds binary Bag(s)
+containing key-count pairs.  An example is a Bag containing the sum of
+the byte counts for each source port seen on the flow records.
+
+B<rwbagbuild(1)> creates a binary Bag file from a binary IPset file or
+from a textual input file.
+
+B<rwbagcat(1)> prints binary Bag files as text.
+
+B<rwbagtool(1)> performs operations (e.g., addition, subtraction) on
+binary Bag files and produces a new Bag file.
+
+B<rwpmapbuild(1)> reads textual input and creates a binary prefix map
+file for use with the Address Type (B<addrtype(3)>) and Prefix Map
+(B<pmapfilter(3)>) utilities.
+
+B<rwpmapcat(1)> prints information about a prefix map file as text.
+By default, prints each IP range in the prefix map and its label.
+
+B<rwpmaplookup(1)> finds information about specific IP address(es) or
+protocol/port pair(s) in a binary prefix map file and prints the
+result as text.
+
+B<rwipaimport(1)> imports a SiLK IPset, Bag, or Prefix Map file into
+the IP Address Association (IPA L<http://tools.netsa.cert.org/ipa/>)
+library.
+
+B<rwipaexport(1)> exports a set of IP addresses from the IP Address
+Association (IPA) library to a SiLK IPset, Bag, or Prefix Map.
+
+I<IP and port labeling files>
+
+B<addrtype(3)>.  The Address Type file provides a way to map an IPv4
+address to an integer denoting the IP as internal, external, or
+non-routable.
+
+B<ccfilter(3)>.  The Country Code file provides a mapping from an IPv4
+address to two-letter, lowercase abbreviation of the country what that
+IP address is located.  The abbreviations used by the Country Code
+utility are those used by the Root-Zone Whois Index (see for example
+L<http://www.iana.org/cctld/cctld-whois.htm>).
+
+B<pmapfilter(3)>.  Prefix map files provide a way to map field
+values to string labels based on a user-defined map file.  The map
+file is created by B<rwpmapbuild(1)>.
+
+I<Run time plug-ins>
+
+B<flowrate(3)>.  The flowrate plug-in, which must be loaded
+explicitly, adds switches and fields to compute packets/second,
+bytes/second, bytes/packet, payload-bytes, and payload-bytes/second.
+
+B<int-ext-fields(3)>.  The internal/external plug-in makes available
+fields containing internal and external IPs and ports (int-ip, ext-ip,
+int-port, and ext-port).
+
+B<ipafilter(3)>.  The IPA (IP Association) plug-in works with
+B<rwfilter> to partition flows based on data in an IPA data store.
+B<rwfilter> will automatically load this plug-in if it is available.
+The plug-in requires that SiLK be compiled with IPA support
+(L<http://tools.netsa.cert.org/ipa/>).
+
+B<silk-plugin(3)> describes how to create and compile a new SiLK
+plug-in using C.
+
+I<Record grouping and masking>
+
+B<rwgroup(1)> groups SiLK flow records by a user-specified key
+comprised of record attributes, labels the records with a group ID
+that is stored in the next-hop IP field, and writes the resulting
+flows to the specified output path or to the standard output.
+B<rwgroup> requires that its input is sorted.
+
+B<rwmatch(1)> matches (mates) records as queries and responses and
+marks mated records with an ID that is stored in the next-hop IP
+field.  B<rwmatch> requires that its input is sorted.
+
+B<rwnetmask(1)> reads SiLK Flow records, zeroes the least significant
+bits of the source-, destination-, and/or next-hop-IP address(es), and
+writes the resulting records to the named output path or to the
+standard output.
+
+I<Packet and external flow-format processing>
+
+B<rwp2yaf2silk(1)> converts a packet capture (B<pcap(3)>) file---such
+as a file produced by B<tcpdump(1)>---to a single file of SiLK Flow
+records.  B<rwp2yaf2silk> assumes that the B<yaf(1)>
+(L<http://tools.netsa.cert.org/yaf/>) and B<rwipfix2silk(1)> commands
+are available on your system as it is a simple Perl wrapper around
+those commands.
+
+B<rwipfix2silk(1)> converts a stream of IPFIX (Internet Protocol Flow
+Information eXport) records to the SiLK Flow record format.
+
+B<rwsilk2ipfix(1)> converts a stream of SiLK Flow records to an IPFIX
+(Internet Protocol Flow Information eXport) format.
+
+B<rwpcut(1)> reads a packet capture file and print its contents in a
+textual form similar to that produced by B<rwcut>.
+
+B<rwpdedupe(1)> detects and eliminates duplicate records from multiple
+packet capture input files.  See also B<rwdedupe(1)>.
+
+B<rwpmatch(1)> filters a packet capture file by writing only
+packets whose five-tuple and timestamp match corresponding records in
+a SiLK Flow file.
+
+B<rwptoflow(1)> reads a packet capture file and generates a SiLK Flow
+record for every packet.
+
+B<rwpdu2silk(1)> creates a stream of SiLK Flow records from a file
+containing NetFlow v5 PDU records.
+
+I<Scan detection>
+
+B<rwscan(1)> attempts to detect scanning activity from SiLK Flow
+records.  B<rwscan> can produce files that can be loaded into a
+database and queried with B<rwscanquery>.
+
+B<rwscanquery(1)> queries the scan database which has been populated
+from database load files generated by B<rwscan>.
+
+I<Flow utilities>
+
+B<rwcat(1)> reads SiLK Flow records from the files named on the
+command line, or from the standard input when no files are provided,
+and writes the SiLK records to the specified output file or to the
+standard output if it is not connected to a terminal.
+
+B<rwappend(1)> appends the SiLK Flow records contained in the second
+through final file name arguments to the records contained in the
+first file name argument.
+
+B<rwcombine(1)> reads SiLK Flow records from files named on the
+command line or from the standard input.  For records where the
+attributes field contains the I<flow timed-out> flag, B<rwcombine>
+attempts to find the record with the corresponding I<continuation>
+flag set and combine those records into a single flow.  B<rwcombine>
+writes the results to the named output file or to the standard output.
+
+B<rwcompare(1)> determines whether two SiLK Flow files contain the
+same flow records.
+
+B<rwdedupe(1)> reads SiLK Flow records from files named on the command
+line or from the standard input and writes the records to the named
+output path or to the standard output, removing any duplicate flow
+records.  Note that rwdedupe will reorder the records as part of its
+processing.
+
+B<rwrandomizeip(1)> generates a new SiLK Flow file by substituting a
+pseudo-random IP address for the source and destination IP addresses
+in given input file.
+
+B<rwrecgenerator(1)> generates SiLK Flow records using a pseudo-random
+number generator; these records can be used to test SiLK applications.
+
+B<rwsplit(1)> reads SiLK Flow records and generates a set of sub-files
+from the input.  The sub-files can be limited by flow-, byte-, or
+packet-counts, or by unique IP count.  In addition, the sub-file may
+contain all the flows or only a sample of them.
+
+B<rwswapbytes(1)> generates a new SiLK Flow file by changing the byte
+order of the records in a given input SiLK Flow file.
+
+I<Utilities>
+
+B<rwfileinfo(1)> prints information (type, version, etc.) about a SiLK
+Flow, IPset, Bag, or Prefix Map file.
+
+B<rwsiteinfo(1)> prints information about the sensors, classes, and
+types specified in the B<silk.conf(5)> file.
+
+B<rwtuc(1)> generates SiLK flow records from textual input; the input
+should be in a form similar to what B<rwcut(1)> generates.
+
+B<rwfglob(1)> prints to the standard output the list of files that
+B<rwfilter> would normally process for a given set of file selection
+switches.
+
+B<num2dot(1)> reads delimited text from the standard input, converts
+integer values in the specified column(s) (default first column) to
+dotted-decimal IP address, and prints the result to the standard
+output.
+
+B<rwgeoip2ccmap(1)> reads the MaxMind GeoIP database and creates the
+country code mapping file that can be used by SiLK (see
+B<ccfilter(3)>).
+
+B<rwidsquery(1)> invokes B<rwfilter> to find flow records matching
+Snort signatures.
+
+B<rwresolve(1)> reads delimited text from the standard input, attempts
+to resolve the IP addresses in the specified column(s) to host names,
+and prints the result to the standard output.
+
+B<silk_config(1)> prints information about how SiLK was compiled; this
+information can be used to compile and link other files and programs
+against the SiLK header files and libraries.
+
+I<Deprecated tools>
+
+B<mapsid(1)> maps between sensor names and sensor IDs using the values
+specified in the B<silk.conf(5)> file.  B<mapsid> is deprecated as of
+SiLK 3.0.0, and it will be removed in the SiLK 4.0 release.  This
+functionality is available in B<rwsiteinfo(1)>.
+
+B<rwguess(8)> reads a file containing NetFlow v5 PDU records and
+prints the SNMP interfaces that are used most often and the number of
+records seen for each interface.  B<rwguess> is deprecated as of SiLK
+3.8.3, and it will be removed in the SiLK 4.0 release.  Similar
+functionality is available using a combination of B<rwpdu2silk(1)>,
+B<rwstats(1)>, and B<rwuniq(1)>.
+
+B<rwip2cc(1)> maps a (textual) list of IP addresses to their country
+code.  B<rwip2cc> is deprecated as of SiLK 3.0.0, and it will be
+removed in the SiLK 4.0 release.  This functionality is available in
+B<rwpmaplookup(1)>.
+
+=head2 Packing system
+
+The SiLK Packing System is comprised of daemon applications that
+collect flow records (IPFIX flows from B<yaf(1)> or NetFlow v5 or v9
+PDUs from a router), convert the records to the SiLK flow format,
+categorize the flows as incoming or outgoing, and write the records to
+their final destination in binary flat files for use by the analysis
+suite.  Files are organized in a time-based directory hierarchy with
+files covering each hour at the leaves.
+
+The tools, configuration files, and plug-ins that comprise the SiLK
+Packing System are:
+
+B<flowcap(8)> listens to flow generators (devices which produce
+network flow data) and stores the data in temporary files prior to
+transferring the files to a remote machine for processing by
+B<rwflowpack>.
+
+B<rwflowpack(8)> reads flow data either directly from a flow generator
+or from files generated by B<flowcap>, converts the data to the SiLK
+flow record format, categorizes the flow records according to rules
+loaded from a packing-logic plug-in, and writes the
+records either to hourly flat-files organized in a time-based
+directory structure or to files for transfer to a remote machine for
+processing by B<rwflowappend>.
+
+B<rwflowappend(8)> watches a directory for files containing small
+numbers of SiLK flow records and appends those records to hourly files
+organized in a time-based directory tree.
+
+B<rwsender(8)> watches an incoming directory for files, moves the
+files into a processing directory, and transfers the files to one or
+more B<rwreceiver> processes.  Either B<rwsender> or B<rwreceiver> may
+act as the server (i.e., listen for incoming network connections) with
+the other acting as the client.
+
+B<rwreceiver(8)> accepts files transferred from one or more
+B<rwsender> processes and stores them in a destination directory.
+Either B<rwsender> or B<rwreceiver> may act as the server with the
+other acting as the client.
+
+B<rwpollexec(8)> monitors a directory for incoming files and runs a
+user-specified command on each file.
+
+B<rwpackchecker(8)> reads SiLK Flow records and checks for unusual
+patterns that may indicate data file corruption.
+
+B<sensor.conf(5)> is a configuration file for sensors and probes used
+by B<rwflowpack> and B<flowcap>.
+
+B<packlogic-twoway(3)> is one of the plug-ins available that describe
+a set of rules (the packing-logic) that B<rwflowpack> may use when
+categorizing flow records as incoming or output.
+
+B<packlogic-generic(3)> is one of the plug-ins available that describe
+a set of rules (the packing-logic) that B<rwflowpack> may use when
+categorizing flow records as incoming or output.
+
+=head1 ENVIRONMENT
+
+The following environment variables affect the tools in the SiLK tool
+suite.
+
+=over 4
+
+=item SILK_CONFIG_FILE
+
+This environment variable contains the location of the site
+configuration file, B<silk.conf(5)>.  This variable has precedence
+over all methods of finding the site file except for the
+B<--site-config-file> switch on an application.  For additional
+locations where site configuration file may reside, see the L</FILES>
+section.
+
+=item SILK_DATA_ROOTDIR
+
+This variable gives the root of directory tree where the data store of
+SiLK Flow files is maintained, overriding the location that is
+compiled into the tools (@SILK_DATA_ROOTDIR@).  The B<rwfilter(1)> and
+B<rwfglob(1)> tools use this value when selecting which flow files to
+process unless the user passes the B<--data-rootdir> switch to the
+application.  In addition, the SiLK tools will search for the site
+configuration file, F<silk.conf>, in this directory.
+
+=item SILK_PATH
+
+This environment variable gives the root of the directory tree where
+the tools are installed.  As part of its search for configuration
+files and plug-ins, a SiLK application may use this variable.  See the
+L</FILES> section for details.
+
+=item SILK_IPV6_POLICY
+
+For tools that implement the B<--ipv6-policy> switch, this environment
+variable is used as the value for that switch when it is not provided.
+
+=item SILK_IPSET_RECORD_VERSION
+
+For the IPset family of tools, this environment variable is used as
+the default value for the B<--record-version> switch when the switch
+is not provided on the command line.
+
+=item SILK_CLOBBER
+
+The SiLK tools normally refuse to overwrite existing files.  Setting
+SILK_CLOBBER to a non-empty value removes this restriction.
+
+=item SILK_PAGER
+
+When set to a non-empty string, most of the applications that produce
+textual output (e.g., B<rwcut(1)>) will automatically invoke this
+program to display their output a screen at a time.  If set to an
+empty string, no paging of the output is performed.  The B<--pager>
+switch on the application overrides this value.
+
+=item PAGER
+
+The applications that support paging their output will use the value
+in this environment variable when SILK_PAGER is not set.
+
+=item SILK_TMPDIR
+
+This variable is used by tools that write temporary files (e.g.,
+B<rwsort(1)>) as the directory in which to store those files.
+SILK_TMPDIR overrides the value of TMPDIR.
+
+=item TMPDIR
+
+When set and SILK_TMPDIR is not set, temporary files are created in
+this directory.
+
+=item PYTHONPATH
+
+The Python modules and library files required to use PySiLK from
+B<rwfilter(1)>, B<rwcut(1)>, B<rwsort(1)>, and B<rwuniq(1)> as well as
+from Python itself are installed under SiLK's installation tree by
+default.  It may be necessary to set or modify the PYTHONPATH
+environment variable so Python can find these files.  For information
+on using the PySiLK module, see B<silkpython(3)> as well as the I<SiLK
+in Python> handbook.
+
+=item PYTHONVERBOSE
+
+If the SiLK Python extension or plug-in fails to load, setting this
+environment variable to a non-empty string may help you debug the
+issue.
+
+=item SILK_PYTHON_TRACEBACK
+
+When set, Python plug-ins will output traceback information on Python
+errors to the standard error.
+
+=item SILK_RWFILTER_THREADS
+
+The number of threads B<rwfilter> uses while reading input files or
+files selected from the data store.
+
+=item SILK_COUNTRY_CODES
+
+This environment variable allows the user to specify the country code
+mapping file that the SiLK tools use.  The value may be a complete
+path or a file relative to SILK_PATH.  See the L</FILES> section for
+standard locations of this file.
+
+=item SILK_ADDRESS_TYPES
+
+This environment variable allows the user to specify the address types
+mapping file that the SiLK tools use.  The value may be a complete
+path or a file relative to SILK_PATH.  See the L</FILES> section for
+standard locations of this file.
+
+=item RWRECEIVER_TLS_PASSWORD, RWSENDER_TLS_PASSWORD
+
+Used by B<rwreceiver(8)> and B<rwsender(8)>, this variable specifies
+the password to use to decrypt the PKCS#12 file specified in the
+B<--tls-pkcs12> switch.
+
+=item TZ
+
+When a SiLK installation is built to use the local timezone (to
+determine if this is the case, check the C<Timezone support> value in
+the output from the B<--version> switch on most SiLK applications),
+the value of the TZ environment variable determines the timezone in
+which timestamps are displayed and parsed.  If the TZ environment
+variable is not set, the default timezone is used.  Setting TZ to 0 or
+to the empty string causes timestamps to be displayed in and parsed as
+UTC.  The value of the TZ environment variable is ignored when the
+SiLK installation uses utc.  For system information on the TZ
+variable, see B<tzset(3)>.
+
+=item SILK_ICMP_SPORT_HANDLER
+
+Modifies how "buggy" ICMP SiLK flow records are handled.  ICMP type
+and code are normally encoded in the destination port field.  Prior to
+SiLK 3.4.0, a bug existed when processing IPFIX bi-flow ICMP records
+where the type and code of the second records were stored in the
+source port.  SiLK 3.4.0 attempts to work-around this bad encoding by
+modifying the buggy ICMP SiLK Flow records as they are initially read.
+However, the change in SiLK 3.4.0 removes a previous work-around
+designed to fix issues with SiLK Flow records collected prior to
+SiLK 0.8.0 that originated as NetFlow v5 PDUs from some types of Cisco
+routers.  The ICMP records from these Cisco routers encoded the type
+and code in the source port, but the bytes were swapped from the
+normal encoding.  When the SILK_ICMP_SPORT_HANDLER environment
+variable is set to C<none>, all work-arounds for buggy ICMP records
+are disabled and the source and destination ports remain unchanged.
+
+=item SILK_LOGSTATS_RWFILTER
+
+When set to a non-empty value, B<rwfilter(1)> will treat the value as
+the path to a program to execute with information about this
+B<rwfilter> invocation.  Its purpose is to provide the SiLK
+administrator with information on how the SiLK tool set is being used.
+
+=item SILK_LOGSTATS
+
+This environment variable is currently an alias for
+SILK_LOGSTATS_RWFILTER.  The ability to log invocations may be
+extended to other SiLK tools in future releases.
+
+=item SILK_LOGSTATS_DEBUG
+
+If the environment variable is set to a non-empty value, B<rwfilter>
+will print messages to the standard error about the SILK_LOGSTATS
+value being used and either the reason why the value cannot be used or
+the arguments to the external program being executed.
+
+=item SILK_PLUGIN_DEBUG
+
+When set to a non-empty value, an application that supports plug-ins
+will print status messages to the standard error as it tries to open
+each of its plug-ins.
+
+=item SILK_TEMPFILE_DEBUG
+
+When set to 1, the library that manages temporary files for
+B<rwdedupe>, B<rwsort>, B<rwstats>, and B<rwuniq> prints debugging
+messages to the standard error as it creates, re-opens, and removes
+temporary files.
+
+=item SILK_UNIQUE_DEBUG
+
+When set to 1, the binning engine used by B<rwstats> and B<rwuniq>
+prints debugging messages to the standard error.
+
+=back
+
+=head1 FILES
+
+=over 4
+
+=item F<${SILK_ADDRESS_TYPES}>
+
+=item F<${SILK_PATH}/share/silk/address_types.pmap>
+
+=item F<${SILK_PATH}/share/address_types.pmap>
+
+=item F<@prefix@/share/silk/address_types.pmap>
+
+=item F<@prefix@/share/address_types.pmap>
+
+Possible locations for the address types mapping file.
+
+=item F<${SILK_CONFIG_FILE}>
+
+=item F<ROOT_DIRECTORY/silk.conf>
+
+=item F<${SILK_PATH}/share/silk/silk.conf>
+
+=item F<${SILK_PATH}/share/silk.conf>
+
+=item F<@prefix@/share/silk/silk.conf>
+
+=item F<@prefix@/share/silk.conf>
+
+Possible locations for the SiLK site configuration file which are
+checked when the B<--site-config-file> switch is not provided, where
+F<ROOT_DIRECTORY/> is the directory B<rwfilter> is using as the root
+of the data repository.
+
+=item F<${SILK_COUNTRY_CODES}>
+
+=item F<${SILK_PATH}/share/silk/country_codes.pmap>
+
+=item F<${SILK_PATH}/share/country_codes.pmap>
+
+=item F<@prefix@/share/silk/country_codes.pmap>
+
+=item F<@prefix@/share/country_codes.pmap>
+
+Possible locations for the country code mapping file.
+
+=item F<${SILK_DATA_ROOTDIR}/>
+
+=item F<@SILK_DATA_ROOTDIR@/>
+
+Locations for the root directory of the data repository.  Some
+applications provide a command line switch to set this value.
+
+=item F<${SILK_PATH}/lib64/silk/>
+
+=item F<${SILK_PATH}/lib64/>
+
+=item F<${SILK_PATH}/lib/silk/>
+
+=item F<${SILK_PATH}/lib/>
+
+=item F<@prefix@/lib64/silk/>
+
+=item F<@prefix@/lib64/>
+
+=item F<@prefix@/lib/silk/>
+
+=item F<@prefix@/lib/>
+
+Directories that a SiLK application checks when attempting to load a
+plug-in.
+
+=item F<${SILK_TMPDIR}/>
+
+=item F<${TMPDIR}/>
+
+=item F</tmp/>
+
+Directory in which to create temporary files.
+
+=back
+
+=head1 SEE ALSO
+
+I<Analysts' Handbook: Using SiLK for Network Traffic Analysis>,
+I<The SiLK Reference Guide>, I<SiLK Installation Handbook>,
+L<http://tools.netsa.cert.org/silk/>
+
+=cut
+
+$SiLK: silk.pod 3ae34ffdfac2 2014-09-19 21:18:06Z mthomas $
+
+Local Variables:
+mode:text
+indent-tabs-mode:nil
+End:

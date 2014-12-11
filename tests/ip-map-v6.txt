@@ -1,0 +1,20 @@
+# RCSIDENT("$SiLK: ip-map-v6.txt 127cb6a3a83f 2011-08-23 18:56:43Z mthomas $")
+
+mode                    ipv6
+
+map-name                service-host
+
+label  4  dns
+label  2  internal services
+label  0  external
+label  5  dhcp
+label  3  ntp
+label  1  internal
+
+default                 external
+
+2001:db8:c0:a8::/64     internal
+2001:db8:ac:10::/60     internal services
+2001:db8:ac:10::/64     ntp
+2001:db8:ac:18::/64     dns
+2001:db8:ac:1e::/64     dhcp

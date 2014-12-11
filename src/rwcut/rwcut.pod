@@ -1,0 +1,989 @@
+=pod
+
+=head1 NAME
+
+B<rwcut> - Print selected fields of binary SiLK Flow records
+
+=head1 SYNOPSIS
+
+  rwcut [{--fields=FIELDS | --all-fields}]
+        {[--start-rec-num=START_NUM] [--end-rec-num=END_NUM]
+         | [--tail-recs=TAIL_START_NUM]}
+        [--num-recs=REC_COUNT] [--dry-run] [--icmp-type-and-code]
+        [--timestamp-format=FORMAT] [--epoch-time]
+        [--ip-format=FORMAT] [--integer-ips] [--zero-pad-ips]
+        [--integer-sensors] [--integer-tcp-flags]
+        [--no-titles] [--no-columns] [--column-separator=CHAR]
+        [--no-final-delimiter] [{--delimited | --delimited=CHAR}]
+        [--print-filenames] [--copy-input=PATH] [--output-path=PATH]
+        [--pager=PAGER_PROG] [--site-config-file=FILENAME]
+        [--ipv6-policy={ignore,asv4,mix,force,only}]
+        [{--legacy-timestamps | --legacy-timestamps={1,0}}]
+        [--plugin=PLUGIN [--plugin=PLUGIN ...]]
+        [--python-file=PATH [--python-file=PATH ...]]
+        [--pmap-file=MAPNAME:PATH [--pmap-file=MAPNAME:PATH ...]]
+        [--pmap-column-width=NUM]
+        {[--xargs] | [--xargs=FILENAME] | [FILE [FILE ...]]}
+
+  rwcut [--pmap-file=MAPNAME:PATH [--pmap-file=MAPNAME:PATH ...]]
+        [--plugin=PLUGIN ...] [--python-file=PATH ...] --help
+
+  rwcut [--pmap-file=MAPNAME:PATH [--pmap-file=MAPNAME:PATH ...]]
+        [--plugin=PLUGIN ...] [--python-file=PATH ...] --help-fields
+
+  rwcut --version
+
+=head1 DESCRIPTION
+
+B<rwcut> reads binary SiLK Flow records and prints the records to the
+screen in a textual, bar (C<|>) delimited format.  See the EXAMPLES
+section below for sample output.
+
+B<rwcut> reads SiLK Flow records from the files named on the command
+line or from the standard input when no file names are specified and
+B<--xargs> is not present.  To read the standard input in addition to
+the named files, use C<-> or C<stdin> as a file name.  If an input
+file name ends in C<.gz>, the file will be uncompressed as it is read.
+When the B<--xargs> switch is provided, B<rwcut> will read the names
+of the files to process from the named text file, or from the standard
+input if no file name argument is provided to the switch.  The input
+to B<--xargs> must contain one file name per line.
+
+=head1 OPTIONS
+
+Option names may be abbreviated if the abbreviation is unique or is an
+exact match for an option.  A parameter to an option may be specified
+as B<--arg>=I<param> or B<--arg> I<param>, though the first form is
+required for options that take optional parameters.
+
+=over 4
+
+=item B<--fields>=I<FIELDS>
+
+I<FIELDS> contains the list of flow attributes (a.k.a. fields or
+columns) to print.  The columns will be displayed in the order the
+fields are specified.  Fields may be repeated.  I<FIELDS> is a comma
+separated list of field-names, field-integers, and ranges of
+field-integers; a range is specified by separating the start and end
+of the range with a hyphen (B<->).  Field-names are case-insensitive.
+Example:
+
+ --fields=stime,10,1-5
+
+If the B<--fields> switch is not
+given, I<FIELDS> defaults to:
+
+ sIP,dIP,sPort,dPort,protocol,packets,bytes,flags,sTime,dur,eTime,sensor
+
+The complete list of built-in fields that the SiLK tool suite supports
+follows, though note that not all fields are present in all SiLK file
+formats; when a field is not present, its value is 0.
+
+=over 4
+
+=item sIP,1
+
+source IP address
+
+=item dIP,2
+
+destination IP address
+
+=item sPort,3
+
+source port for TCP and UDP, or equivalent
+
+=item dPort,4
+
+destination port for TCP and UDP, or equivalent
+
+=item protocol,5
+
+IP protocol
+
+=item packets,pkts,6
+
+packet count
+
+=item bytes,7
+
+byte count
+
+=item flags,8
+
+bit-wise OR of TCP flags over all packets
+
+=item sTime,9
+
+starting time of flow in millisecond resolution
+
+=item duration,10
+
+duration of flow in millisecond resolution
+
+=item eTime,11
+
+end time of flow in millisecond resolution
+
+=item sensor,12
+
+name or ID of sensor at the collection point
+
+=item class,20
+
+class of sensor at the collection point
+
+=item type,21
+
+type of sensor at the collection point
+
+=item sTime+msec,22
+
+starting time of flow including milliseconds (milliseconds are always
+displayed); this field is deprecated as of SiLK 3.8.1, and it will be
+removed in the SiLK 4.0 release
+
+=item eTime+msec,23
+
+end time of flow including milliseconds (milliseconds are always
+displayed); this field is deprecated as of SiLK 3.8.1, and it will be
+removed in the SiLK 4.0 release
+
+=item dur+msec,24
+
+duration of flow including milliseconds (milliseconds are always
+displayed); this field is deprecated as of SiLK 3.8.1, and it will be
+removed in the SiLK 4.0 release
+
+=item iType
+
+the ICMP type value for ICMP or ICMPv6 flows and empty for non-ICMP
+flows.  This field was introduced in SiLK 3.8.1.
+
+=item iCode
+
+the ICMP code value for ICMP or ICMPv6 flows and emtpy for non-ICMP
+flows.  See note at C<iType>.
+
+=item icmpTypeCode,25
+
+equivalent to C<iType>,C<iCode>.  This field is deprecated as of SiLK
+3.8.1.
+
+=back
+
+Many SiLK file formats do not store the following fields and their
+values will always be 0; they are listed here for completeness:
+
+=over 4
+
+=item in,13
+
+router SNMP input interface or vlanId if packing tools were
+configured to capture it (see B<sensor.conf(5)>)
+
+=item out,14
+
+router SNMP output interface or postVlanId
+
+=item nhIP,15
+
+router next hop IP
+
+=back
+
+SiLK can store flows generated by enhanced collection software that
+provides more information than NetFlow v5.  These flows may support
+some or all of these additional fields; for flows without this
+additional information, the field's value is always 0.
+
+=over 4
+
+=item initialFlags,26
+
+TCP flags on first packet in the flow
+
+=item sessionFlags,27
+
+bit-wise OR of TCP flags over all packets except the first in the flow
+
+=item attributes,28
+
+flow attributes set by the flow generator:
+
+=over 4
+
+=item C<S>
+
+all the packets in this flow record are exactly the same size
+
+=item C<F>
+
+flow generator saw additional packets in this flow following a packet
+with a FIN flag (excluding ACK packets)
+
+=item C<T>
+
+flow generator prematurely created a record for a long-running
+connection due to a timeout.  (When the flow generator B<yaf(1)> is
+run with the B<--silk> switch, it will prematurely create a flow and
+mark it with C<T> if the byte count of the flow cannot be stored in a
+32-bit value.)
+
+=item C<C>
+
+flow generator created this flow as a continuation of long-running
+connection, where the previous flow for this connection met a timeout
+(or a byte threshold in the case of B<yaf>).
+
+=back
+
+Consider a long-running ssh session that exceeds the flow generator's
+I<active> timeout.  (This is the active timeout since the flow
+generator creates a flow for a connection that still has activity).
+The flow generator will create multiple flow records for this ssh
+session, each spanning some portion of the total session.  The first
+flow record will be marked with a C<T> indicating that it hit the
+timeout.  The second through next-to-last records will be marked with
+C<TC> indicating that this flow both timed out and is a continuation
+of a flow that timed out.  The final flow will be marked with a C<C>,
+indicating that it was created as a continuation of an active flow.
+
+=item application,29
+
+guess as to the content of the flow.  Some software that generates flow
+records from packet data, such as B<yaf>, will inspect the contents of
+the packets that make up a flow and use traffic signatures to label
+the content of the flow.  SiLK calls this label the I<application>;
+B<yaf> refers to it as the I<appLabel>.  The application is the port
+number that is traditionally used for that type of traffic (see the
+F</etc/services> file on most UNIX systems).  For example, traffic
+that the flow generator recognizes as FTP will have a value of 21,
+even if that traffic is being routed through the standard HTTP/web
+S<port (80)>.
+
+=back
+
+The following fields provide a way to label the IPs or ports on a
+record.  These fields require external files to provide the mapping
+from the IP or port to the label:
+
+=over 4
+
+=item sType,16
+
+for the source IP address, the value 0 if the address is non-routable,
+1 if it is internal, or 2 if it is routable and external.  Uses the
+mapping file specified by the SILK_ADDRESS_TYPES environment variable,
+or the F<address_types.pmap> mapping file, as described in
+B<addrtype(3)>.
+
+=item dType,17
+
+as B<sType> for the destination IP address
+
+=item scc,18
+
+for the source IP address, a two-letter country code abbreviation
+denoting the country where that IP address is located.  Uses the
+mapping file specified by the SILK_COUNTRY_CODES environment variable,
+or the F<country_codes.pmap> mapping file, as described in
+B<ccfilter(3)>.  The abbreviations are those used by the Root-Zone
+Whois Index (see for example
+L<http://www.iana.org/cctld/cctld-whois.htm>) or the following special
+codes: B<--> N/A (e.g. private and experimental reserved addresses);
+B<a1> anonymous proxy; B<a2> satellite provider; B<o1> other
+
+=item dcc,19
+
+as B<scc> for the destination IP
+
+=item src-I<MAPNAME>
+
+label determined by passing the source IP or the protocol/source-port
+to the user-defined mapping defined in the prefix map associated with
+I<MAPNAME>.  See the description of the B<--pmap-file> switch below
+and the B<pmapfilter(3)> manual page.
+
+=item dst-I<MAPNAME>
+
+as B<src-I<MAPNAME>> for the destination IP or
+protocol/destination-port.
+
+=item sval
+
+=item dval
+
+These are deprecated field names created by B<pmapfilter> that
+correspond to B<src-I<MAPNAME>> and B<dst-I<MAPNAME>>, respectively.
+These fields are available when a prefix map is used that is
+not associated with a I<MAPNAME>.
+
+=back
+
+Finally, the list of built-in fields may be augmented by the run-time
+loading of PySiLK code or plug-ins written in C (also called shared
+object files or dynamic libraries), as described by the
+B<--python-file> and B<--plugin> switches.
+
+=for comment
+##########################################################################
+# Whew!  We've finally reached the end of the --fields help
+
+=item B<--all-fields>
+
+Instruct B<rwcut> to print all known fields.  This switch may not be
+combined with the B<--fields> switch.  This switch suppresses error
+messages from the plug-ins.
+
+=item B<--plugin>=I<PLUGIN>
+
+Augment the list of fields by using run-time loading of the plug-in
+(shared object) whose path is I<PLUGIN>.  The switch may be repeated
+to load multiple plug-ins.  The creation of plug-ins is described in
+the B<silk-plugin(3)> manual page.  When I<PLUGIN> does not contain a
+slash (C</>), B<rwcut> will attempt to find a file named I<PLUGIN> in
+the directories listed in the L</FILES> section.  If B<rwcut> finds
+the file, it uses that path.  If I<PLUGIN> contains a slash or if
+B<rwcut> does not find the file, B<rwcut> relies on your operating
+system's B<dlopen(3)> call to find the file.  When the
+SILK_PLUGIN_DEBUG environment variable is non-empty, B<rwcut> prints
+status messages to the standard error as it attempts to find and open
+each of its plug-ins.
+
+=item B<--start-rec-num>=I<START_NUM>
+
+Begin printing with the I<START_NUM>'th record by skipping the first
+I<START_NUM>-1 records.  The default is 1; that is, to start printing
+at the first record; I<START_NUM> must be a positive integer.  If
+I<START_NUM> is greater than the number of input records, B<rwcut>
+only outputs the title.  This switch may not be combined with the
+B<--tail-recs> switch.  When using multiple input files, records are
+treated as a single stream for the purposes of the B<--start-rec-num>,
+B<--end-rec-num>, B<--tail-recs>, and B<--num-recs> switches.  This
+switch does not affect the records written to the stream specified by
+B<--copy-input>.
+
+=item B<--end-rec-num>=I<END_NUM>
+
+Stop printing after the I<END_NUM>'th record.  When I<END_NUM> is 0,
+the default, printing stops once all input records have been printed;
+that is, I<END_NUM> is effectively infinity.  If this value is
+non-zero, it must not be less than I<START_NUM>.  This switch may not
+be combined with the B<--tail-recs> switch.  When using multiple input
+files, records are treated as a single stream for the purposes of the
+B<--start-rec-num>, B<--end-rec-num>, B<--tail-recs>, and
+B<--num-recs> switches.  This switch does not affect the records
+written to the stream specified by B<--copy-input>.
+
+=item B<--tail-recs>=I<TAIL_START_NUM>
+
+Begin printing once B<rwcut> is I<TAIL_START_NUM> records from end of
+the input stream, where I<TAIL_START_NUM> is a positive integer.
+B<rwcut> will print the remaining records in the input stream unless
+B<--num-recs> is also specified and is less than I<TAIL_START_NUM>.
+The B<--tail-recs> switch is similar to the B<--start-rec-num> switch
+except it counts from the end of the input stream.  This switch may
+not be combined with the B<--start-rec-num> and B<--end-rec-num>
+switches.  When using multiple input files, records are treated as a
+single stream for the purposes of the B<--start-rec-num>,
+B<--end-rec-num>, B<--tail-recs>, and B<--num-recs> switches.  This
+switch does not affect the records written to the stream specified by
+B<--copy-input>.
+
+=item B<--num-recs>=I<REC_COUNT>
+
+Print no more than I<REC_COUNT> records.  Specifying a I<REC_COUNT> of
+0 will print all records, which is the default.  This switch is
+ignored under the following conditions: When both B<--start-rec-num>
+and B<--end-rec-num> are specified; when only B<--end-rec-num> is
+given and I<END_NUM> is less than I<REC_COUNT>; when B<--tail-recs> is
+specified and I<TAIL_START_NUM> is less than I<REC_COUNT>.  When using
+multiple input files, records are treated as a single stream for the
+purposes of the B<--start-rec-num>, B<--end-rec-num>, B<--tail-recs>,
+and B<--num-recs> switches.  This switch does not affect the records
+written to the stream specified by B<--copy-input>.
+
+=item B<--dry-run>
+
+Causes B<rwcut> to print the column headers and exit.  Useful for
+testing.
+
+=item B<--icmp-type-and-code>
+
+Unlike TCP or UDP, ICMP messages do not use ports, but instead have
+types and codes.  Specifying this switch will cause B<rwcut> to print,
+for ICMP records, the message's type and code in the sPort and dPort
+columns, respectively.  Use of this switch has been discouraged since
+SiLK 0.9.10.  As for SiLK 3.8.1, this switch is deprecated and it will
+be removed in SiLK 4.0; use the B<iType> and B<iCode> fields instead.
+
+=item B<--timestamp-format>=I<FORMAT>
+
+Specify how timestamps will be printed.  When this switch is not
+specified, timestamps are printed in the default format, and the
+timezone is UTC unless SiLK was compiled with local timezone support.
+I<FORMAT> is a comma-separated list of a format, a timezone, and/or
+a modifier.  The format is one of:
+
+=over 4
+
+=item default
+
+Print the timestamps as I<YYYY>/I<MM>/I<DD>TI<hh>:I<mm>:I<ss>.I<sss>.
+
+=item iso
+
+Print the timestamps as I<YYYY>-I<MM>-I<DD> I<hh>:I<mm>:I<ss>.I<sss>.
+
+=item m/d/y
+
+Print the timestamps as I<MM>/I<DD>/I<YYYY> I<hh>:I<mm>:I<ss>.I<sss>.
+
+=item epoch
+
+Print the timestamps as the number of seconds since 00:00:00 UTC on
+1970-01-01.
+
+=back
+
+When a timezone is specified, it is used regardless of the default
+timezone support compiled into SiLK.  The timezone is one of:
+
+=over 4
+
+=item utc
+
+Use Coordinated Universal Time to print timestamps.
+
+=item local
+
+Use the TZ environment variable or the local timezone.
+
+=back
+
+One modifier is available:
+
+=over 4
+
+=item no-msec
+
+Truncate the milliseconds value on the timestamps and on the duration
+field.  When milliseconds are truncated, the sum of the printed start
+time and duration may not equal the printed end time.
+
+=back
+
+=item B<--epoch-time>
+
+Print timestamps as epoch time (number of seconds since midnight GMT
+on 1970-01-01).  This switch is equivalent to
+B<--timestamp-format=epoch>, it is deprecated as of SiLK 3.0.0, and it
+will be removed in the SiLK 4.0 release.
+
+=item B<--ip-format>=I<FORMAT>
+
+Specify how IP addresses will be printed.  When this switch is not
+specified, IPs are printed in the canonical format.  The I<FORMAT> is
+one of:
+
+=over 4
+
+=item canonical
+
+Print IP addresses in their canonical form: dotted quad for IPv4
+(C<127.0.0.1>) and hexadectet for IPv6 (C<2001:db8::1>).  Note that
+IPv6 addresses in ::ffff:0:0/96 and some IPv6 addresses in ::/96 will
+be printed as a mixture of IPv6 and IPv4.
+
+=item zero-padded
+
+Print IP addresses in their canonical form, but add zeros to the
+output so it fully fills the width of column.  The addresses
+C<127.0.0.1> and C<2001:db8::1> are printed as C<127.000.000.001> and
+C<2001:0db8:0000:0000:0000:0000:0000:0001>, respectively.  When the
+B<--ipv6-policy> is C<force>, the output for C<127.0.0.1> becomes
+C<0000:0000:0000:0000:0000:ffff:7f00:0001>.
+
+=item decimal
+
+Print IP addresses as integers in decimal format.  The addresses
+C<127.0.0.1> and C<2001:db8::1> are printed as C<2130706433> and
+C<42540766411282592856903984951653826561>, respectively.
+
+=item hexadecimal
+
+Print IP addresses as integers in hexadecimal format.  The addresses
+C<127.0.0.1> and C<2001:db8::1> are printed as C<7f000001> and
+C<20010db8000000000000000000000001>, respectively.
+
+=item force-ipv6
+
+Print all IP addresses in the canonical form for IPv6 without using
+any IPv4 notation.  Any IPv4 address is mapped into the ::ffff:0:0/96
+netblock.  The addresses C<127.0.0.1> and C<2001:db8::1> are printed
+as C<::ffff:7f00:1> and C<2001:db8::1>, respectively.
+
+=back
+
+=item B<--integer-ips>
+
+Print IP addresses as integers.  This switch is equivalent to
+B<--ip-format=decimal>, it is deprecated as of SiLK 3.7.0, and it
+will be removed in the SiLK 4.0 release.
+
+=item B<--zero-pad-ips>
+
+Print IP addresses as fully-expanded, zero-padded values in their
+canonical form.  This switch is equivalent to
+B<--ip-format=zero-padded>, it is deprecated as of SiLK 3.7.0, and it
+will be removed in the SiLK 4.0 release.
+
+=item B<--integer-sensors>
+
+Print the integer ID of the sensor rather than its name.
+
+=item B<--integer-tcp-flags>
+
+Print the TCP flag fields (flags, initialFlags, sessionFlags) as an
+integer value.  Typically, the characters C<F,S,R,P,A,U,E,C> are used
+to represent the TCP flags.
+
+=item B<--no-titles>
+
+Turn off column titles.  By default, titles are printed.
+
+=item B<--no-columns>
+
+Disable fixed-width columnar output.
+
+=item B<--column-separator>=I<C>
+
+Use specified character between columns and after the final column.
+When this switch is not specified, the default of 'B<|>' is used.
+
+=item B<--no-final-delimiter>
+
+Do not print the column separator after the final column.  Normally a
+delimiter is printed.
+
+=item B<--delimited>
+
+=item B<--delimited>=I<C>
+
+Run as if B<--no-columns> B<--no-final-delimiter> B<--column-sep>=I<C>
+had been specified.  That is, disable fixed-width columnar output; if
+character I<C> is provided, it is used as the delimiter between
+columns instead of the default 'B<|>'.
+
+=item B<--print-filenames>
+
+Print to the standard error the names of input files as they are
+opened.
+
+=item B<--copy-input>=I<PATH>
+
+Copy all binary input to the specified file or named pipe.  I<PATH>
+can be C<stdout> to print flows to the standard output as long as the
+B<--output-path> switch has been used to redirect B<rwcut>'s ASCII
+output.
+
+=item B<--output-path>=I<PATH>
+
+Determines where the output of B<rwcut> (ASCII text) is written.  If
+this option is not given, output is written to the standard output.
+
+=item B<--pager>=I<PAGER_PROG>
+
+When output is to a terminal, invoke the program I<PAGER_PROG> to view
+the output one screen full at a time.  This switch overrides the
+SILK_PAGER environment variable, which in turn overrides the PAGER
+variable.  If the value of the pager is determined to be the empty
+string, no paging will be performed and all output will be printed to
+the terminal.
+
+=item B<--ipv6-policy>=I<POLICY>
+
+Determine how IPv4 and IPv6 flows are handled when SiLK has been
+compiled with IPv6 support.  When the switch is not provided, the
+SILK_IPV6_POLICY environment variable is checked for a policy.  If it
+is also unset or contains an invalid policy, the I<POLICY> is
+B<mix>.  When SiLK has not been compiled with IPv6 support, IPv6
+flows are always ignored, regardless of the value passed to this
+switch or in the SILK_IPV6_POLICY variable.  The supported values for
+I<POLICY> are:
+
+=over
+
+=item ignore
+
+Ignore any flow record marked as IPv6, regardless of the IP addresses
+it contains.  Only records marked as IPv4 will be printed.
+
+=item asv4
+
+Convert IPv6 flow records that contain addresses in the ::ffff:0:0/96
+prefix to IPv4 and ignore all other IPv6 flow records.
+
+=item mix
+
+Process the input as a mixture of IPv4 and IPv6 flow records.
+
+=item force
+
+Convert IPv4 flow records to IPv6, mapping the IPv4 addresses into the
+::ffff:0:0/96 prefix.
+
+=item only
+
+Print only flow records that are marked as IPv6 and ignore IPv4 flow
+records in the input.
+
+=back
+
+=item B<--site-config-file>=I<FILENAME>
+
+Read the SiLK site configuration from the named file I<FILENAME>.
+When this switch is not provided, B<rwcut> searches for the site
+configuration file in the locations specified in the L</FILES>
+section.
+
+=item B<--legacy-timestamps>
+
+=item B<--legacy-timestamps>=I<NUM>
+
+When I<NUM> is not specified or is 1, this switch is equivalent to
+B<--timestamp-format=m/d/y,no-msec>.  Otherwise, the switch has no
+effect.  This switch is deprecated as of SiLK 3.0.0, and it will be
+removed in the SiLK 4.0 release.
+
+=item B<--xargs>
+
+=item B<--xargs>=I<FILENAME>
+
+Causes B<rwcut> to read file names from I<FILENAME> or from the
+standard input if I<FILENAME> is not provided.  The input should have
+one file name per line.  B<rwcut> will open each file in turn and read
+records from it, as if the files had been listed on the command line.
+
+=item B<--help>
+
+Print the available options and exit.  Specifying switches that add
+new fields or additional switches before B<--help> will allow the
+output to include descriptions of those fields or switches.
+
+=item B<--help-fields>
+
+Print the description and alias(es) of each field and exit.
+Specifying switches that add new fields before B<--help-fields> will
+allow the output to include descriptions of those fields.
+
+=item B<--version>
+
+Print the version number and information about how SiLK was
+configured, then exit the application.
+
+=item B<--pmap-file>=I<MAPNAME>:I<PATH>
+
+=item B<--pmap-file>=I<PATH>
+
+Instruct B<rwcut> to load the mapping file located at I<PATH> and
+create the src-I<MAPNAME> and dst-I<MAPNAME> fields.  When I<MAPNAME>
+is provided explicitly, it will be used to refer to the fields
+specific to that prefix map.  If I<MAPNAME> is not provided, B<rwcut>
+will check the prefix map file to see if a map-name was specified when
+the file was created.  If no map-name is available, B<rwcut> creates
+the fields sval and dval.  Multiple B<--pmap-file> switches are
+supported as long as each uses a unique value for map-name.  The
+B<--pmap-file> switch(es) must precede the B<--fields> switch.  For
+more information, see B<pmapfilter(3)>.
+
+=item B<--pmap-column-width>=I<NUM>
+
+When printing a label associated with a prefix map, this switch gives
+the maximum number of characters to use when displaying the textual
+value of the field.
+
+=item B<--python-file>=I<PATH>
+
+When the SiLK Python plug-in is used, B<rwcut> reads the Python code
+from the file I<PATH> to define additional fields for possible output.
+This file should call B<register_field()> for each field it wishes to
+define.  For details and examples, see the B<silkpython(3)> and
+B<pysilk(3)> manual pages.
+
+=back
+
+=head1 EXAMPLES
+
+In the following examples, the dollar sign (C<$>) represents the shell
+prompt.  The text after the dollar sign represents the command line.
+Lines have been wrapped for improved readability, and the back slash
+(C<\>) is used to indicate a wrapped line.
+
+The standard output from B<rwcut> resembles the following (with the
+text wrapped for readability):
+
+            sIP|            dIP|sPort|dPort|pro|\
+    10.30.30.31|    10.70.70.71|   80|36761|  6|\
+
+        packets|     bytes|    flags|\
+              7|      3227|FS PA    |\
+
+                    sTime| duration|                  eTime|senso|
+  2003/01/01T00:00:14.625|    3.959|2003/01/01T00:00:18.584|EDGE1|
+
+
+The first line of the output is the title line which shows the names
+of the selected fields; the B<--no-titles> switch will disable the
+printing of the title line.  The second line and onward will contain
+the printed representation of the records, with one line per record.
+
+A common use of B<rwcut> is to read the output of B<rwfilter(1)>.  For
+example, to see representative TCP traffic:
+
+ $ rwfilter --start-date=2002/01/19:00 --end-date=2002/01/19:01     \
+        --proto=6 --pass=stdout                                     \
+   | rwcut
+
+To see only selected fields, use the B<--fields> switch.  For example,
+to print only the protocol for each record in the input file
+F<data.rw>, use:
+
+ $ rwcut --fields=proto  data.rw
+
+The B<silkpython(3)> manual page provides examples that use PySiLK to
+create and print arbitrary fields for B<rwcut>.
+
+The order of the I<FIELDS> is significant, and fields can be
+repeated.  For example, here is a case where in addition to the
+default fields of 1-12, you also to prefix each row with an
+integer form of the destination IP and the start time to make
+processing by another tool (e.g., a spreadsheet) easier.  However,
+within the default fields of 1-12, you want to see dotted-decimal IP
+addresses.  (The B<num2dot(1)> tool converts the numeric fields in
+I<column positions> three and four to dotted quad IPs.)
+
+ $ rwfilter ... --pass=stdout \
+   | rwcut --fields=2,9,1-12 --ip-format=decimal --timestamp-format=epoch \
+   | num2dot --ip-field=3,4
+
+Both of the following commands print the title line and the first
+record in the input stream:
+
+ $ rwcut --num-recs=1  data.rw
+
+ $ rwcut --end-rec-num=1  data.rw
+
+The following prints all records except the first (plus the title):
+
+ $ rwcut --start-rec-num=2  data.rw
+
+These three commands print only the second record:
+
+ $ rwcut --no-title --start-rec-num=2 --num-recs=1  data.rw
+
+ $ rwcut --no-title --start-rec-num=2 --end-rec-num=2  data.rw
+
+ $ rwcut --no-title --end-rec-num=2 --num-recs=1  data.rw
+
+This command prints the title line and the final record in the input
+stream:
+
+ $ rwcut --tail-recs=1  data.rw
+
+This command prints the next to last record in the input stream:
+
+ $ rwcut --no-title --tail-recs=2 --num-recs=1  data.rw
+
+
+=head1 ENVIRONMENT
+
+=over 4
+
+=item SILK_IPV6_POLICY
+
+This environment variable is used as the value for the
+B<--ipv6-policy> when that switch is not provided.
+
+=item SILK_PAGER
+
+When set to a non-empty string, B<rwcut> automatically invokes this
+program to display its output a screen at a time.  If set to an empty
+string, B<rwcut> does not automatically page its output.
+
+=item PAGER
+
+When set and SILK_PAGER is not set, B<rwcut> automatically invokes
+this program to display its output a screen at a time.
+
+=item PYTHONPATH
+
+This environment variable is used by Python to locate modules.  When
+B<--python-file> is specified, B<rwcut> loads Python which in turn
+loads the PySiLK module which is comprised of several files
+(F<silk/pysilk_nl.so>, F<silk/__init__.py>, etc).  If this F<silk/>
+directory is located outside Python's normal search path (for example,
+in the SiLK installation tree), it may be necessary to set or modify
+the PYTHONPATH environment variable to include the parent directory of
+F<silk/> so that Python can find the PySiLK module.
+
+=item SILK_PYTHON_TRACEBACK
+
+When set, Python plug-ins will output traceback information on Python
+errors to the standard error.
+
+=item SILK_COUNTRY_CODES
+
+This environment variable allows the user to specify the country code
+mapping file that B<rwcut> uses when computing the scc and dcc fields.
+The value may be a complete path or a file relative to the SILK_PATH.
+See the L</FILES> section for standard locations of this file.
+
+=item SILK_ADDRESS_TYPES
+
+This environment variable allows the user to specify the address type
+mapping file that B<rwcut> uses when computing the sType and dType
+fields.  The value may be a complete path or a file relative to the
+SILK_PATH.  See the L</FILES> section for standard locations of this
+file.
+
+=item SILK_CLOBBER
+
+The SiLK tools normally refuse to overwrite existing files.  Setting
+SILK_CLOBBER to a non-empty value removes this restriction.
+
+=item SILK_CONFIG_FILE
+
+This environment variable is used as the value for the
+B<--site-config-file> when that switch is not provided.
+
+=item SILK_DATA_ROOTDIR
+
+This environment variable specifies the root directory of data
+repository.  As described in the L</FILES> section, B<rwcut> may
+use this environment variable when searching for the SiLK site
+configuration file.
+
+=item SILK_PATH
+
+This environment variable gives the root of the install tree.  When
+searching for configuration files and plug-ins, B<rwcut> may use this
+environment variable.  See the L</FILES> section for details.
+
+=item TZ
+
+When a SiLK installation is built to use the local timezone (to
+determine if this is the case, check the C<Timezone support> value in
+the output from B<rwcut --version>), the value of the TZ environment
+variable determines the timezone in which B<rwcut> displays
+timestamps.  If the TZ environment variable is not set, the default
+timezone is used.  Setting TZ to 0 or the empty string causes
+timestamps to be displayed in UTC.  The value of the TZ environment
+variable is ignored when the SiLK installation uses utc.  For system
+information on the TZ variable, see B<tzset(3)>.
+
+=item SILK_PLUGIN_DEBUG
+
+When set to 1, B<rwcut> prints status messages to the standard error
+as it attempts to find and open each of its plug-ins.  In addition,
+when an attempt to register a field fails, B<rwcut> prints a message
+specifying the additional function(s) that must be defined to register
+the field in B<rwcut>.  Be aware that the output can be rather
+verbose.
+
+=back
+
+=head1 FILES
+
+=over 4
+
+=item F<$SILK_ADDRESS_TYPES>
+
+=item F<$SILK_PATH/share/silk/address_types.pmap>
+
+=item F<$SILK_PATH/share/address_types.pmap>
+
+=item F<@prefix@/share/silk/address_types.pmap>
+
+=item F<@prefix@/share/address_types.pmap>
+
+Possible locations for the address types mapping file required by the
+sType and dType fields.
+
+=item F<${SILK_CONFIG_FILE}>
+
+=item F<${SILK_DATA_ROOTDIR}/silk.conf>
+
+=item F<@SILK_DATA_ROOTDIR@/silk.conf>
+
+=item F<${SILK_PATH}/share/silk/silk.conf>
+
+=item F<${SILK_PATH}/share/silk.conf>
+
+=item F<@prefix@/share/silk/silk.conf>
+
+=item F<@prefix@/share/silk.conf>
+
+Possible locations for the SiLK site configuration file which are
+checked when the B<--site-config-file> switch is not provided.
+
+=item F<$SILK_COUNTRY_CODES>
+
+=item F<$SILK_PATH/share/silk/country_codes.pmap>
+
+=item F<$SILK_PATH/share/country_codes.pmap>
+
+=item F<@prefix@/share/silk/country_codes.pmap>
+
+=item F<@prefix@/share/country_codes.pmap>
+
+Possible locations for the country code mapping file required by the
+scc and dcc fields.
+
+=item F<${SILK_PATH}/lib64/silk/>
+
+=item F<${SILK_PATH}/lib64/>
+
+=item F<${SILK_PATH}/lib/silk/>
+
+=item F<${SILK_PATH}/lib/>
+
+=item F<@prefix@/lib64/silk/>
+
+=item F<@prefix@/lib64/>
+
+=item F<@prefix@/lib/silk/>
+
+=item F<@prefix@/lib/>
+
+Directories that B<rwcut> checks when attempting to load a plug-in.
+
+=back
+
+=head1 NOTES
+
+If you are interested in only a few fields, use the B<--fields> option
+to reduce the volume of data to be produced.  For example, if you are
+checking to see which internal host got hit with the slammer worm
+(signature: UDP, destPort 1434, pkt size 404), then the following
+B<rwfilter>, B<rwcut> combination will be much faster than simply
+using default values:
+
+ $ rwfilter --proto-17 --dport=1434 --bytes-per-packet=404-404      \
+   | rwcut --fields=dip,stime
+
+=head1 SEE ALSO
+
+B<rwfilter(1)>, B<num2dot(1)>, B<addrtype(3)>, B<ccfilter(3)>,
+B<pmapfilter(3)>, B<silk-plugin(3)>, B<silkpython(3)>, B<pysilk(3)>,
+B<sensor.conf(5)>, B<silk(7)>, B<yaf(1)>, B<dlopen(3)>
+
+=cut
+
+$SiLK: rwcut.pod 477e54df24bf 2014-07-08 18:02:17Z mthomas $
+
+Local Variables:
+mode:text
+indent-tabs-mode:nil
+End:

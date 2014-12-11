@@ -1,0 +1,515 @@
+=pod
+
+=head1 NAME
+
+B<silk.conf> - SiLK site configuration file
+
+=head1 DESCRIPTION
+
+The C<silk.conf> SiLK site configuration file is used to associate
+symbolic names with flow collection information stored in SiLK Flow
+records.
+
+In addition to the information contained in the NetFlow or IPFIX flow
+record (e.g., source and destination addresses and ports, IP protocol,
+time stamps, data volume), every SiLK Flow record has two additional
+pieces of information that is added when B<rwflowpack(8)> converts the
+NetFlow or IPFIX record to the SiLK format:
+
+=over 4
+
+=item *
+
+The I<sensor> typically denotes the location where the flow data was
+collected; e.g., an organization that is instrumenting its border
+routers would create a sensor to represent each router.  Each sensor
+has a unique name and numeric ID.
+
+=item *
+
+The I<flowtype> represents information about how the flow was routed
+(e.g., as incoming or outgoing) or other information about the flow
+(e.g., web or non-web).  The packing process categorizes each flow
+into a flowtype.  Each flowtype has a unique name and numeric ID.
+
+=back
+
+Note that the SiLK flow records represent the sensor and flowtype by
+their numeric IDs, not by their names.
+
+For historic reasons, one rarely speaks of the flowtype of a SiLK Flow
+record, but instead refers to its I<class> and I<type>.  Every
+flowtype maps to a unique class/type pair.  The classes and types have
+names only; they do not have numeric IDs.  Note that I<flowtype> and
+I<type> are different concepts despite the similarity of their names.
+
+A class is generally used to represent topological features of the
+network with different collections of sensors, since every active
+sensor must belong by one or more classes.  Every class must have a
+unique name.
+
+A type is used to distinguish traffic within a single topological area
+based on some other dimension.  For example, incoming and outgoing
+traffic is generally distinguished into different types.  Web traffic
+is also frequently split into a separate type from normal traffic in
+order to partition the data better.  The type names within a class
+must be unique, but multiple classes may have a type with the same
+name.
+
+As stated above, each class/type pair maps to a unique flowtype.
+
+The C<silk.conf> file defines
+
+=over 4
+
+=item *
+
+the mapping between sensor names and sensor IDs
+
+=item *
+
+the names of the available classes
+
+=item *
+
+the sensors that belong to each class
+
+=item *
+
+the names of the types in each class
+
+=item *
+
+the mapping from a class/type pair to a flowtype ID
+
+=item *
+
+the mapping between a flowtype name and a flowtype ID
+
+=item *
+
+the default class to use for B<rwfilter(1)> and B<rwfglob(1)> queries
+
+=item *
+
+for each class, the default types to use for B<rwfilter> and
+B<rwfglob>
+
+=item *
+
+the layout of the directory tree for the SiLK archive relative to the
+root directory
+
+=item *
+
+a default value for the B<--packing-logic> switch to B<rwflowpack(8)>
+
+=back
+
+In normal usage, the C<silk.conf> file will be located at the root of
+the SiLK data spool referenced by the SILK_DATA_ROOTDIR environment
+variable, or specified on the command line using the B<--data-rootdir>
+flag.  This ensures that the sensor and class definitions in the site
+configuration match the data in the flow records you retrieve.
+
+If you cannot place the site configuration file in the data root
+directory, or the file in that location is incorrect, you can use the
+SILK_CONFIG_FILE environment variable to specify the location of your
+configuration file (including the file name).  Many SiLK commands
+provide the B<--site-config-file> switch which allows you to specify
+the name of the site configuration file on the command line.
+
+By having the site configuration information outside of the SiLK
+tools, a single SiLK installation can be used to query different data
+stores (though each invocation of a command can only query one storage
+location).
+
+Any additions or modifications to the C<silk.conf> file will be seen
+by all SiLK applications upon their next invocation.  There are some
+important things to keep in mind when modifying the C<silk.conf> file:
+
+=over 4
+
+=item *
+
+Once data has been collected for a sensor or a flowtype, the sensor or
+flowtype should never be removed or renumbered.  SiLK Flow files store
+the sensor ID and flowtype ID as integers; removing or renumbering a
+sensor or flowtype breaks this mapping.  In order to keep the mapping
+consistent, old sensor and flowtype definitions should remain
+indefinitely.  Completely unused sensors or flowtypes may be removed,
+but the IDs of the remaining sensors and flowtypes must not be
+modified.
+
+=item *
+
+The path to the files in the SiLK data store often involve the sensor
+name, flowtype name, class name, and/or type name.  If any of those
+names are changed, it will be necessary to rename all the previously
+packed data files that have the former name as part of their path.
+
+=item *
+
+If the SiLK installation at your site is distributed across multiple
+hosts (for example, if packing occurs on a machine separate from
+analysis), it is important to synchronize changes to the C<silk.conf>
+files.
+
+=item *
+
+The packing logic plug-in file, F<packlogic-*.so> (e.g.,
+B<packlogic-twoway(3)>, B<packlogic-generic(3)>), used by
+B<rwflowpack(8)> checks for specific class names, type names, and
+flowtype names at start up, and it will exit with an error if the
+names it expects do not exist.  In addition, it checks that the
+flowtype IDs it has match with those in the C<silk.conf> file.  When
+new flowtypes are added, the F<packlogic-*.so> file will need to be
+updated if B<rwflowpack> is to generate SiLK Flow records with the new
+flowtype.
+
+=item *
+
+When B<rwflowpack> reads incoming flow records, those records are
+associated with a sensor name as determined by the B<sensor.conf(5)>
+file.  B<rwflowpack> uses the C<silk.conf> file to map the sensor name
+to the sensor ID, and it stores the sensor ID in the SiLK records it
+creates.  Changes to the C<silk.conf> and C<sensor.conf> files may
+need to be coordinated.
+
+=back
+
+
+=head1 SYNTAX
+
+In the site configuration file, each line may be blank, or contain any
+amount of leading whitespace, which is ignored.  At any location in a
+line, the character C<#> indicates the beginning of a comment, which
+reaches until the end of the line.  (If a literal C<#> symbol is
+required in the argument of any command, it may be quoted as described
+below.)  These comments are ignored.
+
+Each non-empty line begins with a command name, followed by one or
+more arguments.  Command names are a sequence of non-whitespace
+characters, not including the characters C<#> or C<"> (see below for
+valid commands).  Arguments may either be textual atoms (any sequence
+of non-whitespace characters, non-C<#>-or-C<"> characters, including
+numerals and punctuation), or quoted strings.  Quoted strings begin
+with the character C<"> and end with the character C<">, and allow for
+C-style backslash escapes in between.  The character C<#> inside a
+quoted string does not begin a comment, and whitespace is allowed
+inside a quoted string.
+
+For the commands supported by C<silk.conf> and described below, unless
+a command explicitly states that it is used by particular
+applications, it should be considered used by all of the SiLK analysis
+tools and the packing tools B<flowcap(8)>, B<rwflowpack(8)>, and
+B<rwflowappend(8)>.
+
+There are three contexts for commands: top-level, class block, and
+group block contexts.  The class block and group block contexts are
+used to describe individual features of classes and groups, while
+top-level commands are used to describe the entire configuration, and
+to define sensors.
+
+The valid commands for each context are described below.
+
+=head2 Top-Level Commands
+
+=over 4
+
+=item B<class> I<class-name>
+
+The C<class> command begins a new class block.  It takes as an
+argument the name of the class being defined.  Each class must have a
+unique name.  A class block is closed with the S<C<end class>>
+command.  See below for a list of commands valid inside class blocks.
+
+The class name must begin with a letter, must not be longer than 32
+characters, and may not contain whitespace characters or the character
+slash (C</>).
+
+=for comment
+32 in previous paragraph is value of SK_MAX_STRLEN_FLOWTYPE
+
+A site that does not use multiple classes should define a single class
+with a name like C<all> or C<default>.
+
+To be valid, a configuration file must contain at least one class
+definition.
+
+B<Example:> class all
+
+=item B<default-class> I<class-name>
+
+B<rwfilter(1)> and B<rwfglob(1)> will use a default class when the
+user does not specify an explicit B<--class>.  This command specifies
+that default class; the class must have been created prior to this
+command.  If more than one default class is set, the last definition
+encountered is used.
+
+B<Example:> default-class all
+
+=item B<group> I<group-name>
+
+Sensor groups are a convenient way of defining named groupings of
+sensors for inclusion in classes.  They cannot currently be used in
+the SiLK command-line tools, but only in the configuration file.  The
+C<group> command takes as an argument the group to be defined, and
+begins a group block.  A group block is closed using the S<C<end group>>
+command.  See below for details on valid commands within group blocks.
+
+B<Example:> group test-sensors
+
+=item B<include> B<">I<file-name>B<">
+
+The C<include> command is used to include the contents of another
+file.  This may be used to separate large configurations into logical
+units.  (Note, however, that all sensors, classes, groups, and types
+must be declared before they may be referenced.)
+
+B<Example:> include "silk-2.conf"
+
+=item B<packing-logic> B<">I<file-name>B<">
+
+The C<packing-logic> command provides a default value for the
+B<--packing-logic> switch on B<rwflowpack(8)>.  The value is the path
+to a plug-in that B<rwflowpack> loads; the plug-in provides functions
+that determine into which class and type a flow record will be
+categorized.  The path specified here will be ignored when the
+B<--packing-logic> switch is explicitly specified to B<rwflowpack> or
+when SiLK has been configured with hard-coded packing logic.
+
+B<Example>: packing-logic "packlogic-twoway.so"
+
+=item B<path-format> B<">I<format-string>B<">
+
+File and directory locations relative to the I<SILK_DATA_ROOTDIR> may
+be defined using the C<path-format> command.  The C<path-format> is
+used by B<rwflowpack> and B<rwflowappend(8)> when writing data to the
+data repository, and it is used by B<rwfilter> and B<rwfglob> when
+reading or listing files in the data repository.  This command takes a
+format string specification that supports the following
+C<%>-conversions:
+
+=over 4
+
+=item B<%C>
+
+The textual class name
+
+=item B<%F>
+
+The textual flowtype name for this class/type pair (see also C<%f>)
+
+=item B<%H>
+
+The hour (24-hour clock) as a two-digit, zero-padded number
+
+=item B<%N>
+
+The textual sensor name (see also C<%n>)
+
+=item B<%T>
+
+The textual type name
+
+=item B<%Y>
+
+The year as a four-digit, zero-padded number
+
+=item B<%d>
+
+The day of the month as a two-digit, zero-padded number
+
+=item B<%f>
+
+The flowtype ID, as an unpadded number (see also C<%F>)
+
+=item B<%m>
+
+The month of the year as a two-digit, zero-padded number
+
+=item B<%n>
+
+The sensor ID, as an unpadded number (see also C<%N>)
+
+=item B<%x>
+
+The default file name, which is equivalent to C<%F-%N_%Y%m%d.%H>
+
+=item B<%%>
+
+A literal C<%> character
+
+=back
+
+A C<%> followed by any other character is an error.
+
+For example, to place all spooled files directly in the data root
+directory, the path format C<%x> could be used.  To use two levels of
+hierarchy, the first containing the year and month, and the second
+containing the day and sensor name, like C<2006-01/23-alpha/...>, the
+format would be C<%Y-%m/%d-%N/%x>.
+
+If no path format is set by the configuration file, the default path
+format of C<%T/%Y/%m/%d/%x> is used.
+
+All path formats are currently required to end in C</%x> so that
+information may be extracted from the file name.  This requirement may
+be lifted in the future.
+
+B<Example:> %C/%T/%Y/%m/%d/%x
+
+=item B<sensor> I<sensor-id> I<sensor-name>
+
+=item B<sensor> I<sensor-id> I<sensor-name> "I<sensor-description>"
+
+Individual sensor definitions are created with the C<sensor> command.
+This command creates a new sensor with the given name and numeric ID.
+Sensor names must begin with a letter, must not be longer than 64
+characters, and may not contain whitespace characters or the
+characters slash (C</>) or underscore (C<_>).
+
+=for comment
+64 in previous paragraph is value of SK_MAX_STRLEN_SENSOR
+
+The sensor line may may also provide an optional description of the
+sensor, enclosed in double quotes.  The description can be used
+however your installation chooses to use it.  The description may be
+viewed by specifying the C<describe-sensor> field to B<rwsiteinfo(1)>.
+(When using sensor descriptions, the file's C<version> must be 2.)
+
+It is an error to define two different sensors with the same sensor ID
+or the same sensor name.
+
+B<NOTE:> It is extremely important not to change the I<sensor-id> or
+I<sensor-name> for a given sensor once that sensor is in use.  The
+I<sensor-id> field is stored numerically in SiLK data files, and the
+I<sensor-name> field is used to construct file names within the data
+root directory.
+
+B<Example:> sensor 0 S001
+
+B<Example:> sensor 0 S001  "Primary connection to ISP"
+
+=item B<version> I<version-number>
+
+The C<version> command declares that this configuration file conforms
+to a given version of the configuration file format.  If the tools do
+not support this version of the configuration file, they will report
+an error.  Currently, versions C<1> and C<2> of the format is defined,
+where version 2 indicates that sensor descriptions are present.
+
+It is a recommended practice to include the version number at the
+beginning of all configuration files for compatibility with future
+versions.
+
+B<Example:> version 1
+
+=back
+
+=head2 Class Block Commands
+
+The commands inside a class block define the class's types, its
+default types, the sensors that belong to it, and the mapping from the
+class/type pair to the flowtype name and flowtype ID.
+
+=over 4
+
+=item B<end class>
+
+The C<end class> command ends the definition of a class.  Following an
+C<end class> command, top-level commands are again accepted.
+
+B<Example:> end class
+
+=item B<default-types> I<type-name> I<...>
+
+When no types are specified for the C<rwfilter> or C<rwfglob>
+commands, the default set of types for the selected class is used.
+Each of the types listed in this command is included as a default type
+of the class.
+
+B<Example:> default-types in inweb
+
+=item B<sensors> I<sensor-name-or-group-ref> I<...>
+
+The C<sensors> command is used to associate sensors with a class.  In
+short, to declare that these sensors have data for this class.
+Sensors may be listed by name or numeric ID, and sensor groups may
+also be added by prefixing their names with an at (C<@>) character.
+When you add a sensor group, it is the same as individually adding
+each sensor in that group to the class.
+
+B<Example:> sensors my-sensor-1 my-sensor-2 @my-group-1
+
+=item B<type> I<flowtype-id> I<type-name> [ I<flowtype-name> ]
+
+The C<type> command defines a type name within the current class, and
+it specifies the flowtype ID to use for that class/type pair.  In
+addition, the C<type> command may specify a flowtype name.  The
+flowtype ID and flowtype name must be unique across the entire
+C<silk.conf> file (and any included files).  If a flowtype name is not
+specified, a default flowtype name is constructed by concatenating the
+name of the class and the name of the type.  (e.g. the type C<in> in
+the class C<all> would have a flowtype name of C<allin>.)  Within a
+class, each type must have a unique name, but multiple classes may use
+the same type name.  The type name and flowtype name must begin with a
+letter, must not be longer than 32 characters, and may not contain
+whitespace characters or the character slash (C</>).
+
+=for comment
+32 in previous paragraph is value of SK_MAX_STRLEN_FLOWTYPE
+
+As with sensors, it is important to be careful when renumbering
+flowtype IDs or renaming types or flowtypes because the numeric IDs
+are stored in data files, and the textual names are used as portions
+of file and path names.
+
+B<Example:> type 0 in
+
+B<Example:> type 1 out out
+
+=back
+
+=head2 Group Block Commands
+
+A group block is a convenience used to define a list of sensors.
+
+=over 4
+
+=item B<end group>
+
+Close a group block by using the C<end group> command.  Following this
+command, top-level commands are again accepted.
+
+B<Example:> end group
+
+=item B<sensors> I<sensor-name-or-group-ref> I<...>
+
+Sensors are associated with a sensor group by means of the C<sensors>
+command within a group block.  Sensors may be listed by name or
+numeric ID, and sensor groups may also be added by prefixing their
+names with an at (C<@>) character.  When you add a sensor group, it is
+the same as individually adding each sensor to the group being
+defined.
+
+B<Example:> sensors my-sensor-1 my-sensor-2 @my-group-1
+
+=back
+
+=head1 SEE ALSO
+
+B<rwfilter(1)>, B<rwfglob(1)>, B<rwsiteinfo(1)>, B<sensor.conf(5)>,
+B<flowcap(8)>, B<rwflowpack(8)>,B<packlogic-twoway(3)>,
+B<packlogic-generic(3)>, B<rwflowappend(8)>, B<silk(7)>,
+I<SiLK Installation Handbook>
+
+=cut
+
+$SiLK: silk.conf.pod ef2f1b5a1810 2013-04-19 22:04:28Z mthomas $
+
+Local Variables:
+mode:text
+indent-tabs-mode:nil
+End:

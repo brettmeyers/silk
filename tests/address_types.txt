@@ -1,0 +1,22 @@
+#    Numerical mappings of labels
+label 0             non-routable
+label 1             internal
+label 2             external
+
+#    Default to "external" for all un-defined ranges.
+default             external
+
+#    Force IP-based mode
+mode                ip
+
+## Reserved and non-routable blocks
+
+0.0.0.0/8           non-routable
+127.0.0.0/8         non-routable
+169.254.0.0/16      non-routable
+192.0.2.0/24        non-routable
+255.255.255.255/32  non-routable
+
+## Internal space
+
+192.168.0.0/16      internal

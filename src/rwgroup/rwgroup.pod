@@ -1,0 +1,713 @@
+=pod
+
+=head1 NAME
+
+B<rwgroup> - Tag similar SiLK records with a common next hop IP value
+
+=head1 SYNOPSIS
+
+  rwgroup
+        {--id-fields=KEY | --delta-field=FIELD --delta-value=DELTA}
+        [--objective] [--summarize] [--rec-threshold=THRESHOLD]
+        [--group-offset=IP]
+        [--note-add=TEXT] [--note-file-add=FILE] [--output-path=PATH]
+        [--copy-input=PATH] [--compression-method=COMP_METHOD]
+        [--site-config-file=FILENAME]
+        [--plugin=PLUGIN [--plugin=PLUGIN ...]]
+        [--python-file=PATH [--python-file=PATH ...]]
+        [--pmap-file=MAPNAME:PATH [--pmap-file=MAPNAME:PATH ...]]
+        [FILE]
+
+  rwgroup [--pmap-file=MAPNAME:PATH [--pmap-file=MAPNAME:PATH ...]]
+        [--plugin=PLUGIN ...] [--python-file=PATH ...] --help
+
+  rwgroup [--pmap-file=MAPNAME:PATH [--pmap-file=MAPNAME:PATH ...]]
+        [--plugin=PLUGIN ...] [--python-file=PATH ...] --help-fields
+
+  rwgroup --version
+
+=head1 DESCRIPTION
+
+B<rwgroup> reads I<sorted> SiLK Flow records (c.f. B<rwsort(1)>) from
+the standard input or from a I<single> file name listed on the command
+line, marks records that form a I<group> with an identifier in the
+Next Hop IP field, and prints the binary SiLK Flow records to the
+standard output.  In some ways B<rwgroup> is similar to B<rwuniq(1)>,
+but B<rwgroup> writes SiLK flow records instead of textual output.
+
+Two SiLK records are defined as being in the same group when the
+fields specified in the B<--id-fields> switch match exactly and when
+the field listed in the B<--delta-field> matches within the value
+given by the B<--delta-value> switch.  Either B<--id-fields> or
+B<--delta-fields> is required; both may be specified.  A
+B<--delta-value> must be given when B<--delta-fields> is present.
+
+The first group of records gets the identifer 0, and B<rwgroup> writes
+that value into each record's Next Hop IP field.  The ID for each
+subsequent group is incremented by 1.  The B<--group-offset> switch
+may be used to set the identifier of the initial group.
+
+The B<--rec-threshold> switch may be used to only write groups that
+contain a certain number of records.  The B<--summarize> switch
+attempts to merge records in the same group to a single output record.
+
+B<rwgroup> requires that the records are sorted on the fields listed in
+the B<--id-fields> and B<--delta-fields> switches.  For example, a
+call using
+
+  rwgroup --id-field=2 --delta-field=9 --delta-value=3
+
+should read the output of
+
+  rwsort --field=2,9
+
+otherwise the results are unpredictable.
+
+=head1 OPTIONS
+
+Option names may be abbreviated if the abbreviation is unique or is an
+exact match for an option.  A parameter to an option may be specified
+as B<--arg>=I<param> or B<--arg> I<param>, though the first form is
+required for options that take optional parameters.
+
+At least one value for B<--id-field> or B<--delta-field> must be
+provided; B<rwgroup> terminates with an error if no fields are
+specified.
+
+=over 4
+
+=item B<--id-fields>=I<KEY>
+
+I<KEY> contains the list of flow attributes (a.k.a. fields or columns)
+that must match exactly for flows to be considered part of the same
+group.  Each field may be specified once only.  I<KEY> is a comma
+separated list of field-names, field-integers, and ranges of
+field-integers; a range is specified by separating the start and end
+of the range with a hyphen (B<->).  Field-names are case insensitive.
+Example:
+
+ --id-fields=stime,10,1-5
+
+There is no default value for the B<--id-fields> switch.
+
+The complete list of built-in fields that the SiLK tool suite supports
+follows, though note that not all fields are present in all SiLK file
+formats; when a field is not present, its value is 0.
+
+=over 4
+
+=item sIP,1
+
+source IP address
+
+=item dIP,2
+
+destination IP address
+
+=item sPort,3
+
+source port for TCP and UDP, or equivalent
+
+=item dPort,4
+
+destination port for TCP and UDP, or equivalent
+
+=item protocol,5
+
+IP protocol
+
+=item packets,pkts,6
+
+packet count
+
+=item bytes,7
+
+byte count
+
+=item flags,8
+
+bit-wise OR of TCP flags over all packets
+
+=item sTime,9
+
+starting time of flow (seconds resolution)
+
+=item duration,10
+
+duration of flow (seconds resolution)
+
+=item eTime,11
+
+end time of flow (seconds resolution)
+
+=item sensor,12
+
+name or ID of sensor at the collection point
+
+=item class,20
+
+class of sensor at the collection point
+
+=item type,21
+
+type of sensor at the collection point
+
+=item iType
+
+the ICMP type value for ICMP or ICMPv6 flows and zero for non-ICMP
+flows.  Internally, SiLK stores the ICMP type and code in the C<dPort>
+field, so there is no need have both C<dPort> and C<iType> or C<iCode>
+in the sort key.  This field was introduced in SiLK 3.8.1.
+
+=item iCode
+
+the ICMP code value for ICMP or ICMPv6 flows and zero for non-ICMP
+flows.  See note at C<iType>.
+
+=item icmpTypeCode,25
+
+equivalent to C<iType>,C<iCode> in B<--id-fields>.  This field may not
+be mixed with C<iType> or C<iCode>, and this field is deprecated as of
+SiLK 3.8.1.  As of SiLK 3.8.1, C<icmpTypeCode> may no longer be used
+as the argument to B<--delta-field>; the C<dPort> field will provide
+an equivalent result as long as the input is limited to ICMP flow
+records.
+
+=back
+
+Many SiLK file formats do not store the following fields and their
+values will always be 0; they are listed here for completeness:
+
+=over 4
+
+=item in,13
+
+router SNMP input interface or vlanId if packing tools were
+configured to capture it (see B<sensor.conf(5)>)
+
+=item out,14
+
+router SNMP output interface or postVlanId
+
+=back
+
+SiLK can store flows generated by enhanced collection software that
+provides more information than NetFlow v5.  These flows may support
+some or all of these additional fields; for flows without this
+additional information, the field's value is always 0.
+
+=over 4
+
+=item initialFlags,26
+
+TCP flags on first packet in the flow
+
+=item sessionFlags,27
+
+bit-wise OR of TCP flags over all packets except the first in the flow
+
+=item attributes,28
+
+flow attributes set by the flow generator:
+
+=over 4
+
+=item C<S>
+
+all the packets in this flow record are exactly the same size
+
+=item C<F>
+
+flow generator saw additional packets in this flow following a packet
+with a FIN flag (excluding ACK packets)
+
+=item C<T>
+
+flow generator prematurely created a record for a long-running
+connection due to a timeout.  (When the flow generator B<yaf(1)> is
+run with the B<--silk> switch, it will prematurely create a flow and
+mark it with C<T> if the byte count of the flow cannot be stored in a
+32-bit value.)
+
+=item C<C>
+
+flow generator created this flow as a continuation of long-running
+connection, where the previous flow for this connection met a timeout
+(or a byte threshold in the case of B<yaf>).
+
+=back
+
+Consider a long-running ssh session that exceeds the flow generator's
+I<active> timeout.  (This is the active timeout since the flow
+generator creates a flow for a connection that still has activity).
+The flow generator will create multiple flow records for this ssh
+session, each spanning some portion of the total session.  The first
+flow record will be marked with a C<T> indicating that it hit the
+timeout.  The second through next-to-last records will be marked with
+C<TC> indicating that this flow both timed out and is a continuation
+of a flow that timed out.  The final flow will be marked with a C<C>,
+indicating that it was created as a continuation of an active flow.
+
+=item application,29
+
+guess as to the content of the flow.  Some software that generates flow
+records from packet data, such as B<yaf>, will inspect the contents of
+the packets that make up a flow and use traffic signatures to label
+the content of the flow.  SiLK calls this label the I<application>;
+B<yaf> refers to it as the I<appLabel>.  The application is the port
+number that is traditionally used for that type of traffic (see the
+F</etc/services> file on most UNIX systems).  For example, traffic
+that the flow generator recognizes as FTP will have a value of 21,
+even if that traffic is being routed through the standard HTTP/web
+S<port (80)>.
+
+=back
+
+The following fields provide a way to label the IPs or ports on a
+record.  These fields require external files to provide the mapping
+from the IP or port to the label:
+
+=over 4
+
+=item sType,16
+
+categorize the source IP address as C<non-routable>, C<internal>, or
+C<external> and group based on the category.  Uses the mapping file
+specified by the SILK_ADDRESS_TYPES environment variable, or the
+F<address_types.pmap> mapping file, as described in B<addrtype(3)>.
+
+=item dType,17
+
+as B<sType> for the destination IP address
+
+=item scc,18
+
+the country code of the source IP address.  Uses the mapping file
+specified by the SILK_COUNTRY_CODES environment variable, or the
+F<country_codes.pmap> mapping file, as described in B<ccfilter(3)>.
+
+=item dcc,19
+
+as B<scc> for the destination IP
+
+=item src-I<MAPNAME>
+
+value determined by passing the source IP or the protocol/source-port
+to the user-defined mapping defined in the prefix map associated with
+I<MAPNAME>.  See the description of the B<--pmap-file> switch below
+and the B<pmapfilter(3)> manual page.
+
+=item dst-I<MAPNAME>
+
+as B<src-I<MAPNAME>> for the destination IP or
+protocol/destination-port.
+
+=item sval
+
+=item dval
+
+These are deprecated field names created by B<pmapfilter> that
+correspond to B<src-I<MAPNAME>> and B<dst-I<MAPNAME>>, respectively.
+These fields are available when a prefix map is used that is
+not associated with a I<MAPNAME>.
+
+=back
+
+Finally, the list of built-in fields may be augmented by the run-time
+loading of PySiLK code or plug-ins written in C (also called shared
+object files or dynamic libraries), as described by the
+B<--python-file> and B<--plugin> switches.
+
+=for comment
+##########################################################################
+# Whew!  We've finally reached the end of the --id-fields help
+
+=item B<--delta-field>=I<FIELD>
+
+Specify a single field that can differ by a specified delta-value
+among the SiLK records that make up a group.  The I<FIELD> identifiers
+include most of those specified for B<--id-fields>.  The exceptions
+are that plug-in fields are not supported, nor are fields that do not
+have numeric values (e.g., class, type, flags).  The most common value
+for this switch is C<stime>, which allows records that are identical
+in the B<id-fields> but temporally far apart to be in different
+groups.  The switch takes a single argument; multiple delta fields
+cannot be specified.  When this switch is specified, the
+B<--delta-value> switch is required.
+
+=item B<--delta-value>=I<DELTA_VALUE>
+
+Specify the acceptable difference between the values of the
+B<--delta-field>.  The B<--delta-value> switch is required when the
+B<--delta-field> switch is provided.  For fields other than those
+holding IPs, when two consecutive records have values less than or
+equal to I<DELTA_VALUE>, the records are considered members of the
+same group.  When the delta-field refers to an IP field,
+I<DELTA_VALUE> is the number of B<least> significant bits of the IPs
+to B<remove> before comparing them.  For example, when
+B<--delta-field=sIP --delta-value=8> is specified, two records are the
+same group if their source IPv4 addresses belong to the same /24 or if
+their source IPv6 addresses belong to the same /120.  The
+B<--objective> switch affects the meaning of this switch.
+
+=item B<--objective>
+
+Change the behavior of the B<--delta-value> switch so that a record is
+considered part of a group if the value of its B<--delta-field> is
+within the I<DELTA_VALUE> of the B<first> record in the group.  (When
+this switch is not specified, consecutive records are compared.)
+
+=item B<--summarize>
+
+Cause B<rwgroup> to print (typically) a single record for each group.
+By default, all records in each group having at least
+B<--rec-threshold> members is printed.  When B<--summarize> is active,
+the record that is written for the group is the first record in the
+group with the following modifications:
+
+=over 4
+
+=item *
+
+The packets and bytes values are the sum of the packets and bytes
+values, respectively, for all records in the group.
+
+=item *
+
+The start-time value is the earliest start time for the records in the
+group.
+
+=item *
+
+The end-time value is the latest end time for the records in the
+group.
+
+=item *
+
+The flags and session-flags values are the bitwise-OR of all flags and
+session-flags values, respectively, for the records in the group.
+
+=back
+
+Note that multiple records for a group may be printed if the bytes,
+packets, or elapsed time values are too large to be stored in a SiLK
+flow record.
+
+=item B<--plugin>=I<PLUGIN>
+
+Augment the list of fields by using run-time loading of the plug-in
+(shared object) whose path is I<PLUGIN>.  The switch may be repeated
+to load multiple plug-ins.  The creation of plug-ins is described in
+the B<silk-plugin(3)> manual page.  When I<PLUGIN> does not contain a
+slash (C</>), B<rwgroup> will attempt to find a file named I<PLUGIN>
+in the directories listed in the L</FILES> section.  If B<rwgroup>
+finds the file, it uses that path.  If I<PLUGIN> contains a slash or
+if B<rwgroup> does not find the file, B<rwgroup> relies on your
+operating system's B<dlopen(3)> call to find the file.  When the
+SILK_PLUGIN_DEBUG environment variable is non-empty, B<rwgroup> prints
+status messages to the standard error as it attempts to find and open
+each of its plug-ins.
+
+=item B<--rec-threshold>=I<THRESHOLD>
+
+Specify the minimum number of SiLK records a group must contain before
+the records in the group are written to the output stream.  The
+default is 1; i.e., write all records.  The maximum threshold is
+65535.
+
+=item B<--group-offset>=I<IP>
+
+Specify the value to write into the Next Hop IP for the records that
+comprise the first group.  The value I<IP> may be an integer, or an
+IPv4 or IPv6 address in the canonical presentation form.  If not
+specified, counting begins at 0.  The value for each subsequent group
+is incremented by 1.
+
+=item B<--note-add>=I<TEXT>
+
+Add the specified I<TEXT> to the header of the output file as an
+annotation.  This switch may be repeated to add multiple annotations
+to a file.  To view the annotations, use the B<rwfileinfo(1)> tool.
+
+=item B<--note-file-add>=I<FILENAME>
+
+Open I<FILENAME> and add the contents of that file to the header of
+the output file as an annotation.    This switch may be repeated to
+add multiple annotations.  Currently the application makes no effort
+to ensure that I<FILENAME> contains text; be careful that you do not
+attempt to add a SiLK data file as an annotation.
+
+=item B<--copy-input>=I<PATH>
+
+Copy all binary input to the specified file or named pipe.  I<PATH>
+can be C<stdout> to print flows to the standard output as long as the
+B<--output-path> switch has been used to redirect B<rwgroup>'s output.
+
+=item B<--output-path>=I<PATH>
+
+Determines where the output of B<rwgroup> is written.  If
+this option is not given, output is written to the standard output.
+
+=item B<--compression-method>=I<COMP_METHOD>
+
+Specify how to compress the output.  When this switch is not given,
+output to the standard output or to named pipes is not compressed, and
+output to files is compressed using the default chosen when SiLK was
+compiled.  The valid values for I<COMP_METHOD> are determined by which
+external libraries were found when SiLK was compiled.  To see the
+available compression methods and the default method, use the
+B<--help> or B<--version> switch.  SiLK can support the following
+I<COMP_METHOD> values when the required libraries are available.
+
+=over 4
+
+=item none
+
+Do not compress the output using an external library.
+
+=item zlib
+
+Use the B<zlib(3)> library for compressing the output, and always
+compress the output regardless of the destination.  Using zlib
+produces the smallest output files at the cost of speed.
+
+=item lzo1x
+
+Use the I<lzo1x> algorithm from the LZO real time compression library
+for compression, and always compress the output regardless of the
+destination.  This compression provides good compression with less
+memory and CPU overhead.
+
+=item best
+
+Use lzo1x if available, otherwise use zlib.  Only compress the output
+when writing to a file.
+
+=back
+
+=item B<--site-config-file>=I<FILENAME>
+
+Read the SiLK site configuration from the named file I<FILENAME>.
+When this switch is not provided, B<rwgroup> searches for the site
+configuration file in the locations specified in the L</FILES>
+section.
+
+=item B<--help>
+
+Print the available options and exit.  Specifying switches that add
+new fields or additional switches before B<--help> will allow the
+output to include descriptions of those fields or switches.
+
+=item B<--help-fields>
+
+Print the description and alias(es) of each field and exit.
+Specifying switches that add new fields before B<--help-fields> will
+allow the output to include descriptions of those fields.
+
+=item B<--version>
+
+Print the version number and information about how SiLK was
+configured, then exit the application.
+
+=item B<--pmap-file>=I<MAPNAME>:I<PATH>
+
+=item B<--pmap-file>=I<PATH>
+
+Instruct B<rwgroup> to load the mapping file located at I<PATH> and
+create the src-I<MAPNAME> and dst-I<MAPNAME> fields.  When I<MAPNAME>
+is provided explicitly, it will be used to refer to the fields
+specific to that prefix map.  If I<MAPNAME> is not provided,
+B<rwgroup> will check the prefix map file to see if a map-name was
+specified when the file was created.  If no map-name is available,
+B<rwgroup> creates the fields sval and dval.  Multiple B<--pmap-file>
+switches are supported as long as each uses a unique value for
+map-name.  The B<--pmap-file> switch(es) must precede the B<--id-fields>
+switch.  For more information, see B<pmapfilter(3)>.
+
+=item B<--python-file>=I<PATH>
+
+When the SiLK Python plug-in is used, B<rwgroup> reads the Python code
+from the file I<PATH> to define additional fields that can be used as
+part of the group key.  This file should call B<register_field()> for
+each field it wishes to define.  For details and examples, see the
+B<silkpython(3)> and B<pysilk(3)> manual pages.
+
+=back
+
+=head1 LIMITATIONS
+
+B<rwgroup> requires I<sorted> data.  The application works by
+comparing records in the order that the records are received (similar
+to the UNIX B<uniq(1)> command), odd orders will produce odd
+groupings.
+
+=head1 EXAMPLES
+
+In the following example, the dollar sign (C<$>) represents the shell
+prompt.  The text after the dollar sign represents the command line.
+Lines have been wrapped for improved readability, and the back slash
+(C<\>) is used to indicate a wrapped line.
+
+As a rule of thumb, the B<--id-fields> and B<--delta-field> parameters
+should match B<rwsort(1)>'s call, with B<--delta-field> being the last
+parameter.  A call to group all web traffic by queries from the same
+addresses (field=2) within 10 seconds (field=9) of the first query
+from that address will be:
+
+ $ rwfilter --proto=6 --dport=80 --pass=stdout                  \
+   | rwsort --field=2,9                                         \
+   | rwgroup --id-field=2 --delta-field=9 --delta-value=10      \
+        --objective
+
+=head1 ENVIRONMENT
+
+=over 4
+
+=item PYTHONPATH
+
+This environment variable is used by Python to locate modules.  When
+B<--python-file> is specified, B<rwgroup> loads Python which in turn
+loads the PySiLK module which is comprised of several files
+(F<silk/pysilk_nl.so>, F<silk/__init__.py>, etc).  If this F<silk/>
+directory is located outside Python's normal search path (for example,
+in the SiLK installation tree), it may be necessary to set or modify
+the PYTHONPATH environment variable to include the parent directory of
+F<silk/> so that Python can find the PySiLK module.
+
+=item SILK_PYTHON_TRACEBACK
+
+When set, Python plug-ins will output traceback information on Python
+errors to the standard error.
+
+=item SILK_COUNTRY_CODES
+
+This environment variable allows the user to specify the country code
+mapping file that B<rwgroup> uses when computing the scc and dcc
+fields.  The value may be a complete path or a file relative to the
+SILK_PATH.  See the L</FILES> section for standard locations of this
+file.
+
+=item SILK_ADDRESS_TYPES
+
+This environment variable allows the user to specify the address type
+mapping file that B<rwgroup> uses when computing the sType and dType
+fields.  The value may be a complete path or a file relative to the
+SILK_PATH.  See the L</FILES> section for standard locations of this
+file.
+
+=item SILK_CLOBBER
+
+The SiLK tools normally refuse to overwrite existing files.  Setting
+SILK_CLOBBER to a non-empty value removes this restriction.
+
+=item SILK_CONFIG_FILE
+
+This environment variable is used as the value for the
+B<--site-config-file> when that switch is not provided.
+
+=item SILK_DATA_ROOTDIR
+
+This environment variable specifies the root directory of data
+repository.  As described in the L</FILES> section, B<rwgroup> may
+use this environment variable when searching for the SiLK site
+configuration file.
+
+=item SILK_PATH
+
+This environment variable gives the root of the install tree.  When
+searching for configuration files and plug-ins, B<rwgroup> may use
+this environment variable.  See the L</FILES> section for details.
+
+=item SILK_PLUGIN_DEBUG
+
+When set to 1, B<rwgroup> prints status messages to the standard error
+as it attempts to find and open each of its plug-ins.  In addition,
+when an attempt to register a field fails, B<rwgroup> prints a message
+specifying the additional function(s) that must be defined to register
+the field in B<rwgroup>.  Be aware that the output can be rather
+verbose.
+
+=back
+
+=head1 FILES
+
+=over 4
+
+=item F<${SILK_ADDRESS_TYPES}>
+
+=item F<${SILK_PATH}/share/silk/address_types.pmap>
+
+=item F<${SILK_PATH}/share/address_types.pmap>
+
+=item F<@prefix@/share/silk/address_types.pmap>
+
+=item F<@prefix@/share/address_types.pmap>
+
+Possible locations for the address types mapping file required by the
+sType and dType fields.
+
+=item F<${SILK_CONFIG_FILE}>
+
+=item F<${SILK_DATA_ROOTDIR}/silk.conf>
+
+=item F<@SILK_DATA_ROOTDIR@/silk.conf>
+
+=item F<${SILK_PATH}/share/silk/silk.conf>
+
+=item F<${SILK_PATH}/share/silk.conf>
+
+=item F<@prefix@/share/silk/silk.conf>
+
+=item F<@prefix@/share/silk.conf>
+
+Possible locations for the SiLK site configuration file which are
+checked when the B<--site-config-file> switch is not provided.
+
+=item F<${SILK_COUNTRY_CODES}>
+
+=item F<${SILK_PATH}/share/silk/country_codes.pmap>
+
+=item F<${SILK_PATH}/share/country_codes.pmap>
+
+=item F<@prefix@/share/silk/country_codes.pmap>
+
+=item F<@prefix@/share/country_codes.pmap>
+
+Possible locations for the country code mapping file required by the
+scc and dcc fields.
+
+=item F<${SILK_PATH}/lib64/silk/>
+
+=item F<${SILK_PATH}/lib64/>
+
+=item F<${SILK_PATH}/lib/silk/>
+
+=item F<${SILK_PATH}/lib/>
+
+=item F<@prefix@/lib64/silk/>
+
+=item F<@prefix@/lib64/>
+
+=item F<@prefix@/lib/silk/>
+
+=item F<@prefix@/lib/>
+
+Directories that B<rwgroup> checks when attempting to load a plug-in.
+
+=back
+
+=head1 SEE ALSO
+
+B<rwfilter(1)>, B<rwfileinfo(1)>, B<rwsort(1)>, B<rwuniq(1)>,
+B<addrtype(3)>, B<ccfilter(3)>, B<pmapfilter(3)>, B<pysilk(3)>,
+B<silkpython(3)>, B<silk-plugin(3)>, B<sensor.conf(5)>, B<uniq(1)>,
+B<silk(7)>, B<yaf(1)>, B<dlopen(3)>, B<zlib(3)>
+
+=cut
+
+$SiLK: rwgroup.pod 675af7f47d1f 2014-09-24 21:57:48Z mthomas $
+
+Local Variables:
+mode:text
+indent-tabs-mode:nil
+End:

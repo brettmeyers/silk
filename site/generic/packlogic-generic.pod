@@ -1,0 +1,345 @@
+=pod
+
+=head1 NAME
+
+B<packlogic-generic.so> - Packing logic for the B<generic> site
+
+=head1 SYNOPSIS
+
+ rwflowpack --packing-logic=packlogic-generic.so ...
+
+=head1 DESCRIPTION
+
+This manual page describes the F<packlogic-generic.so> plug-in that
+defines the packing logic that B<rwflowpack(8)> may use to categorize
+flow records.  (This document uses the term I<plug-in>, but the
+builder of SiLK may choose to compile the packing logic into
+B<rwflowpack>.  See the I<SiLK Installation Handbook> for details.)
+
+The primary job of B<rwflowpack> is to categorize flow records into
+one or more I<class> and I<type> pairs.  The class and type pair (also
+called a I<flowtype>) are used by the analyst when selecting flow
+records from the data store using B<rwfilter(1)>.
+
+The settings that B<rwflowpack> uses to categorize each flow record
+are determined by two textual configuration files and a compiled
+plug-in that is referred to as the I<packing logic>.
+
+The first of the configuration files is B<silk.conf(5)> which
+specifies the classes, types, and sensors that B<rwflowpack> uses when
+writing files and that B<rwfilter> uses when selecting flow files.
+
+The second configuration file is the B<sensor.conf(5)> file.  This
+file contains multiple B<sensor> blocks, where each block contains
+information which the packing logic uses to categorize flow records
+collected by the probes specified for that sensor.
+
+The combination of a F<silk.conf> file and a particular packing logic
+plug-in define a I<site>.  By having the configuration and packing
+logic outside of the core tools, users can more easily configure SiLK
+for their particular installation and a single installation of SiLK
+can support multiple sites.
+
+This manual page describes the packing logic for the B<generic> site.
+For a description of the packing logic at another site, see that
+site's manual page.
+
+=over 4
+
+=item *
+
+B<packlogic-twoway(3)>
+
+=back
+
+=head2 Networks, Classes, and Types
+
+The F<packlogic-generic.so> plug-in uses three I<network> names to
+describe the logical address spaces that border the sensor:
+
+=over 4
+
+=item B<internal>
+
+the space that is being monitored
+
+=item B<external>
+
+the space outside the monitored network
+
+=item B<null>
+
+the destination network for a flow that does not leave the router,
+because either the flow was blocked by the router's access control
+list or its destination was the router itself---e.g., a BGP message
+
+=back
+
+The B<generic> site assumes that all packets are either blocked by the
+sensor (that is, their destination is the B<null> network), or that
+the packets cross the sensor so the source and destination networks
+always differ.
+
+The packing logic also assumes that the above networks completely
+describe the space around the sensor.  Since the B<null> network is
+strictly a destination network, any flow that does not originate from
+the B<external> network must originate from the B<internal> network.
+
+This allows the B<generic> site to categorizes a flow record primarily
+by comparing a flow record's source to the B<external> network, and
+the packing logic contains no comparisons to the B<internal> network
+
+The F<silk.conf> file and F<packlogic-generic.so> plug-in define a
+single class, B<all>.
+
+The type assigned to a flow record within the B<all> class is one of:
+
+=over 4
+
+=item B<in>, B<inweb>
+
+Records whose source is the B<external> network and whose destination
+is not the B<null> network represent incoming traffic.  The traffic is
+split into multiple types, and these types allow the analysts to query
+a subset of the flow records depending on their needs.  Each incoming
+flow record is split into the one of incoming types using the
+following rules:
+
+=over 4
+
+=item B<inweb>
+
+Contains traffic where the protocol is TCP (6) and either the source
+port or the destination port is one of 80, 443, or 8080
+
+=item B<in>
+
+Contains all other incoming traffic.
+
+=back
+
+=item B<out>, B<outweb>
+
+Records whose source is not the B<external> network and whose
+destination is not the B<null> network represent outgoing traffic.
+The traffic is split among the types using rules similar to those for
+incoming traffic.
+
+=item B<innull>
+
+Records whose source is the B<external> network and whose destination
+is the B<null> network represent blocked incoming traffic.
+
+=item B<outnull>
+
+Records whose source is not the B<external> network and whose
+destination is the B<null> network represent blocked outgoing traffic.
+
+=back
+
+=head2 Assigning a flow to source and destination networks
+
+Since the B<generic> site uses the B<external> network to determine a
+flow record's type, each B<sensor> block in the B<sensor.conf(5)> file
+must specify a definition for the B<external> network.
+
+The F<sensor.conf> file provides two ways to define a network: use the
+B<I<NET>-ipblocks> statement to specify the I<NET> network as a list
+of IP address blocks, or use the B<I<NET>-interfaces> statement to
+specify the I<NET> network using a list of SNMP interfaces.
+
+For the source network of a flow record to be considered B<external>,
+either the source IP (SiLK field C<sIP>) must appear in the list of
+B<external-ipblocks> or the incoming SNMP interface (SiLK field C<in>)
+must appear in the list of B<external-interfaces>.  B<Note:> If the
+probe block that specifies where the flow was collected contains an
+S<B<interface-values vlan>> statement, the SiLK C<in> field contains
+the VLAN ID.
+
+For the destination network of a flow record to be considered B<null>,
+either the destination IP (C<dIP>) must appear in the list of
+B<null-ipblocks> or the outgoing SNMP interface (C<out>) must appear
+in the list of B<null-interfaces>.
+
+Consider the following two sensors:
+
+ sensor S2
+   ipfix-probes S2
+   external-ipblocks 172.16.0.0/16
+   internal-ipblocks 172.20.0.0/16
+ end sensor
+
+ sensor S3
+   ipfix-probes S3
+   external-interfaces 17,18,19
+   internal-interfaces 21,22,23
+ end sensor
+
+A flow record collected at probe S2 whose C<sIP> is 172.16.1.1 is
+considered incoming, regardless of the destination IP.
+
+A flow record collected at probe S3 whose C<in> is 27 is considered
+outgoing.  (Since C<in> does not match the B<external-interfaces>,
+the record is considered outgoing even though C<in> does not match the
+B<internal-interfaces> either.)
+
+There are two constructs in the F<sensor.conf> file that help when
+specifying these lists:
+
+=over 4
+
+=item 1
+
+The B<I<NET>-interfaces> or B<I<NET>-ipblocks> statement in a
+B<sensor> block may use B<remainder> to denote interfaces or IP
+blocks that do not appear elsewhere in the block.
+
+=item 2
+
+A B<group> block can be used to give a name to a set of IP blocks or
+SNMP interfaces which a B<sensor> block can reference.
+
+=back
+
+For details, see the B<sensor.conf(5)> manual page.
+
+=head2 Valid sensors
+
+When using the F<packlogic-generic.so> plug-in, the B<sensor> blocks in
+the F<sensor.conf> file supports the following types of probes:
+
+=over 4
+
+=item *
+
+B<ipfix>
+
+=item *
+
+B<netflow-v5>
+
+=item *
+
+B<netflow-v9>
+
+=back
+
+In addition, each B<sensor> block must meet the following rules:
+
+=over 4
+
+=item *
+
+Either B<external-interfaces> or B<external-ipblocks> must be
+specified.  And,
+
+=item *
+
+A sensor cannot mix B<I<NET>-ipblocks> and B<I<NET>-interfaces>, with
+the exception that B<null-interfaces> are always allowed.  And,
+
+=item *
+
+Only one network on the sensor may use B<remainder>.  And,
+
+=item *
+
+If a sensor contains only one B<I<NET>-ipblocks> statement, that
+statement may not use B<remainder>.  (The B<I<NET>-interfaces>
+statement does not have this restriction.)
+
+=back
+
+=head2 Packing logic code
+
+This section provides the logic used to assign the class and type at
+the B<generic> site.
+
+A single B<sensor> block will assign the flow record to a single class
+and type, and processing of the flow for that B<sensor> block stops as
+soon as a type is assigned.  When multiple B<sensor> blocks reference
+the same probe, the flow records collected by that probe are processed
+by each of those B<sensor> blocks.
+
+A flow record is always assigned to the class B<all>.
+
+A textual description of the code used to assign the type is shown
+here.  As of SiLK 3.8.0, the type may be determined by the presence of
+certain IPFIX or NetFlowV9 information elements.
+
+=over 4
+
+=item *
+
+If C<sIP> matches B<external-ipblocks> or C<in> matches
+B<external-interfaces>, then
+
+=over 4
+
+=item *
+
+If C<dIP> matches B<null-ipblocks> or C<out> matches
+B<null-interfaces>, pack as B<innull>.  Else,
+
+=item *
+
+Pack as B<in> or B<inweb>.
+
+=back
+
+=item *
+
+If C<dIP> matches B<null-ipblocks> or C<out> matches
+B<null-interfaces>, pack as B<outnull>.  Else,
+
+=item *
+
+Pack as B<out> or B<outweb>.
+
+=item *
+
+Potentially modify the type: If the probe has a B<quirks> setting that
+includes C<firewall-event> and if the incoming record contains the
+C<firewallEvent> or C<NF_F_FW_EVENT> information element whose value
+is 3 (flow denied), change the type where the flow is packed as
+follows:
+
+=over 4
+
+=item *
+
+If the flow was denied due to an ingress ACL (C<NF_F_FW_EXT_EVENT> of
+1001), pack as B<innull>.
+
+=item *
+
+If the flow was denied due to an egress ACL (C<NF_F_FW_EXT_EVENT> of
+1002), pack as B<outnull>.
+
+=item *
+
+If the flow's current type is B<innull>, B<in>, or B<inweb>, pack as
+B<innull>.
+
+=item *
+
+If the flow's current type is B<outnull>, B<out>, or B<outweb>, pack
+as B<outnull>.
+
+=back
+
+=back
+
+=head1 SEE ALSO
+
+B<rwfilter(1)>, B<rwflowpack(8)>, B<sensor.conf(5)>, B<silk.conf(5)>,
+B<packlogic-twoway(3)>, B<silk(7)>, I<SiLK Installation Handbook>
+
+=cut
+
+$SiLK: packlogic-generic.pod 8b39dddcaab4 2013-12-06 21:47:40Z mthomas $
+
+Local Variables:
+mode:text
+indent-tabs-mode:nil
+End:

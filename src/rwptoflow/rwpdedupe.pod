@@ -1,0 +1,104 @@
+=pod
+
+=head1 NAME
+
+B<rwpdedupe> - Eliminate duplicate packets collected by several sensors
+
+=head1 SYNOPSIS
+
+  rwpdedupe { --first-duplicate | --random-duplicate[=SCALAR] }
+        [--threshold=MILLISECONDS] FILE... > OUTPUT-FILE
+
+  rwpdedupe --help
+
+  rwpdedupe --version
+
+=head1 DESCRIPTION
+
+Detects and eliminates duplicate records from B<tcpdump(1)> capture
+files.  Duplicate records are defined as having timestamps within a
+user-configurable time of each other.  In addition, their Ethernet
+(OSI layer 3) headers must match.  If they are not IP packets, then
+their entire Ethernet payload must match.  If they are IP packets,
+then their source and destination addresses, protocol, and IP payload
+must match.
+
+=head1 OPTIONS
+
+Option names may be abbreviated if the abbreviation is unique or is an
+exact match for an option.  A parameter to an option may be specified
+as B<--arg>=I<param> or B<--arg> I<param>, though the first form is
+required for options that take optional parameters.
+
+=over 4
+
+=item B<--threshold>=I<MILLISECONDS>
+
+Set the maximum number of milliseconds which may elapse between two
+packets and still have those packets be detected as duplicates.
+Default 0 (exact timestamp match).  Must be a value between 0 and
+1,000,000 milliseconds.
+
+=back
+
+One and only one of the following switches is required:
+
+=over 4
+
+=item B<--first-duplicate>
+
+When selecting between multiple duplicate packets, always choose the
+packet with the earliest timestamp.  Not compatible with
+B<--random-duplicate>.
+
+=item B<--random-duplicate>
+
+=item B<--random-duplicate>=I<SCALAR>
+
+Select a random packet from the list of duplicate packets.  SCALAR is
+a random number seed, so that multiple runs can produce identical
+results.
+
+=item B<--help>
+
+Print the available options and exit.
+
+=item B<--version>
+
+Print the version number and information about how SiLK was
+configured, then exit the application.
+
+=back
+
+=head1 EXAMPLES
+
+In the following example, the dollar sign (C<$>) represents the shell
+prompt.  The text after the dollar sign represents the command line.
+Lines have been wrapped for improved readability, and the back slash
+(C<\>) is used to indicate a wrapped line.
+
+Given B<tcpdump> files F<data1.tcp> and F<data2.tcp>, detect and
+eliminate duplicate packets which occur within one second of each
+other (when choosing which timestamp to output, pick one randomly.)
+Store the result file in F<out.tcp>.
+
+ $ rwpdedupe --threshold=1000 --random-duplicate \
+        data1.tcp data2.tcp > out.tcp
+
+=head1 SEE ALSO
+
+B<mergecap(1)>, B<tcpdump(1)>, B<pcap(3)>
+
+=head1 NOTES
+
+B<mergecap(1)> can be used to merge two B<tcpdump> capture files
+without eliminating duplicate packets.
+
+=cut
+
+$SiLK: rwpdedupe.pod cd09f0a5fcc6 2014-06-14 15:43:33Z mthomas $
+
+Local Variables:
+mode:text
+indent-tabs-mode:nil
+End:

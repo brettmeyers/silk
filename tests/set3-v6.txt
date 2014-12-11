@@ -1,0 +1,18 @@
+# File for testing rwset* tools
+# RCSIDENT("$SiLK: set3-v6.txt 7e6ef4b8c2d0 2012-02-14 15:10:17Z mthomas $")
+2001:db8:f00:ba8::0
+2001:db8:f00:ba8::10
+2001:db8:f00:ba8::20
+2001:db8:f00:ba8::30
+2001:db8:f00:ba8::40
+2001:db8:f00:ba8::22
+2001:db8:f00:ba8::26
+2001:db8:f00:ba8::28
+2001:db8:f00:ba8::2e
+2001:db8:f00:ba8::33
+2001:db8:f00:ba8::37
+2001:db8:f00:ba8::38
+2001:db8:f00:ba8::8/125
+
+
+

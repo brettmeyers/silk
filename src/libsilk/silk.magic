@@ -1,0 +1,791 @@
+# This is a magic(5) file for use with the UNIX file(1) command to
+# have 'file' report information about files created by silk(7).
+#
+# To use this file, copy/append it to ~/.magic on Linux.  You may
+# pre-parse the file to '.magic.mgc' by running 'file -C -m .magic'.
+# Some OSes do not check ~/.magic automatically, and you may need to
+# run 'file' with the -m switch.
+#
+# The system adminstrator may add this data to /usr/share/file/magic.
+#
+0 belong 0xdeadbeef SiLK,
+>0x5 byte 0x00 TCPDUMP
+>>0x6 byte <16 v%d,
+>>>0x4 byte 0 Little Endian,
+>>>>0x7 byte 0 Uncompressed
+>>>>0x7 byte 1 Gzip compression
+>>>>0x7 byte 2 LZO compression
+>>>0x4 byte 1 Big Endian,
+>>>>0x7 byte 0 Uncompressed
+>>>>0x7 byte 1 Gzip compression
+>>>>0x7 byte 2 LZO compression
+>>0x6 byte >15
+>>>0xe beshort <0x7fff v%d,
+>>>>0x4 byte 0 Little Endian,
+>>>>>0x7 byte 0 Uncompressed
+>>>>>0x7 byte 1 Gzip compression
+>>>>>0x7 byte 2 LZO compression
+>>>>0x4 byte 1 Big Endian,
+>>>>>0x7 byte 0 Uncompressed
+>>>>>0x7 byte 1 Gzip compression
+>>>>>0x7 byte 2 LZO compression
+>0x5 byte 0x01 GRAPH
+>>0x6 byte <16 v%d,
+>>>0x4 byte 0 Little Endian,
+>>>>0x7 byte 0 Uncompressed
+>>>>0x7 byte 1 Gzip compression
+>>>>0x7 byte 2 LZO compression
+>>>0x4 byte 1 Big Endian,
+>>>>0x7 byte 0 Uncompressed
+>>>>0x7 byte 1 Gzip compression
+>>>>0x7 byte 2 LZO compression
+>>0x6 byte >15
+>>>0xe beshort <0x7fff v%d,
+>>>>0x4 byte 0 Little Endian,
+>>>>>0x7 byte 0 Uncompressed
+>>>>>0x7 byte 1 Gzip compression
+>>>>>0x7 byte 2 LZO compression
+>>>>0x4 byte 1 Big Endian,
+>>>>>0x7 byte 0 Uncompressed
+>>>>>0x7 byte 1 Gzip compression
+>>>>>0x7 byte 2 LZO compression
+>0x5 byte 0x02 ADDRESSES
+>>0x6 byte <16 v%d,
+>>>0x4 byte 0 Little Endian,
+>>>>0x7 byte 0 Uncompressed
+>>>>0x7 byte 1 Gzip compression
+>>>>0x7 byte 2 LZO compression
+>>>0x4 byte 1 Big Endian,
+>>>>0x7 byte 0 Uncompressed
+>>>>0x7 byte 1 Gzip compression
+>>>>0x7 byte 2 LZO compression
+>>0x6 byte >15
+>>>0xe beshort <0x7fff v%d,
+>>>>0x4 byte 0 Little Endian,
+>>>>>0x7 byte 0 Uncompressed
+>>>>>0x7 byte 1 Gzip compression
+>>>>>0x7 byte 2 LZO compression
+>>>>0x4 byte 1 Big Endian,
+>>>>>0x7 byte 0 Uncompressed
+>>>>>0x7 byte 1 Gzip compression
+>>>>>0x7 byte 2 LZO compression
+>0x5 byte 0x03 PORTMAP
+>>0x6 byte <16 v%d,
+>>>0x4 byte 0 Little Endian,
+>>>>0x7 byte 0 Uncompressed
+>>>>0x7 byte 1 Gzip compression
+>>>>0x7 byte 2 LZO compression
+>>>0x4 byte 1 Big Endian,
+>>>>0x7 byte 0 Uncompressed
+>>>>0x7 byte 1 Gzip compression
+>>>>0x7 byte 2 LZO compression
+>>0x6 byte >15
+>>>0xe beshort <0x7fff v%d,
+>>>>0x4 byte 0 Little Endian,
+>>>>>0x7 byte 0 Uncompressed
+>>>>>0x7 byte 1 Gzip compression
+>>>>>0x7 byte 2 LZO compression
+>>>>0x4 byte 1 Big Endian,
+>>>>>0x7 byte 0 Uncompressed
+>>>>>0x7 byte 1 Gzip compression
+>>>>>0x7 byte 2 LZO compression
+>0x5 byte 0x04 SERVICEMAP
+>>0x6 byte <16 v%d,
+>>>0x4 byte 0 Little Endian,
+>>>>0x7 byte 0 Uncompressed
+>>>>0x7 byte 1 Gzip compression
+>>>>0x7 byte 2 LZO compression
+>>>0x4 byte 1 Big Endian,
+>>>>0x7 byte 0 Uncompressed
+>>>>0x7 byte 1 Gzip compression
+>>>>0x7 byte 2 LZO compression
+>>0x6 byte >15
+>>>0xe beshort <0x7fff v%d,
+>>>>0x4 byte 0 Little Endian,
+>>>>>0x7 byte 0 Uncompressed
+>>>>>0x7 byte 1 Gzip compression
+>>>>>0x7 byte 2 LZO compression
+>>>>0x4 byte 1 Big Endian,
+>>>>>0x7 byte 0 Uncompressed
+>>>>>0x7 byte 1 Gzip compression
+>>>>>0x7 byte 2 LZO compression
+>0x5 byte 0x05 NIDSMAP
+>>0x6 byte <16 v%d,
+>>>0x4 byte 0 Little Endian,
+>>>>0x7 byte 0 Uncompressed
+>>>>0x7 byte 1 Gzip compression
+>>>>0x7 byte 2 LZO compression
+>>>0x4 byte 1 Big Endian,
+>>>>0x7 byte 0 Uncompressed
+>>>>0x7 byte 1 Gzip compression
+>>>>0x7 byte 2 LZO compression
+>>0x6 byte >15
+>>>0xe beshort <0x7fff v%d,
+>>>>0x4 byte 0 Little Endian,
+>>>>>0x7 byte 0 Uncompressed
+>>>>>0x7 byte 1 Gzip compression
+>>>>>0x7 byte 2 LZO compression
+>>>>0x4 byte 1 Big Endian,
+>>>>>0x7 byte 0 Uncompressed
+>>>>>0x7 byte 1 Gzip compression
+>>>>>0x7 byte 2 LZO compression
+>0x5 byte 0x06 EXPERIMENT1
+>>0x6 byte <16 v%d,
+>>>0x4 byte 0 Little Endian,
+>>>>0x7 byte 0 Uncompressed
+>>>>0x7 byte 1 Gzip compression
+>>>>0x7 byte 2 LZO compression
+>>>0x4 byte 1 Big Endian,
+>>>>0x7 byte 0 Uncompressed
+>>>>0x7 byte 1 Gzip compression
+>>>>0x7 byte 2 LZO compression
+>>0x6 byte >15
+>>>0xe beshort <0x7fff v%d,
+>>>>0x4 byte 0 Little Endian,
+>>>>>0x7 byte 0 Uncompressed
+>>>>>0x7 byte 1 Gzip compression
+>>>>>0x7 byte 2 LZO compression
+>>>>0x4 byte 1 Big Endian,
+>>>>>0x7 byte 0 Uncompressed
+>>>>>0x7 byte 1 Gzip compression
+>>>>>0x7 byte 2 LZO compression
+>0x5 byte 0x07 EXPERIMENT2
+>>0x6 byte <16 v%d,
+>>>0x4 byte 0 Little Endian,
+>>>>0x7 byte 0 Uncompressed
+>>>>0x7 byte 1 Gzip compression
+>>>>0x7 byte 2 LZO compression
+>>>0x4 byte 1 Big Endian,
+>>>>0x7 byte 0 Uncompressed
+>>>>0x7 byte 1 Gzip compression
+>>>>0x7 byte 2 LZO compression
+>>0x6 byte >15
+>>>0xe beshort <0x7fff v%d,
+>>>>0x4 byte 0 Little Endian,
+>>>>>0x7 byte 0 Uncompressed
+>>>>>0x7 byte 1 Gzip compression
+>>>>>0x7 byte 2 LZO compression
+>>>>0x4 byte 1 Big Endian,
+>>>>>0x7 byte 0 Uncompressed
+>>>>>0x7 byte 1 Gzip compression
+>>>>>0x7 byte 2 LZO compression
+>0x5 byte 0x08 RESERVED_08
+>>0x6 byte <16 v%d,
+>>>0x4 byte 0 Little Endian,
+>>>>0x7 byte 0 Uncompressed
+>>>>0x7 byte 1 Gzip compression
+>>>>0x7 byte 2 LZO compression
+>>>0x4 byte 1 Big Endian,
+>>>>0x7 byte 0 Uncompressed
+>>>>0x7 byte 1 Gzip compression
+>>>>0x7 byte 2 LZO compression
+>>0x6 byte >15
+>>>0xe beshort <0x7fff v%d,
+>>>>0x4 byte 0 Little Endian,
+>>>>>0x7 byte 0 Uncompressed
+>>>>>0x7 byte 1 Gzip compression
+>>>>>0x7 byte 2 LZO compression
+>>>>0x4 byte 1 Big Endian,
+>>>>>0x7 byte 0 Uncompressed
+>>>>>0x7 byte 1 Gzip compression
+>>>>>0x7 byte 2 LZO compression
+>0x5 byte 0x09 RESERVED_09
+>>0x6 byte <16 v%d,
+>>>0x4 byte 0 Little Endian,
+>>>>0x7 byte 0 Uncompressed
+>>>>0x7 byte 1 Gzip compression
+>>>>0x7 byte 2 LZO compression
+>>>0x4 byte 1 Big Endian,
+>>>>0x7 byte 0 Uncompressed
+>>>>0x7 byte 1 Gzip compression
+>>>>0x7 byte 2 LZO compression
+>>0x6 byte >15
+>>>0xe beshort <0x7fff v%d,
+>>>>0x4 byte 0 Little Endian,
+>>>>>0x7 byte 0 Uncompressed
+>>>>>0x7 byte 1 Gzip compression
+>>>>>0x7 byte 2 LZO compression
+>>>>0x4 byte 1 Big Endian,
+>>>>>0x7 byte 0 Uncompressed
+>>>>>0x7 byte 1 Gzip compression
+>>>>>0x7 byte 2 LZO compression
+>0x5 byte 0x0A RESERVED_0A
+>>0x6 byte <16 v%d,
+>>>0x4 byte 0 Little Endian,
+>>>>0x7 byte 0 Uncompressed
+>>>>0x7 byte 1 Gzip compression
+>>>>0x7 byte 2 LZO compression
+>>>0x4 byte 1 Big Endian,
+>>>>0x7 byte 0 Uncompressed
+>>>>0x7 byte 1 Gzip compression
+>>>>0x7 byte 2 LZO compression
+>>0x6 byte >15
+>>>0xe beshort <0x7fff v%d,
+>>>>0x4 byte 0 Little Endian,
+>>>>>0x7 byte 0 Uncompressed
+>>>>>0x7 byte 1 Gzip compression
+>>>>>0x7 byte 2 LZO compression
+>>>>0x4 byte 1 Big Endian,
+>>>>>0x7 byte 0 Uncompressed
+>>>>>0x7 byte 1 Gzip compression
+>>>>>0x7 byte 2 LZO compression
+>0x5 byte 0x0B RWIPV6
+>>0x6 byte <16 v%d,
+>>>0x4 byte 0 Little Endian,
+>>>>0x7 byte 0 Uncompressed
+>>>>0x7 byte 1 Gzip compression
+>>>>0x7 byte 2 LZO compression
+>>>0x4 byte 1 Big Endian,
+>>>>0x7 byte 0 Uncompressed
+>>>>0x7 byte 1 Gzip compression
+>>>>0x7 byte 2 LZO compression
+>>0x6 byte >15
+>>>0xe beshort <0x7fff v%d,
+>>>>0x4 byte 0 Little Endian,
+>>>>>0x7 byte 0 Uncompressed
+>>>>>0x7 byte 1 Gzip compression
+>>>>>0x7 byte 2 LZO compression
+>>>>0x4 byte 1 Big Endian,
+>>>>>0x7 byte 0 Uncompressed
+>>>>>0x7 byte 1 Gzip compression
+>>>>>0x7 byte 2 LZO compression
+>0x5 byte 0x0C RWIPV6ROUTING
+>>0x6 byte <16 v%d,
+>>>0x4 byte 0 Little Endian,
+>>>>0x7 byte 0 Uncompressed
+>>>>0x7 byte 1 Gzip compression
+>>>>0x7 byte 2 LZO compression
+>>>0x4 byte 1 Big Endian,
+>>>>0x7 byte 0 Uncompressed
+>>>>0x7 byte 1 Gzip compression
+>>>>0x7 byte 2 LZO compression
+>>0x6 byte >15
+>>>0xe beshort <0x7fff v%d,
+>>>>0x4 byte 0 Little Endian,
+>>>>>0x7 byte 0 Uncompressed
+>>>>>0x7 byte 1 Gzip compression
+>>>>>0x7 byte 2 LZO compression
+>>>>0x4 byte 1 Big Endian,
+>>>>>0x7 byte 0 Uncompressed
+>>>>>0x7 byte 1 Gzip compression
+>>>>>0x7 byte 2 LZO compression
+>0x5 byte 0x0D RWAUGSNMPOUT
+>>0x6 byte <16 v%d,
+>>>0x4 byte 0 Little Endian,
+>>>>0x7 byte 0 Uncompressed
+>>>>0x7 byte 1 Gzip compression
+>>>>0x7 byte 2 LZO compression
+>>>0x4 byte 1 Big Endian,
+>>>>0x7 byte 0 Uncompressed
+>>>>0x7 byte 1 Gzip compression
+>>>>0x7 byte 2 LZO compression
+>>0x6 byte >15
+>>>0xe beshort <0x7fff v%d,
+>>>>0x4 byte 0 Little Endian,
+>>>>>0x7 byte 0 Uncompressed
+>>>>>0x7 byte 1 Gzip compression
+>>>>>0x7 byte 2 LZO compression
+>>>>0x4 byte 1 Big Endian,
+>>>>>0x7 byte 0 Uncompressed
+>>>>>0x7 byte 1 Gzip compression
+>>>>>0x7 byte 2 LZO compression
+>0x5 byte 0x0E RWAUGROUTING
+>>0x6 byte <16 v%d,
+>>>0x4 byte 0 Little Endian,
+>>>>0x7 byte 0 Uncompressed
+>>>>0x7 byte 1 Gzip compression
+>>>>0x7 byte 2 LZO compression
+>>>0x4 byte 1 Big Endian,
+>>>>0x7 byte 0 Uncompressed
+>>>>0x7 byte 1 Gzip compression
+>>>>0x7 byte 2 LZO compression
+>>0x6 byte >15
+>>>0xe beshort <0x7fff v%d,
+>>>>0x4 byte 0 Little Endian,
+>>>>>0x7 byte 0 Uncompressed
+>>>>>0x7 byte 1 Gzip compression
+>>>>>0x7 byte 2 LZO compression
+>>>>0x4 byte 1 Big Endian,
+>>>>>0x7 byte 0 Uncompressed
+>>>>>0x7 byte 1 Gzip compression
+>>>>>0x7 byte 2 LZO compression
+>0x5 byte 0x0F RESERVED_0F
+>>0x6 byte <16 v%d,
+>>>0x4 byte 0 Little Endian,
+>>>>0x7 byte 0 Uncompressed
+>>>>0x7 byte 1 Gzip compression
+>>>>0x7 byte 2 LZO compression
+>>>0x4 byte 1 Big Endian,
+>>>>0x7 byte 0 Uncompressed
+>>>>0x7 byte 1 Gzip compression
+>>>>0x7 byte 2 LZO compression
+>>0x6 byte >15
+>>>0xe beshort <0x7fff v%d,
+>>>>0x4 byte 0 Little Endian,
+>>>>>0x7 byte 0 Uncompressed
+>>>>>0x7 byte 1 Gzip compression
+>>>>>0x7 byte 2 LZO compression
+>>>>0x4 byte 1 Big Endian,
+>>>>>0x7 byte 0 Uncompressed
+>>>>>0x7 byte 1 Gzip compression
+>>>>>0x7 byte 2 LZO compression
+>0x5 byte 0x10 RWROUTED
+>>0x6 byte <16 v%d,
+>>>0x4 byte 0 Little Endian,
+>>>>0x7 byte 0 Uncompressed
+>>>>0x7 byte 1 Gzip compression
+>>>>0x7 byte 2 LZO compression
+>>>0x4 byte 1 Big Endian,
+>>>>0x7 byte 0 Uncompressed
+>>>>0x7 byte 1 Gzip compression
+>>>>0x7 byte 2 LZO compression
+>>0x6 byte >15
+>>>0xe beshort <0x7fff v%d,
+>>>>0x4 byte 0 Little Endian,
+>>>>>0x7 byte 0 Uncompressed
+>>>>>0x7 byte 1 Gzip compression
+>>>>>0x7 byte 2 LZO compression
+>>>>0x4 byte 1 Big Endian,
+>>>>>0x7 byte 0 Uncompressed
+>>>>>0x7 byte 1 Gzip compression
+>>>>>0x7 byte 2 LZO compression
+>0x5 byte 0x11 RWNOTROUTED
+>>0x6 byte <16 v%d,
+>>>0x4 byte 0 Little Endian,
+>>>>0x7 byte 0 Uncompressed
+>>>>0x7 byte 1 Gzip compression
+>>>>0x7 byte 2 LZO compression
+>>>0x4 byte 1 Big Endian,
+>>>>0x7 byte 0 Uncompressed
+>>>>0x7 byte 1 Gzip compression
+>>>>0x7 byte 2 LZO compression
+>>0x6 byte >15
+>>>0xe beshort <0x7fff v%d,
+>>>>0x4 byte 0 Little Endian,
+>>>>>0x7 byte 0 Uncompressed
+>>>>>0x7 byte 1 Gzip compression
+>>>>>0x7 byte 2 LZO compression
+>>>>0x4 byte 1 Big Endian,
+>>>>>0x7 byte 0 Uncompressed
+>>>>>0x7 byte 1 Gzip compression
+>>>>>0x7 byte 2 LZO compression
+>0x5 byte 0x12 RWSPLIT
+>>0x6 byte <16 v%d,
+>>>0x4 byte 0 Little Endian,
+>>>>0x7 byte 0 Uncompressed
+>>>>0x7 byte 1 Gzip compression
+>>>>0x7 byte 2 LZO compression
+>>>0x4 byte 1 Big Endian,
+>>>>0x7 byte 0 Uncompressed
+>>>>0x7 byte 1 Gzip compression
+>>>>0x7 byte 2 LZO compression
+>>0x6 byte >15
+>>>0xe beshort <0x7fff v%d,
+>>>>0x4 byte 0 Little Endian,
+>>>>>0x7 byte 0 Uncompressed
+>>>>>0x7 byte 1 Gzip compression
+>>>>>0x7 byte 2 LZO compression
+>>>>0x4 byte 1 Big Endian,
+>>>>>0x7 byte 0 Uncompressed
+>>>>>0x7 byte 1 Gzip compression
+>>>>>0x7 byte 2 LZO compression
+>0x5 byte 0x13 RWFILTER
+>>0x6 byte <16 v%d,
+>>>0x4 byte 0 Little Endian,
+>>>>0x7 byte 0 Uncompressed
+>>>>0x7 byte 1 Gzip compression
+>>>>0x7 byte 2 LZO compression
+>>>0x4 byte 1 Big Endian,
+>>>>0x7 byte 0 Uncompressed
+>>>>0x7 byte 1 Gzip compression
+>>>>0x7 byte 2 LZO compression
+>>0x6 byte >15
+>>>0xe beshort <0x7fff v%d,
+>>>>0x4 byte 0 Little Endian,
+>>>>>0x7 byte 0 Uncompressed
+>>>>>0x7 byte 1 Gzip compression
+>>>>>0x7 byte 2 LZO compression
+>>>>0x4 byte 1 Big Endian,
+>>>>>0x7 byte 0 Uncompressed
+>>>>>0x7 byte 1 Gzip compression
+>>>>>0x7 byte 2 LZO compression
+>0x5 byte 0x14 RWAUGMENTED
+>>0x6 byte <16 v%d,
+>>>0x4 byte 0 Little Endian,
+>>>>0x7 byte 0 Uncompressed
+>>>>0x7 byte 1 Gzip compression
+>>>>0x7 byte 2 LZO compression
+>>>0x4 byte 1 Big Endian,
+>>>>0x7 byte 0 Uncompressed
+>>>>0x7 byte 1 Gzip compression
+>>>>0x7 byte 2 LZO compression
+>>0x6 byte >15
+>>>0xe beshort <0x7fff v%d,
+>>>>0x4 byte 0 Little Endian,
+>>>>>0x7 byte 0 Uncompressed
+>>>>>0x7 byte 1 Gzip compression
+>>>>>0x7 byte 2 LZO compression
+>>>>0x4 byte 1 Big Endian,
+>>>>>0x7 byte 0 Uncompressed
+>>>>>0x7 byte 1 Gzip compression
+>>>>>0x7 byte 2 LZO compression
+>0x5 byte 0x15 RWAUGWEB
+>>0x6 byte <16 v%d,
+>>>0x4 byte 0 Little Endian,
+>>>>0x7 byte 0 Uncompressed
+>>>>0x7 byte 1 Gzip compression
+>>>>0x7 byte 2 LZO compression
+>>>0x4 byte 1 Big Endian,
+>>>>0x7 byte 0 Uncompressed
+>>>>0x7 byte 1 Gzip compression
+>>>>0x7 byte 2 LZO compression
+>>0x6 byte >15
+>>>0xe beshort <0x7fff v%d,
+>>>>0x4 byte 0 Little Endian,
+>>>>>0x7 byte 0 Uncompressed
+>>>>>0x7 byte 1 Gzip compression
+>>>>>0x7 byte 2 LZO compression
+>>>>0x4 byte 1 Big Endian,
+>>>>>0x7 byte 0 Uncompressed
+>>>>>0x7 byte 1 Gzip compression
+>>>>>0x7 byte 2 LZO compression
+>0x5 byte 0x16 RWGENERIC
+>>0x6 byte <16 v%d,
+>>>0x4 byte 0 Little Endian,
+>>>>0x7 byte 0 Uncompressed
+>>>>0x7 byte 1 Gzip compression
+>>>>0x7 byte 2 LZO compression
+>>>0x4 byte 1 Big Endian,
+>>>>0x7 byte 0 Uncompressed
+>>>>0x7 byte 1 Gzip compression
+>>>>0x7 byte 2 LZO compression
+>>0x6 byte >15
+>>>0xe beshort <0x7fff v%d,
+>>>>0x4 byte 0 Little Endian,
+>>>>>0x7 byte 0 Uncompressed
+>>>>>0x7 byte 1 Gzip compression
+>>>>>0x7 byte 2 LZO compression
+>>>>0x4 byte 1 Big Endian,
+>>>>>0x7 byte 0 Uncompressed
+>>>>>0x7 byte 1 Gzip compression
+>>>>>0x7 byte 2 LZO compression
+>0x5 byte 0x17 RESERVED_17
+>>0x6 byte <16 v%d,
+>>>0x4 byte 0 Little Endian,
+>>>>0x7 byte 0 Uncompressed
+>>>>0x7 byte 1 Gzip compression
+>>>>0x7 byte 2 LZO compression
+>>>0x4 byte 1 Big Endian,
+>>>>0x7 byte 0 Uncompressed
+>>>>0x7 byte 1 Gzip compression
+>>>>0x7 byte 2 LZO compression
+>>0x6 byte >15
+>>>0xe beshort <0x7fff v%d,
+>>>>0x4 byte 0 Little Endian,
+>>>>>0x7 byte 0 Uncompressed
+>>>>>0x7 byte 1 Gzip compression
+>>>>>0x7 byte 2 LZO compression
+>>>>0x4 byte 1 Big Endian,
+>>>>>0x7 byte 0 Uncompressed
+>>>>>0x7 byte 1 Gzip compression
+>>>>>0x7 byte 2 LZO compression
+>0x5 byte 0x18 RWDAILY
+>>0x6 byte <16 v%d,
+>>>0x4 byte 0 Little Endian,
+>>>>0x7 byte 0 Uncompressed
+>>>>0x7 byte 1 Gzip compression
+>>>>0x7 byte 2 LZO compression
+>>>0x4 byte 1 Big Endian,
+>>>>0x7 byte 0 Uncompressed
+>>>>0x7 byte 1 Gzip compression
+>>>>0x7 byte 2 LZO compression
+>>0x6 byte >15
+>>>0xe beshort <0x7fff v%d,
+>>>>0x4 byte 0 Little Endian,
+>>>>>0x7 byte 0 Uncompressed
+>>>>>0x7 byte 1 Gzip compression
+>>>>>0x7 byte 2 LZO compression
+>>>>0x4 byte 1 Big Endian,
+>>>>>0x7 byte 0 Uncompressed
+>>>>>0x7 byte 1 Gzip compression
+>>>>>0x7 byte 2 LZO compression
+>0x5 byte 0x19 RWSCAN
+>>0x6 byte <16 v%d,
+>>>0x4 byte 0 Little Endian,
+>>>>0x7 byte 0 Uncompressed
+>>>>0x7 byte 1 Gzip compression
+>>>>0x7 byte 2 LZO compression
+>>>0x4 byte 1 Big Endian,
+>>>>0x7 byte 0 Uncompressed
+>>>>0x7 byte 1 Gzip compression
+>>>>0x7 byte 2 LZO compression
+>>0x6 byte >15
+>>>0xe beshort <0x7fff v%d,
+>>>>0x4 byte 0 Little Endian,
+>>>>>0x7 byte 0 Uncompressed
+>>>>>0x7 byte 1 Gzip compression
+>>>>>0x7 byte 2 LZO compression
+>>>>0x4 byte 1 Big Endian,
+>>>>>0x7 byte 0 Uncompressed
+>>>>>0x7 byte 1 Gzip compression
+>>>>>0x7 byte 2 LZO compression
+>0x5 byte 0x1A RWACL
+>>0x6 byte <16 v%d,
+>>>0x4 byte 0 Little Endian,
+>>>>0x7 byte 0 Uncompressed
+>>>>0x7 byte 1 Gzip compression
+>>>>0x7 byte 2 LZO compression
+>>>0x4 byte 1 Big Endian,
+>>>>0x7 byte 0 Uncompressed
+>>>>0x7 byte 1 Gzip compression
+>>>>0x7 byte 2 LZO compression
+>>0x6 byte >15
+>>>0xe beshort <0x7fff v%d,
+>>>>0x4 byte 0 Little Endian,
+>>>>>0x7 byte 0 Uncompressed
+>>>>>0x7 byte 1 Gzip compression
+>>>>>0x7 byte 2 LZO compression
+>>>>0x4 byte 1 Big Endian,
+>>>>>0x7 byte 0 Uncompressed
+>>>>>0x7 byte 1 Gzip compression
+>>>>>0x7 byte 2 LZO compression
+>0x5 byte 0x1B RWCOUNT
+>>0x6 byte <16 v%d,
+>>>0x4 byte 0 Little Endian,
+>>>>0x7 byte 0 Uncompressed
+>>>>0x7 byte 1 Gzip compression
+>>>>0x7 byte 2 LZO compression
+>>>0x4 byte 1 Big Endian,
+>>>>0x7 byte 0 Uncompressed
+>>>>0x7 byte 1 Gzip compression
+>>>>0x7 byte 2 LZO compression
+>>0x6 byte >15
+>>>0xe beshort <0x7fff v%d,
+>>>>0x4 byte 0 Little Endian,
+>>>>>0x7 byte 0 Uncompressed
+>>>>>0x7 byte 1 Gzip compression
+>>>>>0x7 byte 2 LZO compression
+>>>>0x4 byte 1 Big Endian,
+>>>>>0x7 byte 0 Uncompressed
+>>>>>0x7 byte 1 Gzip compression
+>>>>>0x7 byte 2 LZO compression
+>0x5 byte 0x1C FLOWCAP
+>>0x6 byte <16 v%d,
+>>>0x4 byte 0 Little Endian,
+>>>>0x7 byte 0 Uncompressed
+>>>>0x7 byte 1 Gzip compression
+>>>>0x7 byte 2 LZO compression
+>>>0x4 byte 1 Big Endian,
+>>>>0x7 byte 0 Uncompressed
+>>>>0x7 byte 1 Gzip compression
+>>>>0x7 byte 2 LZO compression
+>>0x6 byte >15
+>>>0xe beshort <0x7fff v%d,
+>>>>0x4 byte 0 Little Endian,
+>>>>>0x7 byte 0 Uncompressed
+>>>>>0x7 byte 1 Gzip compression
+>>>>>0x7 byte 2 LZO compression
+>>>>0x4 byte 1 Big Endian,
+>>>>>0x7 byte 0 Uncompressed
+>>>>>0x7 byte 1 Gzip compression
+>>>>>0x7 byte 2 LZO compression
+>0x5 byte 0x1D IPSET
+>>0x6 byte <16 v%d,
+>>>0x4 byte 0 Little Endian,
+>>>>0x7 byte 0 Uncompressed
+>>>>0x7 byte 1 Gzip compression
+>>>>0x7 byte 2 LZO compression
+>>>0x4 byte 1 Big Endian,
+>>>>0x7 byte 0 Uncompressed
+>>>>0x7 byte 1 Gzip compression
+>>>>0x7 byte 2 LZO compression
+>>0x6 byte >15
+>>>0xe beshort <0x7fff v%d,
+>>>>0x4 byte 0 Little Endian,
+>>>>>0x7 byte 0 Uncompressed
+>>>>>0x7 byte 1 Gzip compression
+>>>>>0x7 byte 2 LZO compression
+>>>>0x4 byte 1 Big Endian,
+>>>>>0x7 byte 0 Uncompressed
+>>>>>0x7 byte 1 Gzip compression
+>>>>>0x7 byte 2 LZO compression
+>0x5 byte 0x1E TAGTREE
+>>0x6 byte <16 v%d,
+>>>0x4 byte 0 Little Endian,
+>>>>0x7 byte 0 Uncompressed
+>>>>0x7 byte 1 Gzip compression
+>>>>0x7 byte 2 LZO compression
+>>>0x4 byte 1 Big Endian,
+>>>>0x7 byte 0 Uncompressed
+>>>>0x7 byte 1 Gzip compression
+>>>>0x7 byte 2 LZO compression
+>>0x6 byte >15
+>>>0xe beshort <0x7fff v%d,
+>>>>0x4 byte 0 Little Endian,
+>>>>>0x7 byte 0 Uncompressed
+>>>>>0x7 byte 1 Gzip compression
+>>>>>0x7 byte 2 LZO compression
+>>>>0x4 byte 1 Big Endian,
+>>>>>0x7 byte 0 Uncompressed
+>>>>>0x7 byte 1 Gzip compression
+>>>>>0x7 byte 2 LZO compression
+>0x5 byte 0x1F RWWWW
+>>0x6 byte <16 v%d,
+>>>0x4 byte 0 Little Endian,
+>>>>0x7 byte 0 Uncompressed
+>>>>0x7 byte 1 Gzip compression
+>>>>0x7 byte 2 LZO compression
+>>>0x4 byte 1 Big Endian,
+>>>>0x7 byte 0 Uncompressed
+>>>>0x7 byte 1 Gzip compression
+>>>>0x7 byte 2 LZO compression
+>>0x6 byte >15
+>>>0xe beshort <0x7fff v%d,
+>>>>0x4 byte 0 Little Endian,
+>>>>>0x7 byte 0 Uncompressed
+>>>>>0x7 byte 1 Gzip compression
+>>>>>0x7 byte 2 LZO compression
+>>>>0x4 byte 1 Big Endian,
+>>>>>0x7 byte 0 Uncompressed
+>>>>>0x7 byte 1 Gzip compression
+>>>>>0x7 byte 2 LZO compression
+>0x5 byte 0x20 SHUFFLE
+>>0x6 byte <16 v%d,
+>>>0x4 byte 0 Little Endian,
+>>>>0x7 byte 0 Uncompressed
+>>>>0x7 byte 1 Gzip compression
+>>>>0x7 byte 2 LZO compression
+>>>0x4 byte 1 Big Endian,
+>>>>0x7 byte 0 Uncompressed
+>>>>0x7 byte 1 Gzip compression
+>>>>0x7 byte 2 LZO compression
+>>0x6 byte >15
+>>>0xe beshort <0x7fff v%d,
+>>>>0x4 byte 0 Little Endian,
+>>>>>0x7 byte 0 Uncompressed
+>>>>>0x7 byte 1 Gzip compression
+>>>>>0x7 byte 2 LZO compression
+>>>>0x4 byte 1 Big Endian,
+>>>>>0x7 byte 0 Uncompressed
+>>>>>0x7 byte 1 Gzip compression
+>>>>>0x7 byte 2 LZO compression
+>0x5 byte 0x21 RWBAG
+>>0x6 byte <16 v%d,
+>>>0x4 byte 0 Little Endian,
+>>>>0x7 byte 0 Uncompressed
+>>>>0x7 byte 1 Gzip compression
+>>>>0x7 byte 2 LZO compression
+>>>0x4 byte 1 Big Endian,
+>>>>0x7 byte 0 Uncompressed
+>>>>0x7 byte 1 Gzip compression
+>>>>0x7 byte 2 LZO compression
+>>0x6 byte >15
+>>>0xe beshort <0x7fff v%d,
+>>>>0x4 byte 0 Little Endian,
+>>>>>0x7 byte 0 Uncompressed
+>>>>>0x7 byte 1 Gzip compression
+>>>>>0x7 byte 2 LZO compression
+>>>>0x4 byte 1 Big Endian,
+>>>>>0x7 byte 0 Uncompressed
+>>>>>0x7 byte 1 Gzip compression
+>>>>>0x7 byte 2 LZO compression
+>0x5 byte 0x22 BLOOM
+>>0x6 byte <16 v%d,
+>>>0x4 byte 0 Little Endian,
+>>>>0x7 byte 0 Uncompressed
+>>>>0x7 byte 1 Gzip compression
+>>>>0x7 byte 2 LZO compression
+>>>0x4 byte 1 Big Endian,
+>>>>0x7 byte 0 Uncompressed
+>>>>0x7 byte 1 Gzip compression
+>>>>0x7 byte 2 LZO compression
+>>0x6 byte >15
+>>>0xe beshort <0x7fff v%d,
+>>>>0x4 byte 0 Little Endian,
+>>>>>0x7 byte 0 Uncompressed
+>>>>>0x7 byte 1 Gzip compression
+>>>>>0x7 byte 2 LZO compression
+>>>>0x4 byte 1 Big Endian,
+>>>>>0x7 byte 0 Uncompressed
+>>>>>0x7 byte 1 Gzip compression
+>>>>>0x7 byte 2 LZO compression
+>0x5 byte 0x23 RWPRINTSTATS
+>>0x6 byte <16 v%d,
+>>>0x4 byte 0 Little Endian,
+>>>>0x7 byte 0 Uncompressed
+>>>>0x7 byte 1 Gzip compression
+>>>>0x7 byte 2 LZO compression
+>>>0x4 byte 1 Big Endian,
+>>>>0x7 byte 0 Uncompressed
+>>>>0x7 byte 1 Gzip compression
+>>>>0x7 byte 2 LZO compression
+>>0x6 byte >15
+>>>0xe beshort <0x7fff v%d,
+>>>>0x4 byte 0 Little Endian,
+>>>>>0x7 byte 0 Uncompressed
+>>>>>0x7 byte 1 Gzip compression
+>>>>>0x7 byte 2 LZO compression
+>>>>0x4 byte 1 Big Endian,
+>>>>>0x7 byte 0 Uncompressed
+>>>>>0x7 byte 1 Gzip compression
+>>>>>0x7 byte 2 LZO compression
+>0x5 byte 0x24 PDUFLOWCAP
+>>0x6 byte <16 v%d,
+>>>0x4 byte 0 Little Endian,
+>>>>0x7 byte 0 Uncompressed
+>>>>0x7 byte 1 Gzip compression
+>>>>0x7 byte 2 LZO compression
+>>>0x4 byte 1 Big Endian,
+>>>>0x7 byte 0 Uncompressed
+>>>>0x7 byte 1 Gzip compression
+>>>>0x7 byte 2 LZO compression
+>>0x6 byte >15
+>>>0xe beshort <0x7fff v%d,
+>>>>0x4 byte 0 Little Endian,
+>>>>>0x7 byte 0 Uncompressed
+>>>>>0x7 byte 1 Gzip compression
+>>>>>0x7 byte 2 LZO compression
+>>>>0x4 byte 1 Big Endian,
+>>>>>0x7 byte 0 Uncompressed
+>>>>>0x7 byte 1 Gzip compression
+>>>>>0x7 byte 2 LZO compression
+>0x5 byte 0x25 PREFIXMAP
+>>0x6 byte <16 v%d,
+>>>0x4 byte 0 Little Endian,
+>>>>0x7 byte 0 Uncompressed
+>>>>0x7 byte 1 Gzip compression
+>>>>0x7 byte 2 LZO compression
+>>>0x4 byte 1 Big Endian,
+>>>>0x7 byte 0 Uncompressed
+>>>>0x7 byte 1 Gzip compression
+>>>>0x7 byte 2 LZO compression
+>>0x6 byte >15
+>>>0xe beshort <0x7fff v%d,
+>>>>0x4 byte 0 Little Endian,
+>>>>>0x7 byte 0 Uncompressed
+>>>>>0x7 byte 1 Gzip compression
+>>>>>0x7 byte 2 LZO compression
+>>>>0x4 byte 1 Big Endian,
+>>>>>0x7 byte 0 Uncompressed
+>>>>>0x7 byte 1 Gzip compression
+>>>>>0x7 byte 2 LZO compression
+>0x5 byte >0x25 Unknown
+>>0x6 byte <16 v%d,
+>>>0x4 byte 0 Little Endian,
+>>>>0x7 byte 0 Uncompressed
+>>>>0x7 byte 1 Gzip compression
+>>>>0x7 byte 2 LZO compression
+>>>0x4 byte 1 Big Endian,
+>>>>0x7 byte 0 Uncompressed
+>>>>0x7 byte 1 Gzip compression
+>>>>0x7 byte 2 LZO compression
+>>0x6 byte >15
+>>>0xe beshort <0x7fff v%d,
+>>>>0x4 byte 0 Little Endian,
+>>>>>0x7 byte 0 Uncompressed
+>>>>>0x7 byte 1 Gzip compression
+>>>>>0x7 byte 2 LZO compression
+>>>>0x4 byte 1 Big Endian,
+>>>>>0x7 byte 0 Uncompressed
+>>>>>0x7 byte 1 Gzip compression
+>>>>>0x7 byte 2 LZO compression

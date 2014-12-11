@@ -1,0 +1,194 @@
+=pod
+
+=head1 NAME
+
+B<rwrandomizeip> - Randomize the IP addresses in a SiLK Flow file
+
+=head1 SYNOPSIS
+
+  rwrandomizeip [--seed=NUMBER] [--only-change-set=CHANGE_IPSET]
+        [--dont-change-set=KEEP_IPSET]
+        [--consistent] [--save-table=FILE] [--load-table=FILE]
+        [--site-config-file=FILENAME] INPUT_FILE OUTPUT_FILE
+
+  rwrandomizeip --help
+
+  rwrandomizeip --version
+
+=head1 DESCRIPTION
+
+Substitute a pseudo-random IP address for the source and destination
+IP addresses of I<INPUT_FILE> and write the result to I<OUTPUT_FILE>.
+You may use C<stdin> for I<INPUT_FILE> to have B<rwrandomizeip> to
+read from the standard input; the I<OUTPUT_FILE> value of C<stdout>
+will cause B<rwrandomizeip> to write to the standard output unless it
+is connected to a terminal.  B<rwrandomizeip> knows how to read and
+write compressed (B<gzip>pid) files.
+
+To only change a subset of the IP addresses, the optional switches
+B<--only-change-set> or B<--dont-change-set> can be used; each switch
+takes an IPset file as its required argument.  When the
+B<--only-change-set>=I<CHANGE_IPSET> switch is given, B<rwrandomizeip>
+only modifies the IP addresses listed in the I<CHANGE_IPSET> file.  To
+change all addresses I<except> a specified set, use B<rwsetbuild(1)>
+to create an IPset file containing those IPs and pass the name of the
+file to the B<--dont-change-set> switch.  An address listed in both
+the B<only-change-set> and the B<dont-change-set> will not be
+modified.
+
+The B<--seed> switch can be used to initialize the pseudo-random
+number generator to a known state.
+
+When the B<--consistent>, B<--load-table>, and B<--save-table>
+switches are I<not> provided, B<rwrandomizeip> uses a pseudo-random,
+non-routable IP address for each source and destination IP address it
+sees; an IP address that appears multiple times in the input will be
+mapped to different output address each time, and no structural
+information in the input will be maintained.
+
+The B<--consistent>, B<--load-table>, or B<--save-table> switches
+enable consistent IP mapping, so that an input IP is consistently
+mapped to the same output IP.  In addition, the structural information
+of the input IPs is maintained.  Unfortunately, this comes at a cost
+of less randomness in the output.
+
+=head1 OPTIONS
+
+Option names may be abbreviated if the abbreviation is unique or is an
+exact match for an option.  A parameter to an option may be specified
+as B<--arg>=I<param> or B<--arg> I<param>, though the first form is
+required for options that take optional parameters.
+
+=over 4
+
+=item B<--seed>=I<NUMBER>
+
+Use I<NUMBER> to seed the pseudo-random number generator.  This can be
+used to put the random number generator into a known state, which is
+useful for testing.
+
+=item B<--only-change-set>=I<CHANGE_IPSET>
+
+Only modify the source or destination IP address if it appears in the
+given IPset file I<CHANGE_IPSET>.  The B<rwsetbuild> command can be
+used to create an IPset file.  When the
+B<--dont-change-set>=I<KEEP_IPSET> switch is also given, the IPs it
+contains will override those in the I<CHANGE_IPSET> file.
+
+=item B<--dont-change-set>=I<KEEP_IPSET>
+
+Do not modify the source or destination IP address if the address
+appears in the given IPset file I<KEEP_IPSET>.  The B<rwsetbuild>
+command can be used to create an IPset file.  The interaction of this
+switch with the B<--only-change-set> switch is described immediately
+above.
+
+=item B<--consistent>
+
+Randomize the IP addresses consistently, so that an input IP address
+is always mapped to the same value.  The default behavior is to use a
+random IP address for each IP, even if the IP has been seen before.
+
+=item B<--save-table>=I<FILE>
+
+Randomize the IP addresses consistently and save this run's
+randomization table for future use.  The table is written to the
+specified I<FILE>, which must not not exist.  This switch is
+incompatible with the B<--load-table> switch.
+
+=item B<--load-table>=I<FILE>
+
+Randomize the IP addresses consistently using the randomization table
+contained in I<FILE> that was created by a previous invocation of
+B<rwrandomizeip>.  This switch is incompatible with the
+B<--save-table> switch.
+
+=item B<--site-config-file>=I<FILENAME>
+
+Read the SiLK site configuration from the named file I<FILENAME>.
+When this switch is not provided, the location specified by the
+SILK_CONFIG_FILE environment variable is used if that variable is not
+empty.  The value of SILK_CONFIG_FILE should include the name of the
+file.  Otherwise, the application looks for a file named F<silk.conf>
+in the following directories: the directory specified in the
+SILK_DATA_ROOTDIR environment variable; the data root directory that
+is compiled into SiLK (@SILK_DATA_ROOTDIR@); the directories
+F<$SILK_PATH/share/silk/> and F<$SILK_PATH/share/>; and the
+F<share/silk/> and F<share/> directories parallel to the application's
+directory.
+
+=item B<--help>
+
+Print the available options and exit.
+
+=item B<--version>
+
+Print the version number and information about how SiLK was
+configured, then exit the application.
+
+=back
+
+=head1 ENVIRONMENT
+
+=over 4
+
+=item SILK_CONFIG_FILE
+
+This environment variable is used as the value for the
+B<--site-config-file> when that switch is not provided.
+
+=item SILK_DATA_ROOTDIR
+
+When the B<--site-config-file> switch is not provided and the
+SILK_CONFIG_FILE environment variable is not set, B<rwrandomizeip>
+looks for the site configuration file in
+F<$SILK_DATA_ROOTDIR/silk.conf>.
+
+=item SILK_CLOBBER
+
+The SiLK tools normally refuse to overwrite existing files.  Setting
+SILK_CLOBBER to a non-empty value removes this restriction.
+
+=item SILK_PATH
+
+This environment variable gives the root of the install tree.  As part
+of its search for the SiLK site configuration file, B<rwrandomizeip>
+checks for a file named F<silk.conf> in the directories
+F<$SILK_PATH/share/silk> and F<$SILK_PATH/share>.
+
+=back
+
+=head1 SEE ALSO
+
+B<rwsetbuild(1)>, B<silk(7)>
+
+=head1 BUGS
+
+B<rwrandomizeip> does not support IPv6 flow records.  When an input
+file contains IPv6 records, B<rwrandomizeip> converts records that
+contain addresses in the ::ffff:0:0/96 prefix to IPv4 and processes
+them.  B<rwrandomizeip> silently ignores IPv6 records containing
+addresses outside of that prefix.
+
+Only the source and destination IP fields are modified; additional
+fields in the SiLK Flow records may leak sensitive information.
+
+The B<--consistent> switch uses a method of randomization that is
+fairly easy to decipher.  Specifically, 4 tables are created with each
+having 256 entries containing the values 0-255 that have been randomly
+shuffled.  Each table is used to map the values for a specific octet
+in an IP address.  For example, when modifying the IP address
+C<10.10.10.10>, the value at position C<10> from each table will be
+substituted into the IP.
+
+When the same IPset is passed to the B<--only-change-set> and
+B<--dont-change-set> switches, the output is identical to the input.
+
+=cut
+
+$SiLK: rwrandomizeip.pod 9e71f5672f24 2013-03-05 23:37:50Z mthomas $
+
+Local Variables:
+mode:text
+indent-tabs-mode:nil
+End:

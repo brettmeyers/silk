@@ -1,0 +1,395 @@
+=pod
+
+=head1 NAME
+
+B<rwset> - Generate binary IPset files of unique IP addresses
+
+=head1 SYNOPSIS
+
+  rwset {--sip-file=FILE | --dip-file=FILE
+         | --nhip-file=FILE | --any-file=FILE [...]}
+        [--record-version=VERSION] [--invocation-strip]
+        [--note-add=TEXT] [--note-file-add=FILE]
+        [--print-filenames] [--copy-input=PATH]
+        [--compression-method=COMP_METHOD]
+        [--ipv6-policy={ignore,asv4,mix,force,only}]
+        [--site-config-file=FILENAME]
+        {[--xargs] | [--xargs=FILENAME] | [FILE [FILE ...]]}
+
+  rwset --help
+
+  rwset --version
+
+=head1 DESCRIPTION
+
+B<rwset> reads SiLK Flow records and generates one to four binary
+IPset file(s).  In a single pass, B<rwset> can create one of each type
+of its possible outputs, which are IPset files containing:
+
+=over 4
+
+=item *
+
+the unique source IP addresses
+
+=item *
+
+the unique destination IP addresses
+
+=item *
+
+the unique next-hop IP addresses
+
+=item *
+
+the unique source and destination IP addresses
+
+=back
+
+The output files must not exist prior to invoking B<rwset>.  To write
+an IPset file to the standard output, specify C<stdout> or C<-> as the
+output file name.  B<rwset> will complain if you attempt to write the
+IPset to the standard output and standard output is connected to the
+terminal.  Only one IPset file may be written to the standard output.
+
+B<rwset> reads SiLK Flow records from the files named on the command
+line or from the standard input when no file names are specified and
+B<--xargs> is not present.  To read the standard input in addition to
+the named files, use C<-> or C<stdin> as a file name.  If an input
+file name ends in C<.gz>, the file will be uncompressed as it is read.
+When the B<--xargs> switch is provided, B<rwset> will read the names
+of the files to process from the named text file, or from the standard
+input if no file name argument is provided to the switch.  The input
+to B<--xargs> must contain one file name per line.
+
+IPset files are in a binary format that efficiently stores a set of IP
+addresses.  The file only stores the presence of an IP address; no
+volume information (such as a count of the number of times the IP
+address occurs) is maintained.  To store volume information, use
+B<rwbag(1)>.
+
+Use B<rwsetcat(1)> to see the IP addresses in a binary IPset file.  To
+create a binary IPset file from a list of IP addresses, use
+B<rwsetbuild(1)>.  B<rwsettool(1)> allows you to perform set
+operations on binary IPset files.  To determine if an IP address is a
+member of a binary IPset, use B<rwsetmember(1)>.
+
+To list the IPs that appear in the SiLK Flow file F<flows.rw>, the
+command
+
+ $ rwset --sip-file=stdout flows.rw | rwsetcat
+
+will be faster than B<rwuniq(1)>, but B<rwset> cannot report total
+volume or do the thresholding that B<rwuniq> supports.
+
+=head1 OPTIONS
+
+Option names may be abbreviated if the abbreviation is unique or is an
+exact match for an option.  A parameter to an option may be specified
+as B<--arg>=I<param> or B<--arg> I<param>, though the first form is
+required for options that take optional parameters.
+
+At least one of the following output switches is required; multiple
+output switches can be given, but an output switch cannot be repeated.
+
+=over 4
+
+=item B<--sip-file>=I<FILE>
+
+Store the unique source IP addresses in the binary IPset file I<FILE>.
+B<rwset> will write the IPset file to the standard output when I<FILE>
+is C<stdout> or C<-> and the standard output is not a terminal.
+
+=item B<--dip-file>=I<FILE>
+
+Store the unique destination IP addresses in the binary IPset file
+I<FILE>.  B<rwset> will write the IPset file to the standard output
+when I<FILE> is C<stdout> or C<-> and the standard output is not a
+terminal.
+
+=item B<--nhip-file>=I<FILE>
+
+Store the unique next-hop IP addresses in the binary IPset file
+I<FILE>.  B<rwset> will write the IPset file to the standard output
+when I<FILE> is C<stdout> and the standard output is not a terminal.
+
+=item B<--any-file>=I<FILE>
+
+Store the unique source and destination IP addresses in the binary
+IPset file I<FILE>.  B<rwset> will write the IPset file to the
+standard output when I<FILE> is C<stdout> or C<-> and the standard
+output is not a terminal.
+
+=back
+
+Only one of the above switches my use C<stdout> as the name of the
+file.
+
+B<rwset> supports these additional switches:
+
+=over 4
+
+=item B<--record-version>=I<VERSION>
+
+Specify the format of the IPset records that are written to the
+output.  Valid values are 0, 2, 3, and 4.  When the switch is not
+provided, the SILK_IPSET_RECORD_VERSION environment variable is
+checked for a version.  A I<VERSION> of 2 creates a file compatible
+with S<SiLK 2.x>, and it can only be used for IPsets containing IPv4
+addresses.  A I<VERSION> of 3 creates a file that can only be read by
+S<SiLK 3.0> or later.  A I<VERSION> of 4 creates a file that can only
+be read by S<SiLK 3.7> or later.  Version 4 files are smaller than
+version 3 files.  The default I<VERSION> is 0, which uses version 2
+for IPv4 IPsets and version 3 for IPv6 IPsets.
+
+=item B<--invocation-strip>
+
+Do not record any command line history; that is, do not copy the
+invocation history from the input files to the output file, and do not
+record the current command line invocation in the output.
+
+=item B<--note-add>=I<TEXT>
+
+Add the specified I<TEXT> to the header of every output file as an
+annotation.  This switch may be repeated to add multiple annotations
+to a file.  To view the annotations, use the B<rwfileinfo(1)> tool.
+
+=item B<--note-file-add>=I<FILENAME>
+
+Open I<FILENAME> and add the contents of that file to the header of
+every output file as an annotation.  This switch may be repeated to
+add multiple annotations.  Currently the application makes no effort
+to ensure that I<FILENAME> contains text; be careful that you do not
+attempt to add a SiLK data file as an annotation.
+
+=item B<--print-filenames>
+
+Prints to the standard error the names of input files as they are
+opened.
+
+=item B<--copy-input>=I<PATH>
+
+Copy all binary input to the specified file or named pipe.  I<PATH>
+can be C<stdout> to print flows to the standard output as long as no
+IPset files are being written there.
+
+=item B<--ipv6-policy>=I<POLICY>
+
+Determine how IPv4 and IPv6 flows are handled when SiLK has been
+compiled with IPv6 support.  When the switch is not provided, the
+SILK_IPV6_POLICY environment variable is checked for a policy.  If it
+is also unset or contains an invalid policy, the I<POLICY> is
+B<mix>.  When SiLK has not been compiled with IPv6 support, IPv6
+flows are always ignored, regardless of the value passed to this
+switch or in the SILK_IPV6_POLICY variable.  The supported values for
+I<POLICY> are:
+
+=over
+
+=item ignore
+
+Ignore any flow record marked as IPv6, regardless of the IP addresses
+it contains.  Only IP addresses contained in IPv4 flow records will be
+added to the IPset(s).
+
+=item asv4
+
+Convert IPv6 flow records that contain addresses in the ::ffff:0:0/96
+prefix to IPv4 and ignore all other IPv6 flow records.
+
+=item mix
+
+Process the input as a mixture of IPv4 and IPv6 flow records.  When
+the input contains IPv6 addresses outside of the ::ffff:0:0/96 prefix,
+this policy is equivalent to B<force>; otherwise it is equivalent to
+B<asv4>.
+
+=item force
+
+Convert IPv4 flow records to IPv6, mapping the IPv4 addresses into the
+::ffff:0:0/96 prefix.
+
+=item only
+
+Process only flow records that are marked as IPv6.  Only IP addresses
+contained in IPv6 flow records will be added to the IPset(s).
+
+=back
+
+Regardless of the IPv6 policy, when all IPv6 addresses in the IPset
+are in the ::ffff:0:0/96 prefix, B<rwset> treats them as IPv4
+addresses and writes an IPv4 IPset.  When any other IPv6 addresses are
+present in the IPset, the IPv4 addresses in the IPset are mapped into
+the ::ffff:0:0/96 prefix and B<rwset> writes an IPv6 IPset.
+
+=item B<--compression-method>=I<COMP_METHOD>
+
+Specify how to compress the output.  When this switch is not given,
+output to the standard output or to named pipes is not compressed, and
+output to files is compressed using the default chosen when SiLK was
+compiled.  The valid values for I<COMP_METHOD> are determined by which
+external libraries were found when SiLK was compiled.  To see the
+available compression methods and the default method, use the
+B<--help> or B<--version> switch.  SiLK can support the following
+I<COMP_METHOD> values when the required libraries are available.
+
+=over 4
+
+=item none
+
+Do not compress the output using an external library.
+
+=item zlib
+
+Use the B<zlib(3)> library for compressing the output, and always
+compress the output regardless of the destination.  Using zlib
+produces the smallest output files at the cost of speed.
+
+=item lzo1x
+
+Use the I<lzo1x> algorithm from the LZO real time compression library
+for compression, and always compress the output regardless of the
+destination.  This compression provides good compression with less
+memory and CPU overhead.
+
+=item best
+
+Use lzo1x if available, otherwise use zlib.  Only compress the output
+when writing to a file.
+
+=back
+
+=item B<--site-config-file>=I<FILENAME>
+
+Read the SiLK site configuration from the named file I<FILENAME>.
+When this switch is not provided, B<rwset> searches for the site
+configuration file in the locations specified in the L</FILES>
+section.
+
+=item B<--xargs>
+
+=item B<--xargs>=I<FILENAME>
+
+Causes B<rwset> to read file names from I<FILENAME> or from the
+standard input if I<FILENAME> is not provided.  The input should have
+one file name per line.  B<rwset> will open each file in turn and read
+records from it, as if the files had been listed on the command line.
+
+=item B<--help>
+
+Print the available options and exit.
+
+=item B<--version>
+
+Print the version number and information about how SiLK was
+configured, then exit the application.
+
+=back
+
+=head1 EXAMPLES
+
+In the following examples, the dollar sign (C<$>) represents the shell
+prompt.  The text after the dollar sign represents the command line.
+Lines have been wrapped for improved readability, and the back slash
+(C<\>) is used to indicate a wrapped line.
+
+B<rwset> is intended to work tightly with B<rwfilter(1)>.  For
+example, consider generating two IPsets: the first file,
+F<low_packet_tcp.set>, contains the source IP addresses for incoming
+flow records (that is, the external hosts) where the record has no
+more than three packets in its sessions.  The second IPset file,
+F<high_packet_tcp.set>, contains the external IPs for records with
+four or more packets.
+
+The first set, for TCP traffic on 03/01/2003 can be generated
+with:
+
+ $ rwfilter --start-date=2003/03/01:00 --end-date=2003/03/01:23     \
+        --proto=6 --packets=1-3 --pass=stdout                       \
+   | rwset --sip-file=low_packet_tcp.set
+
+The second set with:
+
+ $ rwfilter --start-date=2003/03/01:00 --end-date=2003/03/01:23    \
+        --proto=6 --packets=4- --pass=stdout                       \
+   | rwset --sip-file=high_packet_tcp.set
+
+
+=head1 ENVIRONMENT
+
+=over 4
+
+=item SILK_IPSET_RECORD_VERSION
+
+This environment variable is used as the value for the
+B<--record-version> when that switch is not provided.
+
+=item SILK_CLOBBER
+
+The SiLK tools normally refuse to overwrite existing files.  Setting
+SILK_CLOBBER to a non-empty value removes this restriction.
+
+=item SILK_CONFIG_FILE
+
+This environment variable is used as the value for the
+B<--site-config-file> when that switch is not provided.
+
+=item SILK_DATA_ROOTDIR
+
+This environment variable specifies the root directory of data
+repository.  As described in the L</FILES> section, B<rwset> may
+use this environment variable when searching for the SiLK site
+configuration file.
+
+=item SILK_PATH
+
+This environment variable gives the root of the install tree.  When
+searching for configuration files, B<rwset> may use this environment
+variable.  See the L</FILES> section for details.
+
+=back
+
+=head1 FILES
+
+=over 4
+
+=item F<${SILK_CONFIG_FILE}>
+
+=item F<${SILK_DATA_ROOTDIR}/silk.conf>
+
+=item F<@SILK_DATA_ROOTDIR@/silk.conf>
+
+=item F<${SILK_PATH}/share/silk/silk.conf>
+
+=item F<${SILK_PATH}/share/silk.conf>
+
+=item F<@prefix@/share/silk/silk.conf>
+
+=item F<@prefix@/share/silk.conf>
+
+Possible locations for the SiLK site configuration file which are
+checked when the B<--site-config-file> switch is not provided.
+
+=back
+
+=head1 SEE ALSO
+
+B<rwsetbuild(1)>, B<rwsetcat(1)>, B<rwsettool(1)>, B<rwsetmember(1)>,
+B<rwfilter(1)>, B<rwfileinfo(1)>, B<rwbag(1)>, B<rwuniq(1)>,
+B<silk(7)>, B<zlib(3)>
+
+=head1 NOTES
+
+The B<--record-version> switch was added in S<SiLK 3.0>.  Prior to
+S<SiLK 3.6>, the only supported arguments for the switch were 2 and 3,
+with the default being 3.  As of S<SiLK 3.6>, the default is 0.
+Version 4 was added in S<SiLK 3.7>.
+
+=cut
+
+$SiLK: rwset.pod cd09f0a5fcc6 2014-06-14 15:43:33Z mthomas $
+
+Local Variables:
+mode:text
+indent-tabs-mode:nil
+End:

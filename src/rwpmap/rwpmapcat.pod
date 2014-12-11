@@ -1,0 +1,490 @@
+=pod
+
+=head1 NAME
+
+B<rwpmapcat> - Print each range and label present in a prefix map file
+
+=head1 SYNOPSIS
+
+  rwpmapcat [--output-type={mapname | type | ranges | labels}]
+        [--ignore-label=LABEL] [--ip-label-to-ignore=IP_ADDRESS]
+        [--left-justify-labels] [--no-cidr-blocks]
+        [--ip-format=FORMAT] [--integer-ips] [--zero-pad-ips]
+        [--no-titles] [--no-columns] [--column-separator=C]
+        [--no-final-delimiter] [{--delimited | --delimited=C}]
+        [--pager=PAGER_PROG]
+        [ { --map-file=PMAP_FILE | PMAP_FILE
+            | --address-types | --address-types=MAP_FILE
+            | --country-codes | --country-codes=MAP_FILE } ]
+
+  rwpmapcat --help
+
+  rwpmapcat --version
+
+=head1 DESCRIPTION
+
+B<rwpmapcat> reads a prefix map file created by B<rwpmapbuild(1)> or
+B<rwgeoip2ccmap(1)> and prints its contents.
+
+By default, B<rwpmapcat> prints the range/label pairs that exist in
+the prefix map.  Use the B<--output-type> switch to print additional
+information or information other than the range/label pairs.
+
+When printing the range/label pairs of a prefix map file that contain
+IP address data, B<rwpmapcat> defaults to printing the range as an
+address block in CIDR notation and the label associated with that
+block.  To print the ranges as a starting address and ending address,
+specify the B<--no-cidr-blocks> switch.
+
+If the prefix map file contains protocol/port pairs, B<rwpmapcat>
+prints three fields: the starting protocol and port separated by a
+slash (C</>), the ending protocol and port, and the label.
+
+The printing of ranges having a specific label may be suppressed with
+the B<--ignore-label> switch.  To have B<rwpmapcat> to look up a label
+based on an IP address and then ignore all entries with that label,
+pass the IP address to the B<--ip-label-to-ignore> switch.
+
+To print the contents of an arbirary prefix map file, one may pipe the
+file to B<rwpmapcat>'s standard input, name the file as the argument
+to the B<--map-file> switch, or name the file on the command line.
+
+To print the contents of the default country codes mapping file (see
+B<ccfilter(3)>), specify the B<--country-codes> switch with no
+argument.  To print the contents of a specific country codes mapping
+file, name that file as the argument to the B<--country-codes> switch.
+
+For printing the address types mapping file (see B<addrtype(3)>), use
+the B<--address-types> switch which works similarly to the
+B<--country-codes> switch.
+
+=head1 OPTIONS
+
+Option names may be abbreviated if the abbreviation is unique or is an
+exact match for an option.  A parameter to an option may be specified
+as B<--arg>=I<param> or S<B<--arg> I<param>>, though the first form is
+required for options that take optional parameters.
+
+Many of options are ignored unless B<rwpmapcat> is printing the
+range/label pairs present in the prefix map file.
+
+=over 4
+
+=item B<--map-file>=I<PMAP_FILE>
+
+Specify the path of the prefix map file to print.  If this switch is
+omitted and neither B<--country-codes> nor B<--address-types> is
+specified, the name of the file to be read is taken as the first
+non-switch command-line argument.  If no argument is given,
+B<rwpmapcat> attempts to read the map from the standard input.
+
+=item B<--address-types>
+
+Print the contents of the address types mapping file (B<addrtype(3)>)
+specified by the SILK_ADDRESS_TYPES environment variable, or in the
+default address types mapping file if that environment variable is not
+set.  This switch may not be conbined with the B<--map-file> or
+B<--country-codes> switches.
+
+=item B<--address-types>=I<ADDRTYPE_FILE>
+
+Print the contents of the address types mapping file specified by
+I<ADDRTYPE_FILE>.
+
+=item B<--country-codes>
+
+Print the contents of the country code mapping file (B<ccfilter(3)>)
+specified by the SILK_COUNTRY_CODES environment variable, or in the
+default country code mapping file if that environment variable is not
+set.  This switch may not be conbined with the B<--map-file> or
+B<--address-types> switches.
+
+=item B<--country-codes>=I<COUNTRY_CODE_FILE>
+
+Print the contents of the country code mapping file specified by
+I<COUNTRY_CODE_FILE>.
+
+=item B<--output-type>={B<type> | B<mapname> | B<label> | B<ranges>}
+
+Specify the type(s) of output to produce.  When this switch is not
+provided, the default is to print B<ranges>.  Specify multiple types
+as a comma separated list of names; regardless of the order in which
+the types are given, the output will appear in the order shown below.
+Country-code prefix map files only support the C<ranges> output type.
+A type can be specified using the shortest unique prefix for the type.
+The available types are:
+
+=over 4
+
+=item B<type>
+
+Print the type of this prefix map file.  The value will be one of
+C<IPv4-address>, C<IPv6-address>, or C<proto-port>.  The type will be
+preceded by the string C<TYPE:> and a space character unless
+B<--no-titles> is specified.
+
+=item B<mapname>
+
+Print the name that is stored in the prefix map file.  This mapname is
+used to generate switch names and field names when this prefix map is
+used with B<rwfilter(1)>, B<rwcut(1)>, B<rwgroup(1)>, B<rwsort(1)>,
+B<rwstats(1)>, and B<rwuniq(1)>.  See B<pmapfilter(3)> for details.
+The mapname will be preceded by the string C<MAPNAME:> and a space
+character unless B<--no-titles> is specified.
+
+=item B<label>
+
+Print the names of the labels that exist in the prefix map file.  The
+labels are printed left-justified, one per line, with no delimiter.
+The labels will be preceded by C<LABELS:> on its own line unless
+B<--no-titles> is specified.  If B<ranges> is also specified, a blank
+line will separate the labels and the range/label columns.
+
+=item B<ranges>
+
+Print the range and label for each block in the prefix map file.  If
+the prefix map contains protocol/port pairs, the output will contain
+three columns (startPair, endPair, label), where startPair and endPair
+contain I<protocol>/I<port>.  If the prefix map contains IP addresses,
+the form of the output will depend on whether B<--no-cidr-blocks> is
+specified.  When it is not specified, the output will contain two
+columns (ipBlock, label), where ipBlock contains the IP range in CIDR
+notation.  If B<--no-cidr-blocks> is specified, the output will
+contain three columns: startIP, endIP, label.
+
+=back
+
+=item B<--ignore-label>=I<LABEL>
+
+For the B<ranges> output-type, do not print entries whose label is
+I<LABEL>.  By default, all entries in the prefix map file are printed.
+
+=item B<--ip-label-to-ignore>=I<IP_ADDRESS>
+
+For the B<ranges> output-type, find the label associated with the IP
+address I<IP_ADDRESS> and ignore all ranges that match that label.  By
+default, all entries in the prefix map are printed.
+
+=item B<--left-justify-labels>
+
+For the B<ranges> output-type, left-justify the labels when columnar
+output is printed.  Normally, the labels are right-justified.
+
+=item B<--no-cidr-blocks>
+
+Cause each IP address block to be printed as a starting and ending IP
+address.  By default, IP addresses are grouped into CIDR blocks.  This
+switch is ignored for prefix map files containing protocol/port pairs.
+
+=item B<--ip-format>=I<FORMAT>
+
+Specify how IP addresses will be printed.  This switch is ignored for
+prefix map files containing protocol/port pairs.  When this switch is
+not specified, IPs are printed in the canonical format.  The I<FORMAT>
+is one of:
+
+=over 4
+
+=item canonical
+
+Print IP addresses in their canonical form: dotted quad for IPv4
+(C<127.0.0.1>) and hexadectet for IPv6 (C<2001:db8::1>).  Note that
+IPv6 addresses in ::ffff:0:0/96 and some IPv6 addresses in ::/96 will
+be printed as a mixture of IPv6 and IPv4.
+
+=item zero-padded
+
+Print IP addresses in their canonical form, but add zeros to the
+output so it fully fills the width of column.  The addresses
+C<127.0.0.1> and C<2001:db8::1> are printed as C<127.000.000.001> and
+C<2001:0db8:0000:0000:0000:0000:0000:0001>, respectively.
+
+=item decimal
+
+Print IP addresses as integers in decimal format.  The addresses
+C<127.0.0.1> and C<2001:db8::1> are printed as C<2130706433> and
+C<42540766411282592856903984951653826561>, respectively.
+
+=item hexadecimal
+
+Print IP addresses as integers in hexadecimal format.  The addresses
+C<127.0.0.1> and C<2001:db8::1> are printed as C<7f000001> and
+C<20010db8000000000000000000000001>, respectively.
+
+=item force-ipv6
+
+Print all IP addresses in the canonical form for IPv6 without using
+any IPv4 notation.  Any IPv4 address is mapped into the ::ffff:0:0/96
+netblock.  The addresses C<127.0.0.1> and C<2001:db8::1> are printed
+as C<::ffff:7f00:1> and C<2001:db8::1>, respectively.
+
+=back
+
+=item B<--integer-ips>
+
+Print IP addresses as integers.  This switch is equivalent to
+B<--ip-format=decimal>, it is deprecated as of SiLK 3.7.0, and it will
+be removed in the SiLK 4.0 release
+
+=item B<--zero-pad-ips>
+
+Print IP addresses as fully-expanded, zero-padded values in their
+canonical form.  This switch is equivalent to
+B<--ip-format=zero-padded>, it is deprecated as of SiLK 3.7.0, and it
+will be removed in the SiLK 4.0 release.
+
+=item B<--no-titles>
+
+Turn off column titles.  By default, titles are printed.
+
+=item B<--no-columns>
+
+Disable fixed-width columnar output.
+
+=item B<--column-separator>=I<C>
+
+Use specified character between columns and after the final column.
+When this switch is not specified, the default of 'B<|>' is used.
+
+=item B<--no-final-delimiter>
+
+Do not print the column separator after the final column.  Normally a
+delimiter is printed.
+
+=item B<--delimited>
+
+=item B<--delimited>=I<C>
+
+Run as if B<--no-columns> B<--no-final-delimiter> B<--column-sep>=I<C>
+had been specified.  That is, disable fixed-width columnar output; if
+character I<C> is provided, it is used as the delimiter between
+columns instead of the default 'B<|>'.
+
+=item B<--pager>=I<PAGER_PROG>
+
+When output is to a terminal, invoke the program I<PAGER_PROG> to view
+the output one screen full at a time.  This switch overrides the
+SILK_PAGER environment variable, which in turn overrides the PAGER
+variable.  If the value of the pager is determined to be the empty
+string, no paging will be performed and all output will be printed to
+the terminal.
+
+=item B<--help>
+
+Print the available options and exit.
+
+=item B<--version>
+
+Print the version number and information about how SiLK was
+configured, then exit the application.
+
+=back
+
+=head1 EXAMPLES
+
+In the following examples, the dollar sign (C<$>) represents the shell
+prompt.  The text after the dollar sign represents the command line.
+Lines have been wrapped for improved readability, and the back slash
+(C<\>) is used to indicate a wrapped line.
+
+B<rwpmapbuild(1)> creates the prefix map file F<sample.pmap> from the
+textual input.
+
+ $ cat sample.txt
+ mode      ip
+ map-name  addrtype
+ label     0  non-routable
+ label     1  internal
+ label     2  external
+ default   external
+          0.0.0.0/8  non-routable
+         10.0.0.0/8  non-routable
+        127.0.0.0/8  non-routable
+     169.254.0.0/16  non-routable
+      172.16.0.0/12  non-routable
+       192.0.2.0/24  non-routable
+     192.168.0.0/16  non-routable
+ 255.255.255.255/32  non-routable
+ $ rwpmapbuild --input-file=sample.txt --output-file=sample.txt
+
+Invoking B<rwpmapcat> with the name of the file as its only argument
+prints the range-to-label contents of the prefix map file, and the
+contents are printed as CIDR blocks if the file contains IP addresses.
+
+ $ rwpmapcat sample.pmap | head -10
+            ipBlock|       label|
+          0.0.0.0/8|non-routable|
+          1.0.0.0/8|    external|
+          2.0.0.0/7|    external|
+          4.0.0.0/6|    external|
+          8.0.0.0/7|    external|
+         10.0.0.0/8|non-routable|
+         11.0.0.0/8|    external|
+         12.0.0.0/6|    external|
+         16.0.0.0/4|    external|
+
+Use the B<--no-cidr-blocks> switch to print the range as a pair of
+IPs.  The B<--map-file> switch may be use to specify the name of the
+file.
+
+ $ rwpmapcat --map-file=sample.pmap --no-cidr-block
+         startIP|          endIP|       label|
+         0.0.0.0|  0.255.255.255|non-routable|
+         1.0.0.0|  9.255.255.255|    external|
+        10.0.0.0| 10.255.255.255|non-routable|
+        11.0.0.0|126.255.255.255|    external|
+       127.0.0.0|127.255.255.255|non-routable|
+       128.0.0.0|169.253.255.255|    external|
+     169.254.0.0|169.254.255.255|non-routable|
+     169.255.0.0| 172.15.255.255|    external|
+      172.16.0.0| 172.31.255.255|non-routable|
+      172.32.0.0|    192.0.1.255|    external|
+       192.0.2.0|    192.0.2.255|non-routable|
+       192.0.3.0|192.167.255.255|    external|
+     192.168.0.0|192.168.255.255|non-routable|
+     192.169.0.0|255.255.255.254|    external|
+ 255.255.255.255|255.255.255.255|non-routable|
+
+The B<--output-type> switch determines what output is produced.
+Specifying an argument of C<label> prints the labels that were
+specified when the file was built.
+
+ $ rwpmapcat --map-file=sample.pmap --output-type=label
+ LABELS:
+ non-routable
+ internal
+ external
+
+Multiple types of output may be requested
+
+ $ rwpmapcat --map-file=sample.pmap --output-type=type,mapname
+ TYPE:  IPv4-address
+ MAPNAME:  addrtype
+
+Sometimes the content of the prefix map more clear if you eliminate
+the ranges that were assigned to the default label.  There are two
+ways to filter a label: either specify the label with the
+B<--ignore-label> switch or find an IP address that has that label and
+specify the IP address to the B<--ip-label-to-ignore> switch:
+
+ $ cat sample.pmap | rwpmapcat --ignore-label=external
+            ipBlock|       label|
+          0.0.0.0/8|non-routable|
+         10.0.0.0/8|non-routable|
+        127.0.0.0/8|non-routable|
+     169.254.0.0/16|non-routable|
+      172.16.0.0/12|non-routable|
+       192.0.2.0/24|non-routable|
+     192.168.0.0/16|non-routable|
+ 255.255.255.255/32|non-routable|
+
+ $ cat sample.pmap | rwpmapcat --ip-label-to-ignore=0.0.0.0 | head -7
+            ipBlock|       label|
+          1.0.0.0/8|    external|
+          2.0.0.0/7|    external|
+          4.0.0.0/6|    external|
+          8.0.0.0/7|    external|
+         11.0.0.0/8|    external|
+         12.0.0.0/6|    external|
+
+B<rwpmapcat> also supports viewing the contents of prefix map files
+containing protoocol/port pairs.
+
+ $ rwpmapcat proto.pmap
+ startPair|  endPair|                           label|
+ ...
+       6/0|      6/0|                             TCP|
+       6/1|      6/1|                          tcpmux|
+       6/2|      6/3|                     compressnet|
+       6/4|      6/4|                             TCP|
+       6/5|      6/5|                             rje|
+       6/6|      6/6|                             TCP|
+       6/7|      6/7|                            echo|
+       6/8|      6/8|                             TCP|
+ ...
+
+As of SiLK 3.8.0, B<rwpmapcat> supports printing the contents of the
+country code mapping file created by B<rwgeoip2ccmap(1)> (for use in
+the country code plug-in B<ccfilter(3)>) when the B<--country-codes>
+switch is used.
+
+ $ rwpmapcat --no-cidr --country-codes=country_codes.pmap | head
+         startIP|          endIP|label|
+         0.0.0.0|     2.6.190.55|   --|
+      2.6.190.56|     2.6.190.63|   gb|
+      2.6.190.64|  2.255.255.255|   --|
+         3.0.0.0|    4.17.135.31|   us|
+     4.17.135.32|    4.17.135.63|   ca|
+     4.17.135.64|   4.17.142.255|   us|
+      4.17.143.0|    4.17.143.15|   ca|
+     4.17.143.16|     4.18.32.71|   us|
+      4.18.32.72|     4.18.32.79|   mx|
+
+=head1 ENVIRONMENT
+
+=over 4
+
+=item SILK_PAGER
+
+When set to a non-empty string, B<rwpmapcat> automatically invokes
+this program to display its output a screen at a time.  If set to an
+empty string, B<rwpmapcat> does not automatically page its output.
+
+=item PAGER
+
+When set and SILK_PAGER is not set, B<rwpmapcat> automatically invokes
+this program to display its output a screen at a time.
+
+=back
+
+=head1 FILES
+
+=over 4
+
+=item F<${SILK_COUNTRY_CODES}>
+
+=item F<${SILK_PATH}/share/silk/country_codes.pmap>
+
+=item F<${SILK_PATH}/share/country_codes.pmap>
+
+=item F<@prefix@/share/silk/country_codes.pmap>
+
+=item F<@prefix@/share/country_codes.pmap>
+
+Possible locations for the country codes mapping file when the
+B<--country-codes> switch is specified without an argument.
+
+=item F<${SILK_ADDRESS_TYPES}>
+
+=item F<${SILK_PATH}/share/silk/address_types.pmap>
+
+=item F<${SILK_PATH}/share/address_types.pmap>
+
+=item F<@prefix@/share/silk/address_types.pmap>
+
+=item F<@prefix@/share/address_types.pmap>
+
+Possible locations for the address types mapping file when the
+B<--address-types> switch is specified without an argument.
+
+=back
+
+=head1 SEE ALSO
+
+B<rwpmapbuild(1)>, B<rwgeoip2ccmap(1)>, B<pmapfilter(3)>,
+B<ccfilter(3)>, B<rwfilter(1)>, B<rwcut(1)>, B<rwgroup(1)>,
+B<rwsort(1)>, B<rwstats(1)>, B<rwuniq(1)>, B<silk(7)>
+
+=head1 NOTES
+
+The B<--country-codes> and B<--address-types> switches were added in
+SiLK 3.8.0.
+
+=cut
+
+$SiLK: rwpmapcat.pod 8b39dddcaab4 2013-12-06 21:47:40Z mthomas $
+
+Local Variables:
+mode:text
+indent-tabs-mode:nil
+End:

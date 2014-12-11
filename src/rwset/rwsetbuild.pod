@@ -1,0 +1,313 @@
+=pod
+
+=head1 NAME
+
+B<rwsetbuild> - Create a binary IPset file from list of IPs
+
+=head1 SYNOPSIS
+
+  rwsetbuild [{--ip-ranges | --ip-ranges=DELIM}]
+        [--record-version=VERSION] [--invocation-strip]
+        [--note-add=TEXT] [--note-file-add=FILENAME]
+        [--compression-method=COMP_METHOD]
+        [{INPUT_TEXT_FILE | -} [{OUTPUT_SET_FILE | -}]]
+
+  rwsetbuild --help
+
+  rwsetbuild --version
+
+=head1 DESCRIPTION
+
+B<rwsetbuild> creates a binary IPset file from textual input.  The
+IPset will be written to the second command line argument if it has
+been specified; otherwise the IPset is written to the standard output
+if the standard output is not a terminal.  B<rwsetbuild> will not
+overwrite an existing file.  The textual input is read from the first
+command line argument if it has been specified; otherwise the text is
+read from the standard input if the standard input is not a terminal.
+A input file name of C<stdin> or C<-> means the standard input; an
+output file name of C<stdout> or C<-> means the standard output.
+B<rwsetbuild> will read textual IPs from the terminal if the standard
+input is explicitly given as the input.  B<rwsetbuild> exits with an
+error if the input file cannot be read or the output file cannot be
+written.
+
+Comments are ignored in the input file; they begin with the 'B<#>'
+symbol and continue to the end of the line.  Whitespace and blank
+lines are also ignored.  Otherwise, a line should contain a single IP
+addresses unless the B<--ip-ranges> switch is specified, in which case
+a line may contain two IP addresses separated by the user-specified
+delimiter, which defaults to hyphen (C<->).
+
+B<rwsetbuild> supports IPv4 addresses.  When SiLK has been built with
+IPv6 support, B<rwsetbuild> can build an IPset containing IPv6
+addresses.  When the input contains a mixture of IPv4 and IPv6
+addresses, the IPv4 addresses are mapped into the ::ffff:0:0/96 block
+of IPv6.  When writing the IPset, B<rwsetbuild> will convert the
+output to IPv4 if all IPv6 addresses were in the ::ffff:0:0/96 block.
+B<rwsetbuild> does not allow the input to contain both integer values
+and IPv6 addresses.
+
+Each IP address must be expressed in one of these formats:
+
+=over
+
+=item *
+
+Canonical IPv4 address (i.e., dotted decimal---all 4 octets are
+required):
+
+  10.1.2.4
+
+=item *
+
+An unsigned 32-bit integer:
+
+  167838212
+
+=item *
+
+Canonical IPv6 address:
+
+  2001:db8::f00
+
+=item *
+
+Any of the above with a CIDR designation:
+
+  10.1.2.4/31
+  167838212/31
+  192.168.0.0/16
+  2001:db8::/48
+
+=item *
+
+SiLK IP Wildcard: An IP Wildcard can represent multiple IPv4 or IPv6
+addresses.  An IP Wildcard contains an IP in its canonical form,
+except each part of the IP (where I<part> is an octet for IPv4 or a
+hexadectet for IPv6) may be a single value, a range, a comma separated
+list of values and ranges, or the letter C<x> to signify all values
+for that part of the IP (that is, C<0-255> for IPv4).  You may not
+specify a CIDR suffix when using IP Wildcard notation.  IP Wildcard
+notation is not supported when the B<--ip-ranges> switch is specified.
+
+  10.x.1-2.4,5
+  2001:db8::aaab-ffff,aaaa,0-aaa9
+
+=item *
+
+IP Range: An IPv4 address, an unsigned 32-bit integer, or an IPv6
+address to use as the start of the range, a delimiter, and an IPv4
+address, an unsigned 32-bit integer, or an IPv6 address to use as the
+end of the range.  The default delimiter is the hyphen (C<->), but a
+different delimiter may be specified as a parameter to the
+B<--ip-ranges> switch.  Whitespace around the IP addresses is ignored.
+Only valid when B<--ip-ranges> is specified.
+
+  10.1.2.4-10.1.2.5
+  167838212-167838213
+  192.168.0.0-192.168.255.255
+  2001:db8::f00-2001:db8::fff
+
+=back
+
+If an IP address cannot be parsed, B<rwsetbuild> will exit with an
+error.
+
+=head1 OPTIONS
+
+Option names may be abbreviated if the abbreviation is unique or is an
+exact match for an option.  A parameter to an option may be specified
+as B<--arg>=I<param> or B<--arg> I<param>, though the first form is
+required for options that take optional parameters.
+
+=over 4
+
+=item B<--ip-ranges>
+
+=item B<--ip-ranges>=I<DELIM>
+
+Allow the input file to contain ranges of IP addresses.  If I<DELIM>
+is not specified, hyphen (C<->) is used as the delimiter.  I<DELIM>
+may be the space character.  This method also supports lines that
+contain a single IP address (or integer); these lines may have a CIDR
+designation.  CIDR designations are not supported on lines that
+contain I<DELIM>.  When B<--ip-ranges> is active, SiLK wildcard IP
+syntax is not supported.
+
+=item B<--record-version>=I<VERSION>
+
+Specify the format of the IPset records that are written to the
+output.  Valid values are 0, 2, 3, and 4.  When the switch is not
+provided, the SILK_IPSET_RECORD_VERSION environment variable is
+checked for a version.  A I<VERSION> of 2 creates a file compatible
+with S<SiLK 2.x>, and it can only be used for IPsets containing IPv4
+addresses.  A I<VERSION> of 3 creates a file that can only be read by
+S<SiLK 3.0> or later.  A I<VERSION> of 4 creates a file that can only
+be read by S<SiLK 3.7> or later.  Version 4 files are smaller than
+version 3 files.  The default I<VERSION> is 0, which uses version 2
+for IPv4 IPsets and version 3 for IPv6 IPsets.
+
+=item B<--invocation-strip>
+
+Do not record any command line history; that is, do not record the
+current command line invocation in the output file.
+
+=item B<--note-add>=I<TEXT>
+
+Add the specified I<TEXT> to the header of the output file as an
+annotation.  This switch may be repeated to add multiple annotations
+to a file.  To view the annotations, use the B<rwfileinfo(1)> tool.
+
+=item B<--note-file-add>=I<FILENAME>
+
+Open I<FILENAME> and add the contents of that file to the header of
+the output file as an annotation.    This switch may be repeated to
+add multiple annotations.  Currently the application makes no effort
+to ensure that I<FILENAME> contains text; be careful that you do not
+attempt to add a SiLK data file as an annotation.
+
+=item B<--compression-method>=I<COMP_METHOD>
+
+Specify how to compress the output.  When this switch is not given,
+output to the standard output or to named pipes is not compressed, and
+output to files is compressed using the default chosen when SiLK was
+compiled.  The valid values for I<COMP_METHOD> are determined by which
+external libraries were found when SiLK was compiled.  To see the
+available compression methods and the default method, use the
+B<--help> or B<--version> switch.  SiLK can support the following
+I<COMP_METHOD> values when the required libraries are available.
+
+=over 4
+
+=item none
+
+Do not compress the output using an external library.
+
+=item zlib
+
+Use the B<zlib(3)> library for compressing the output, and always
+compress the output regardless of the destination.  Using zlib
+produces the smallest output files at the cost of speed.
+
+=item lzo1x
+
+Use the I<lzo1x> algorithm from the LZO real time compression library
+for compression, and always compress the output regardless of the
+destination.  This compression provides good compression with less
+memory and CPU overhead.
+
+=item best
+
+Use lzo1x if available, otherwise use zlib.  Only compress the output
+when writing to a file.
+
+=back
+
+=item B<--help>
+
+Print the available options and exit.
+
+=item B<--version>
+
+Print the version number and information about how SiLK was
+configured, then exit the application.
+
+=back
+
+=head1 EXAMPLE
+
+In the following examples, the dollar sign (C<$>) represents the shell
+prompt.  The text after the dollar sign represents the command line.
+
+=for comment
+Lines have been wrapped for improved readability, and the back slash
+(C<\>) is used to indicate a wrapped line.
+
+Reading from a file:
+
+  $ echo 10.x.x.x > ten.txt
+  $ rwsetbuild ten.txt ten.set
+
+  $ echo 10.0.0.0/8 > ten.txt
+  $ rwsetbuild ten.txt ten.set
+
+  $ echo 10.0.0.0-10.255.255.255 > ten.txt
+  $ rwsetbuild --ip-ranges ten.txt ten.set
+
+  $ echo '167772160,184549375' > ten.txt
+  $ rwsetbuild --ip-ranges=, ten.txt ten.set
+
+Reading from the standard input:
+
+  $ echo 192.168.x.x | rwsetbuild stdin private.set
+
+Example input to B<rwsetbuild>:
+
+  # A single address
+  10.1.2.4
+  # Two addresses in the same subnet
+  10.1.2.4,5
+  # The same two addresses
+  10.1.2.4/31
+  # The same two addresses
+  167838212/31
+  # A whole subnet
+  10.1.2.0-255
+  # The same whole subnet
+  10.1.2.x
+  # The same whole subnet yet again
+  10.1.2.0/24
+  # All RFC1918 space
+  10.0.0.0/8
+  172.16.0.0/12
+  192.168.0.0/16
+  # All RFC1918 space
+  10.x.x.x
+  172.16-20,21,22-31.x.x
+  192.168.x.x
+  # All RFC1918 space
+  167772160/8
+  2886729728/12
+  3232235520/16
+  # Everything ending in 255
+  x.x.x.255
+  # All addresses that end in 1-10
+  x.x.x.1-10
+
+=head1 ENVIRONMENT
+
+=over 4
+
+=item SILK_IPSET_RECORD_VERSION
+
+This environment variable is used as the value for the
+B<--record-version> when that switch is not provided.
+
+=item SILK_CLOBBER
+
+The SiLK tools normally refuse to overwrite existing files.  Setting
+SILK_CLOBBER to a non-empty value removes this restriction.
+
+=back
+
+=head1 SEE ALSO
+
+B<rwset(1)>, B<rwsetcat(1)>, B<rwsetmember(1)>, B<rwsettool(1)>,
+B<rwfileinfo(1)>, B<silk(7)>, B<zlib(3)>
+
+=head1 NOTES
+
+The B<--record-version> switch was added in S<SiLK 3.0>.  Prior to
+S<SiLK 3.6>, the only supported arguments for the switch were 2 and 3,
+with the default being 3.  As of S<SiLK 3.6>, the default is 0.
+Version 4 was added in S<SiLK 3.7>.
+
+=cut
+
+$SiLK: rwsetbuild.pod cd09f0a5fcc6 2014-06-14 15:43:33Z mthomas $
+
+Local Variables:
+mode:text
+indent-tabs-mode:nil
+End:

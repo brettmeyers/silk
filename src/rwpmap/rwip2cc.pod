@@ -1,0 +1,310 @@
+=pod
+
+=head1 NAME
+
+B<rwip2cc> - Maps IP addresses to country codes
+
+=head1 SYNOPSIS
+
+  rwip2cc { --address=IP_ADDRESS | --input-file=FILE }
+        [--map-file=PMAP_FILE] [--print-ips={0,1}]
+        [{--integer-ips | --zero-pad-ips}] [--no-columns]
+        [--column-separator=CHAR] [--no-final-delimiter]
+        [{--delimited | --delimited=CHAR}]
+        [--output-path=PATH] [--pager=PAGER_PROG]
+
+  rwip2cc --help
+
+  rwip2cc --version
+
+=head1 DESCRIPTION
+
+As of SiLK 3.0, B<rwip2cc> is deprecated, and it will be removed in
+the SiLK 4.0 release.  Use B<rwpmaplookup(1)> instead---the
+L</EXAMPLES> section shows how to use B<rwpmaplookup> to get output
+similar to that produced by B<rwip2cc>.
+
+B<rwip2cc> maps from (textual) IP address to two letter country code.
+Either the B<--address> or B<--input-file> switch is required.
+
+The B<--address> switch looks up the country code of a single IP
+address and prints the country code to the standard output.
+
+The B<--input-file> switch reads data from the specified file (use
+C<stdin> or C<-> to read from the standard input) and prints, to the
+standard output, the country code for each IP it sees.  Blank lines in
+the input are ignored; comments, which begin at the C<#> character and
+extend to the end of line, are also ignored.  Each line that is not a
+blank or a comment should contain an IP address or a CIDR block;
+B<rwip2cc> will complain if the line cannot be parsed.  Note that for
+CIDR blocks, the CIDR block is exploded into its constituent IP
+addresses and the country code for B<each> IP address is printed.
+
+The B<--print-ips> switch controls whether the IP is printed with its
+country code.  When B<--print-ips=1> is specified, the output contains
+two columns: the IP and the country-code.  When B<--print-ips=0> is
+specified, only the country code is given.  The default behavior is to
+print the IP whenever the B<--input-file> switch is provided, and not
+print the IP when B<--address> is given.
+
+You can tell B<rwip2cc> to use a specific country code prefix map file
+by giving the location of that file to the B<--map-file> switch.  The
+country code prefix map file is created with the B<rwgeoip2ccmap(1)>
+command.  When B<--map-file> is not specified, B<rwip2cc> attempts to
+use the default country code mapping file, as specified in the
+L</FILES> section below.
+
+=head1 OPTIONS
+
+Option names may be abbreviated if the abbreviation is unique or is an
+exact match for an option.  A parameter to an option may be specified
+as B<--arg>=I<param> or B<--arg> I<param>, though the first form is
+required for options that take optional parameters.
+
+=over 4
+
+=item B<--address>=I<IP_ADDRESS>
+
+Print to the standard output the country code for the single
+I<IP_ADDRESS>.
+
+=item B<--input-file>=I<FILE>
+
+Print the IP and country code for each IP address in I<FILE>; use
+C<stdin> to read from the standard input.
+
+=item B<--map-file>=I<PMAP_FILE>
+
+Use the designated country code prefix mapping file instead of the
+default.
+
+=item B<--print-ips>={0|1}
+
+Controls whether the IP is printed.  When the value is 1, the output
+contains two columns: the IP and the country-code.  When the value is
+0, only the country code is given.  When this switch is not specified,
+the default behavior is to print the IPs only when input comes from a
+file (i.e., when B<--input-file> is specified).
+
+=item B<--integer-ips>
+
+Enable printing of IPs and print the IPs as integers.  By default, IP
+addresses are printed in their canonical form.
+
+=item B<--zero-pad-ips>
+
+Enable printing of IPs and print the IP addresses in their canonical
+form, but add zeros to the IP address so it fully fills the width of
+column.  For IPv4, use three digits per octet, e.g,
+C<127.000.000.001>.
+
+=item B<--no-columns>
+
+Disable fixed-width columnar output.
+
+=item B<--column-separator>=I<C>
+
+Use specified character between columns and after the final column.
+When this switch is not specified, the default of 'B<|>' is used.
+
+=item B<--no-final-delimiter>
+
+Do not print the column separator after the final column.  Normally a
+delimiter is printed.
+
+=item B<--delimited>
+
+=item B<--delimited>=I<C>
+
+Run as if B<--no-columns> B<--no-final-delimiter> B<--column-sep>=I<C>
+had been specified.  That is, disable fixed-width columnar output; if
+character I<C> is provided, it is used as the delimiter between
+columns instead of the default 'B<|>'.
+
+=item B<--output-path>=I<PATH>
+
+Determines where the output of B<rwuniq> (ASCII text) is written.  If
+this option is not given, output is written to the standard output.
+
+=item B<--pager>=I<PAGER_PROG>
+
+When the B<--input-file> switch is specified and output is to a
+terminal, invoke the program I<PAGER_PROG> to view the output one
+screen full at a time.  This switch overrides the SILK_PAGER
+environment variable, which in turn overrides the PAGER variable.  If
+the value of the pager is determined to be the empty string, no paging
+will be performed and all output will be printed to the terminal.
+
+=item B<--help>
+
+Print the available options and exit.
+
+=item B<--version>
+
+Print the version number and information about how SiLK was
+configured, then exit the application.
+
+=back
+
+=head1 EXAMPLES
+
+The following examples demonstrate the use of B<rwip2cc>.  In
+addition, each example shows how to get similar output using
+B<rwpmaplookup(1)>.
+
+In the following examples, the dollar sign (C<$>) represents the shell
+prompt.  The text after the dollar sign represents the command line.
+Lines have been wrapped for improved readability, and the back slash
+(C<\>) is used to indicate a wrapped line.
+
+=head2 Single address specified on the command line
+
+Print the country code for a single address using the default country
+code map.  By default, only the value is printed when the address is
+specified on the command line.
+
+ $ rwip2cc --address=10.0.0.0
+ --
+
+Use the B<--print-ips> switch to print the address and the country.
+
+ $ rwip2cc --print-ip=1 --address=10.0.0.0
+        10.0.0.0|--|
+
+B<rwpmaplookup> expects the input to come from a file, so use the
+B<--no-files> switch to tell B<rwpmaplookup> that the command line
+arguments are the addresses to print.  By default, B<rwpmaplookup>
+prints a title line, and each row contains the key and the value.
+
+ $ rwpmaplookup --country-code --no-files 10.0.0.0
+           key|value|
+      10.0.0.0|   --|
+
+Use B<rwpmaplookup>'s command line switches to exactly mimic the
+default output from B<rwip2cc>:
+
+ $ rwpmaplookup --country-code --fields=value --delimited --no-title \
+     --no-files 10.0.0.0
+ --
+
+=head2 Single address using a different country code file
+
+Print the country code for a single address specified on the command
+line using an older version of the country code mapping file.
+
+ $ rwip2cc --map-file=old-addresses.pmap --address=128.2.0.0
+ us
+
+ $ rwpmaplookup --country-code=old-address-map.pmap --no-files 128.2.0.0
+           key|value|
+     128.2.0.0|   us|
+
+=head2 Addresses read from the standard input
+
+Using the default country code map, print the country code for
+multiple addresses read from the standard input.  When the
+B<--input-file> switch is given, the default output includes the
+address.
+
+ $ echo '10.0.0.0/31' | rwip2cc --input-file=stdin
+        10.0.0.0|--|
+        10.0.0.1|--|
+
+You can use the B<--print-ips> switch to suppress the IPs.
+
+ $ echo '10.0.0.0/31' | rwip2cc --print-ips=0 --input-file=stdin
+ --
+ --
+
+Unlike B<rwip2cc>, B<rwpmaplookup> does not accept CIDR blocks as
+input.  Use the IPset tools B<rwsetbuild(1)> to parse the CIDR block
+list and B<rwsetcat(1)> to print the list.
+
+ $ echo '10.0.0.0/31' | rwsetbuild | rwsetcat --cidr=0 \
+     | rwpmaplookup --country-code
+             key|value|
+        10.0.0.0|   --|
+        10.0.0.1|   --|
+
+=head2 Addresses read from a file
+
+Using an older version of the country code map, print the country code
+for multiple addresses read from a file.
+
+ $ export SILK_COUNTRY_CODES=old-addresses.pmap
+ $ cat file.txt
+ 128.2.1.1
+ 128.2.2.2
+ $ rwip2cc --input-file=file.txt
+       128.2.1.1|us|
+       128.2.2.2|us|
+
+ $ rwpmaplookup --no-title --country-code file.txt
+      128.2.1.1|   us|
+      128.2.2.2|   us|
+
+=head1 ENVIRONMENT
+
+=over 4
+
+=item SILK_COUNTRY_CODES
+
+This environment variable allows the user to specify the country code
+mapping file that B<rwip2cc> will use.  The value may be a complete
+path or a file relative to SILK_PATH.  If the variable is not
+specified, the code looks for a file named F<country_codes.pmap> as
+specified in the L</FILES> section below.
+
+=item SILK_PATH
+
+This environment variable gives the root of the install tree.  As part
+of its search for the Country Code mapping file, B<rwip2cc> checks the
+directories F<$SILK_PATH/share/silk> and F<$SILK_PATH/share> for a
+file named F<country_codes.pmap>.
+
+=item SILK_CLOBBER
+
+The SiLK tools normally refuse to overwrite existing files.  Setting
+SILK_CLOBBER to a non-empty value removes this restriction.
+
+=item SILK_PAGER
+
+When set to a non-empty string, B<rwip2cc> automatically invokes this
+program to display its output a screen at a time.  If set to an empty
+string, B<rwip2cc> does not automatically page its output.
+
+=item PAGER
+
+When set and SILK_PAGER is not set, B<rwip2cc> automatically invokes
+this program to display its output a screen at a time.
+
+=back
+
+=head1 FILES
+
+B<rwip2cc> will look for the prefix map file that maps IPs to country
+codes in the following locations.  ($SILK_COUNTRY_CODES is the value
+of the SILK_COUNTRY_CODES environment variable, if it is set.
+$SILK_PATH is value of the SILK_PATH environment variable, if it is
+set.  The use of F<@prefix@/> assumes the application is installed in
+the F<@prefix@/bin/> directory.)
+
+  $SILK_COUNTRY_CODES
+  $SILK_PATH/share/silk/country_codes.pmap
+  $SILK_PATH/share/country_codes.pmap
+  @prefix@/share/silk/country_codes.pmap
+  @prefix@/share/country_codes.pmap
+
+=head1 SEE ALSO
+
+B<rwpmaplookup(1)>, B<rwgeoip2ccmap(1)>, B<rwsetbuild(1)>,
+B<rwsetcat(1)>, B<silk(7)>
+
+=cut
+
+$SiLK: rwip2cc.pod 8b39dddcaab4 2013-12-06 21:47:40Z mthomas $
+
+Local Variables:
+mode:text
+indent-tabs-mode:nil
+End:

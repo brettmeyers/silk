@@ -1,0 +1,2971 @@
+SiLK-3.9.0 Release, 2014-Sep-25
+
+* rwcombine
+  -- Create a new tool, rwcombine, that combines multiple flow records
+     denoting a long-lived network connection into a single flow
+     record.
+* rwmatch
+  -- Support most standard SiLK fields in the --relate switch.
+  -- Allow the --relate switch to accept symbolic field names.
+  -- Add support for IPv6 flow records.
+* flowcap, rwflowpack
+  -- Add support for collecting sFlow v5 records on a UDP port.
+     (Requires libfixbuf-1.6.0 or later.)
+* PySiLK
+  -- Add ability to set the compression method when writing IPset and
+     Bag files.
+* rwstats
+  -- Fix an issue when using the attributes field as a key that caused
+     there to be two bins for each unique attributes value.
+* rwuniq
+  -- Fix an issue when using the attributes field as a key that caused
+     there to be two bins for each unique attributes value.
+* rwsetbuild
+  -- Fix a bug where the IPv6 wildcard "x:x:x:x:x:x:x:x" was being
+     treated as the single IP "::" instead of as all of IPv6 space.
+* rwsetmember
+  -- Fix a bug where the IPv6 wildcard "x:x:x:x:x:x:x:x" was being
+     treated as the single IP "::" instead of as all of IPv6 space.
+  -- Improve performance when the --count switch is not specified.
+* rwsettool
+  -- Improve performance in the --mask and --intersect operations.
+  -- Fix a bug where rwsettool would report an error and not produce
+     output when using the --sample switch with an IPv6 IPset.
+* rwdedupe
+  -- Fix a bug when processing IPv6 input when the --ignore-fields
+     switch or one of the delta switches was provided that caused
+     rwdedupe to treat all records as IPv4 records.
+* rwswapbytes
+  -- Fix a bug where the --swap switch failed to swap the byte order
+     of a big endian input file.
+* rwsender, rwreceiver
+  -- Make an internal change regarding the initialization of GnuTLS.
+* Building
+  -- Remove support for fixbuf releases prior to libfixbuf-1.3.0.
+
+
+SiLK-3.8.3 Release, 2014-Jul-31
+
+* rwstats and rwuniq
+  -- Fix a bug when --fields contained "dPort" followed by
+     "icmpTypeCode" that caused the "dPort" field to display as 0.
+  -- Fix a potential bug when computing the distinct count of a
+     one-byte field when the application is using temporary files.
+* rwpackchecker
+  -- No longer treat IPv6 flow records as IPv4.
+* rwipfix2silk, rwflowpack, flowcap
+  -- Make the libflowsource library more tolerant of anticipated
+     changes to libfixbuf: Use explicit values for IE lengths.
+* rwguess
+  -- Deprecate rwguess for removal in SiLK 4.0.0 as its functionality
+     can be duplicated by rwpdu2silk and rwuniq.
+* configure and building
+  -- Fix bugs that would occur when the user specified a "name
+     transformation" to configure (e.g., --program-suffix): Perl and
+     Python scripts that called other SiLK tools used the
+     non-transformed tool name; daemon control scripts used the
+     non-transformed daemon name.
+  -- Require automake 1.12 or later to rebuild the Makefile.in files.
+  -- Have make rules be quiet when --enable-silent-rules is given.
+
+
+SiLK-3.8.2 Release, 2014-Apr-24
+
+* rwflowappend enhancement
+  -- Add support for multiple threads reading incremental files and
+     writing to the repository.
+* rwipfix2silk enhancement
+  -- Print to the log file the IPFIX templates that are read when the
+     SILK_IPFIX_PRINT_TEMPLATES environment variable is set.
+     (Requires libfixbuf-1.4.0 or later.)
+* rwflowpack, flowcap enhancement
+  -- Print to the log file the IPFIX and NetFlow v9 templates that are
+     received when the SILK_IPFIX_PRINT_TEMPLATES environment variable
+     is set.  (Requires libfixbuf-1.4.0 or later.)
+  -- Fix a bug in the error message regarding a flow's duration where
+     the duration field and limit were displayed with different units.
+  -- Disable some low-level debugging messages that remained actived
+     in SiLK 3.8.1.
+* rwpcut fixes
+  -- Fix a fatal error when the --fields switch was not specified.
+  -- Fix an issue where rwpcut could hang when processing a large pcap
+     file.
+  -- Fix a bug where protocols greater than 127 were printed as a
+     negative value.
+  -- Fix bugs that prevented rwpcut working with Python 3.x.
+* Building
+  -- Fix a configure test that was failing to detect the presence of
+     read/write pthread locks on some operating systems.
+  -- Include the name of the Python interpreter in the RPM silk.spec
+     file.
+
+
+SiLK-3.8.1 Release, 2014-Jan-30
+
+* PySiLK changes
+  -- Add a get_configuration() method that returns a dictionary
+     describing how SiLK was configured.
+  -- Fix a bug in silk.site.repository_iter() that caused the first
+     file to be skipped.
+  -- Improve error handling in silk.site.repository_full_iter() and
+     silk.site.repository_silkfile_iter().
+* rwcut enhancement
+  -- Add --help-fields switch to print a description of the fields
+     that can be used in the --fields switch.
+  -- Add new fields iType and iCode that contain the ICMP Type and
+     ICMP Code value, respectively.  The icmpTypeCode field is
+     deprecated.
+  -- Deprecate the --icmp-type-code switch for removal in SiLK 4.0.
+* rwstats, rwuniq enhancement
+  -- Add --help-fields switch to print a description of the fields
+     that can be used in the --fields and --values switches.
+  -- Add new fields iType and iCode that contain the ICMP Type and
+     ICMP Code value, respectively.  The icmpTypeCode field is
+     deprecated.
+  -- INCOMPATIBILITY: Specifying --values=distinct:icmpTypeCode is no
+     longer supported.  As long as the input is limited to ICMP
+     records, using --values=distinct:dPort provides an equivalent
+     result.
+* rwsort enhancement
+  -- Add --help-fields switch to print a description of the fields
+     that can be used in the --fields switch.
+  -- Add new fields iType and iCode that contain the ICMP Type and
+     ICMP Code value, respectively.  The icmpTypeCode field is
+     deprecated.
+  -- INCOMPATIBILITY: The iType and iCode fields pay attention to
+     whether the record is ICMP, unlike the icmpTypeCode field.
+     Results of --fields=icmpTypeCode will differ between SiLK 3.8.0
+     and 3.8.1.
+* rwgroup enhancement
+  -- Add --help-fields switch to print a description of the fields
+     that can be used in the --id-fields and --delta-field switches.
+  -- Add new fields iType and iCode that contain the ICMP Type and
+     ICMP Code value, respectively.  The icmpTypeCode field is
+     deprecated.
+  -- INCOMPATIBILITY: The iType and iCode fields pay attention to
+     whether the record is ICMP, unlike the icmpTypeCode field.
+     Results of --id-fields=icmpTypeCode will differ between SiLK
+     3.8.0 and 3.8.1.
+  -- INCOMPATIBILITY: The --delta-field switch no longer accepts
+     icmpTypeCode.  As long as the input is limited to ICMP records,
+     using --delta-field=dPort will provide an equivalent result.
+* rwrecgenerator enhancement
+  -- Make textual output switches consistent with rwcut.
+  -- Deprecate old-style switches.
+* rwsetbuild bug fix
+  -- Change parsing of (textual) IPv6 address to be more strict (e.g.,
+     fix a bug that treated embedded whitespace as a colon).
+* rwbagbuild bug fix
+  -- Change parsing of (textual) IPv6 address to be more strict (e.g.,
+     fix a bug that treated embedded whitespace as a colon).
+* rwsettool bug fix
+  -- Fix potential memory leak when intersecting IPsets.
+* flowcap, rwflowpack changes
+  -- Add a missing-ips quirk which allows processing of IPFIX or
+     NetFlow v9 records that do not have IP addresses.  This change
+     allows one to work-around the change made in SiLK 3.8.0.
+  -- Add a firewall-event log-flag which causes messages about ignored
+     firewall-event flow records to be logged.
+  -- Fix a bug that could cause records received before the second
+     receipt of the template to be ignored when using libfixbuf-1.4.0.
+* These features are deprecated and will be removed in SiLK 4.0.
+  -- The --integer-ips switch in rwaddrcount, rwcut, rwpmapcat,
+     rwpmaplookup, rwrecgenerator, rwsetcat, rwstats, and rwuniq.
+     Replace with --ip-format=decimal.
+  -- The --zero-pad-ips switch in rwaddrcount, rwcut, rwpmapcat,
+     rwpmaplookup, rwrecgenerator, rwsetcat, rwstats, and rwuniq.
+     Replace with --ip-format=zero-padded.
+  -- The --epoch-time switch in rwcut, rwrecgenerator, rwstats, and
+     rwuniq.  Replace with --timestamp-format=epoch.
+  -- The --icmp-type-and-code switch in rwcut.  Replace with the iType
+     and iCode arguments to the --fields switch.
+  -- The --input-pipe switch in rwfilter and rwsort.  Replace by
+     specifying "stdin" or "-" as a command line argument to read from
+     the standard input.
+  -- The --integer-keys switch in rwbagcat.  Replace with
+     --key-format=decimal.
+  -- The --zero-pad-ips switch in rwbagcat.  Replace with
+     --key-format=zero-padded.
+  -- The --legacy-timestamps switch in rwcount, rwcut, rwstats, and
+     rwuniq.  Replace with --timestamp-format=m/d/y.
+  -- The stime+msec, dur+msec, and etime+msec fields in rwcut.
+     Replace with the stime, dur, and etime fields, respectively.
+  -- In rwaddrcount, the --byte-min, --byte-max, --packet-min,
+     --packet-max, --rec-min, and --rec-max switches.  Replace with
+     the --min-bytes, --max-bytes, --min-packets, --max-packets,
+     --min-records, and --max-records, respectively.
+  -- In rwstats, the --sip, --dip, --sport, --dport, --protocol,
+     --icmp, --flow, --packets, and --bytes switches.  Replace with
+     the --fields and --values switches with the appropriate argument.
+  -- In rwtuc, the --stime+msec, --etime+msec, and --duration+msec
+     switches.  Replace with --stime, --etime, and --duration.
+  -- The mapsid tool.  Replace with rwsiteinfo.
+  -- The rwip2cc tool.  Replace with rwpmaplookup.
+* Source directory changes
+  -- Move header files next to the files they support and out of the
+     src/include/silk directory.
+  -- Move source files for the libsilk-thrd library into the
+     src/libsilk directory.
+
+
+SiLK-3.8.0 Release, 2013-Nov-21
+
+* rwpmaplookup enhancement
+  -- Add field values to print the underlying range within the prefix
+     map that contains the key:  start-block prints the IP that begins
+     the range, end-block prints IP that ends the range, and block
+     prints the range in CIDR notation.
+  -- Fix display bugs related to column widths.
+* rwpmapcat enhancement
+  -- Add switch --country-codes to have rwpmapcat print the contents
+     of the default country code mapping file or of the specified
+     mapping file.
+  -- Print the two-letter country code when --country-codes is given.
+  -- Add switch --address-types to have rwpmapcat print the contents
+     of the default address types mapping file or of the specified
+     mapping file.
+* rwcount changes
+  -- Allow the --load-scheme switch to accept either names or numbers
+     as its argument.
+  -- Provide a better explanation of the --load-scheme switch in the
+     manual page.
+  -- Add new switches --start-time and --end-time that replace the
+     --start-epoch and --end-epoch switches.  The old names continue
+     to be supported but are deprecated.
+* PySiLK enhancement
+  -- Add the IPSet.add_range() method.
+  -- Do a better job reporting the error when a PySiLK plug-in fails
+     to set the bin_bytes value when calling register_field.
+* rwpdu2silk enhancement
+  -- Add the --log-destination switch.
+* rwipfix2silk change
+  -- Change the output produced by rwipfix2silk --print-statistics.
+* rwfilter change
+  -- Note that the --input-pipe switch is deprecated and will be
+     removed in the next major release of SiLK.
+* rwsort change
+  -- Note that the --input-pipe switch is deprecated and will be
+     removed in the next major release of SiLK.
+* rwflowpack, flowcap changes
+  -- Add support for a quirks keyword in the sensor.conf file as a way
+     to specify particular (quirky) handling of incoming records.
+  -- Add a zero-packets quirk to have SiLK handle flow incoming flow
+     records that have a packet count of 0.
+  -- Add a firewall-event quirk to handle records that contain
+     firewallEvent or NF_F_FW_EVENT information elements, such as
+     those produced by the Cisco ASA.
+  -- Pack all records that contain firewallEvent information elements
+     when the firewall-event quirk is not set.  Previous releases of
+     SiLK would drop all of these records.
+  -- Ignore IPFIX and NetFlow v9 records whose templates do not
+     contain at least one of sourceIPv4Address, sourceIPv6Address,
+     destinationIPv4Address, or destinationIPv6Address.
+  -- Log values from NetFlow v9 Options records that contain the
+     samplingAlgorithm or flowSamplerMode information elements.
+  -- When collecting NetFlow v5, write a log message when the first
+     packet is received from any host other than the accept-from-host.
+  -- When collecting NetFlow v5, write a log message when a packet is
+     first rejected due to NetFlow v5 header issues.  Previously, the
+     log message was only printed once a valid packet was received.
+  -- Have flowcap exit with an error when the sensor.conf file
+     contains any probes that use directory polling.
+  -- Have rwflowpack exit with an error when its input-mode is stream
+     and the sensor.conf file contains only read-from-file probes.
+* Building
+  -- Add support for libfixbuf-1.4.0.  Its use is highly recommended.
+  -- Remove support for fixbuf releases prior to libfixbuf-1.2.0.
+  -- Remove the --enable-asa-zero-packet-hack switch from configure as
+     the quirks keyword in sensor.conf now handles this behavior.
+  -- Remove libskipfix as a separate library and merge its
+     functionality into libflowsource.
+  -- Reduce automake requirement to 1.11 and add 1.14 compatibility.
+
+
+SiLK-3.7.2 Release, 2013-Aug-15
+
+* PySiLK changes
+  -- Add IPSet.is_ipv6() and IPSet.convert() methods.
+  -- Fix a bug when saving an IPv6-IPset that contains only IPv4
+     addresses.
+* IPset bug fixes
+  -- Fix bugs when computing the union or intersection of an
+     IPv4-IPset and an IPv6-IPset that contains only IPv4 addresses.
+* rwfilter bug fixes
+  -- Fix a spurious warning when loading an IPset.
+  -- Fix a memory issue during shutdown when an argument to one of the
+     --*cidr switches (--scidr, --dcidr, etc) is mistyped.
+* rwflowpack, flowcap bug fixes
+  -- Fix a bug where the daemon failed to read TCP flags contained in
+     a SubTemplateMultiList when reading IPFIX data over the network.
+  -- Fix a memory leak when receiving IPFIX data containing a
+     SubTemplateList or a SubTemplateMultiList.
+
+
+SiLK-3.7.1 Release, 2013-Jun-20
+
+* rwpmaplookup enhancement
+  -- Add --ipset-files switch that supports using IPsets to query
+     prefix maps.
+* rwdedupe bug fix
+  -- Fix a crash that would occur when using --xargs with an empty
+     list of files.
+* rwsort bug fix
+  -- Create a valid SiLK Flow file when using --xargs with an empty
+     list of files.
+* rwcut bug fix
+  -- Print the title line when using --xargs with an empty list of
+     files.
+* rwrecgenerator bug fix
+  -- Fix a bug when using --sensor-prefix-map that would set either
+     the source or destination address to a random value.
+* Building
+  -- Fix a small issue in the silk.spec file when the dist RPM macro
+     was not defined.
+
+
+SiLK-3.7.0 Release, 2013-May-30
+
+* IPset changes
+  -- Add a new file format for IPsets that requires less disk at the
+     cost of slower start-up time.  The format must be explicitly
+     requested using --record-version=4.
+  -- Add support for the SILK_IPSET_RECORD_VERSION environment
+     variable that, when set, is used as the default value for the
+     --record-version switch.
+  -- In rwsetcat, allow the --network-structure switch to work on
+     IPsets that contain IPv6 addresses.
+  -- In rwsetcat, when the --network-structure switch includes 'T' in
+     its argument, print the total even when the IPset is empty.
+  -- Add a new --ip-format switch to rwsetcat that determines how IP
+     addresses are printed.  The --integer-ips and --zero-pad-ips
+     switches are deprecated.
+  -- Have rwsetcat --count-ips return the exact count of IPs for
+     IPsets containing IPv6 addresses.  Previously the returned value
+     could be less than the exact count due to lack of precision.
+  -- Improve the efficiency of the CIDR-block iterator for some
+     in-core representations of IPsets.
+  -- Do a better job of reporting errors caused by problems reading or
+     writing IPset files.
+* Bag changes
+  -- In rwbagcat, allow the --network-structure switch to work on Bags
+     that use IPv6 addresses as keys.
+  -- In rwbagcat, when the --network-structure switch includes 'T' in
+     its argument, print the total even when the Bag is empty.
+  -- Add a new --key-format switch to rwbagcat that determines how
+     keys are printed.  The --integer-keys and --zero-pad-ips switches
+     are deprecated.
+  -- Change the data structure used in memory to represent Bags
+     containing IPv6 addresses.  This structure can hold more entries
+     at the cost of slower access.
+  -- Do a better job of reporting errors caused by problems reading or
+     writing Bag files.
+* rwfilter enhancements
+  -- Add switch --any-index to match either the SNMP input or SNMP
+     output interface.
+  -- Add switch --any-cc to match either the country code of the
+     source address or of the destination address.
+* rwaddrcount, rwcut, rwpmapcat, rwpmaplookup, rwstats, rwuniq change
+  -- Add a new --ip-format switch that determines how IP addresses are
+     printed.  The --integer-ips and --zero-pad-ips switches are
+     deprecated.
+* rwflowpack changes
+  -- Create a manual page for each packing-logic plug-in.
+  -- Fix a bug that caused attempted use of the --packing-logic switch
+     to always report an error.
+  -- Log additional information when an out-of-sequence NetFlow v5
+     packet is received.
+* flowcap change
+  -- Log additional information when an out-of-sequence NetFlow v5
+     packet is received.
+* libskipfix change
+  -- Change processing of bidirectional records to use the reverse TCP
+     flags if those elements are present in the template.  In
+     SiLK-3.6, those elements were ignored when their value was 0.
+* rwreceiver bug fix
+  -- Fix a bug in the init.d script.
+
+
+SiLK-3.6.1 Release, 2013-Apr-23
+
+* rwflowpack bug fix
+  -- Fix a bug that caused the --pack-interfaces switch to be ignored.
+
+
+SiLK-3.6.0 Release, 2013-Apr-11
+
+* IPset changes
+  -- Change the library to use the SiLK-2.x representation of IPsets
+     when the IPset contains only IPv4 addresses.
+  -- Continue to use the SiLK-3.x representation for IPsets containing
+     IPv6 addresses.
+  -- Change the tools that write IPsets to use the SiLK-2.x format for
+     IPv4 IPsets and the SiLK-3.x representation for IPv6 IPsets.
+  -- Add '0' as an argument to --record-version meaning 'default',
+     which is the SiLK-2.x file format for IPv4-only IPsets and the
+     SiLK-3.x format for IPsets containing IPv6 addresses.
+  -- Accept '3' an an argument to --record-version to force writing an
+     IPv4 IPset in the SiLK-3.x format.
+* PySiLK changes
+  -- Add methods RWRec.is_icmp(), RWRec.is_ipv6(), RWRec.to_ipv4(),
+     RWRec.to_ipv6().
+  -- Recognize an RWRec containing an IPv6 address and having a
+     protocol of 58 as ICMPv6.
+  -- Limit the range of times that RWRec.stime, RWRec.duration, and
+     RWRec.etime support.
+  -- Document the IPSet.isdisjoint() function.
+  -- Fix a bug in IPSet.isdisjoint() when comparing an IPv4 IPset with
+     an IPv6 IPset.
+  -- Fix a bug when setting RWRec.timeout_killed,
+     RWRec.timeout_started, and RWRec.uniform_packets.
+  -- Fix a bug that allowed setting arbitrary attributes on an RWRec.
+  -- Reflect changes to RWRec.initial_flags or RWRec.session_flags in
+     RWRec.tcpflags and vice versa.
+  -- Clear RWRec.initial_flags and RWRec.session_flags when changing
+     RWRec.protocol to a value other than TCP.
+  -- Throw an error when attempting to set RWRec.initial_flags or
+     RWRec.session_flags on an RWRec where the protocol is not TCP.
+  -- Do not treat True and False as numbers.
+  -- Throw ValueError instead of OverflowError in many methods.
+  -- Update documentation.
+* rwtuc changes
+  -- Add support for parsing ICMP type and ICMP code fields.
+  -- Add a --no-titles switch to parse the first line of input as
+     record values when --fields is specified.
+  -- Fix a bug that effectively ignored the --attributes switch.
+  -- Allow attributes to be set regardless of presence of initialFlags
+     and sessionFlags.
+  -- Ensure initialFlags and sessionFlags are 0 for non-TCP records.
+  -- Have initialFlags and sessionFlags take precedence over flags.
+  -- Describe restrictions on field combination in the manual page.
+* rwpmapbuild enhancement
+  -- Add the --mode switch which sets the type of input.
+* rwrecgenerator
+  -- New tool
+  -- Use a pseudo-random number generator to create SiLK Flow records
+     that can be used to test SiLK applications.
+* rwdedupe enhancement
+  -- Add support for writing annotations into the header of the output
+     file (i.e., support for --note-add, --note-file-add).
+  -- Copy annotations and invocation history from the headers of the
+     input files to the header of the output file.
+* rwuniq bug fix
+  -- Fix an issue when using multiple key fields that included
+     icmpTypeCode but did not include dPort.  The bug would cause
+     non-ICMP records that were were identical in all key fields but
+     whose dPort fields were different to be put into different bins.
+* rwstats bug fix
+  -- Fix an issue when using multiple key fields that included
+     icmpTypeCode but did not include dPort.  The bug would cause
+     non-ICMP records that were were identical in all key fields but
+     whose dPort fields were different to be put into different bins.
+* rwflowpack changes
+  -- Add a new output-mode "incremental-files" which is similar to
+     the "sending" output-mode except it leaves the incremental files
+     in the incremental-directory.
+  -- Create incremental files as a pair of files: a 0-byte placeholder
+     file and a dot-file where records are initially written.
+  -- POTENTIAL INCOMPATIBILITY: If incremental files from a previous
+     releases of SiLK are in the incremental-directory when this
+     release of rwflowpack is started in the sending output-mode, the
+     files will not be moved to the sender-directory.
+  -- Deprecate the "sending" output-mode, but continue to accept it
+     for backwards compatibility.
+  -- Keep the list of incremental files in memory instead of reading
+     the file names from the directory.  Do not hold the global write
+     lock while moving incremental files to their final destination.
+  -- Change the rwflowpack.conf file and associated init.d script for
+     compatibility with the above change.
+  -- Fix a potential race condition between opening a file and getting
+     the write lock on the file.
+  -- Add support for reading TCP flags in a subTemplateMultiList as
+     exported in IPFIX records created by yaf-2.0.
+  -- Add support for logging number of missing NetFlow v9 packets
+     (requires libfixbuf-1.3.0 or later).
+  -- Write messages to the log file for IPFIX/NetFlow v9 records that
+     are ignored--for example, records that represent firewall events.
+  -- Accept NF_F_FWD_FLOW_DELTA_BYTES and NF_F_REV_FLOW_DELTA_BYTES
+     as volume values for NetFlow v9 flow records.
+  -- Accept initiatorOctets, initiatorPackets, responderOctets, and
+     responderPackets as volume values for IPFIX flow records.
+  -- When reading IPFIX data, ignore initialTCPFlags and unionTCPFlags
+     when the protocol is not TCP.
+  -- Fix a bug where rwflowpack would abort if the first IPFIX/NetFlow
+     v9 record it received contained an unknown options template.
+  -- Fix a bug where a disconnect by a UDP IPFIX/NetFlow v9 connection
+     was not handled correctly and could cause memory corruption.
+  -- Fix a bug where future-dated records could be created when the
+     NetFlow v9 sysUptime rolled over.
+  -- Make small changes to log messages.
+  -- Add the --log-post-rotate switch to control post-processing of
+     the previous day's log file.
+  -- POTENTIAL INCOMPATIBILITY. Exit with an error when the argument
+     to --post-command contains any unknown '%'-conversions.
+  -- Update documentation.
+* flowcap enhancement
+  -- Add support for reading TCP flags in a subTemplateMultiList as
+     exported in IPFIX records created by yaf-2.0.
+  -- Add support for logging number of missing NetFlow v9 packets
+     (requires libfixbuf-1.3.0 or later).
+  -- Write messages to the log file for IPFIX/NetFlow v9 records that
+     are ignored--for example, records that represent firewall events.
+  -- Accept NF_F_FWD_FLOW_DELTA_BYTES and NF_F_REV_FLOW_DELTA_BYTES
+     as volume values for NetFlow v9 flow records.
+  -- Accept initiatorOctets, initiatorPackets, responderOctets, and
+     responderPackets as volume values for IPFIX flow records.
+  -- When reading IPFIX data, ignore initialTCPFlags and unionTCPFlags
+     when the protocol is not TCP.
+  -- Fix a bug where flowcap would abort if the first IPFIX/NetFlow
+     v9 record it received contained an unknown options template.
+  -- Fix a bug where a disconnect by a UDP IPFIX/NetFlow v9 connection
+     was not handled correctly and could cause memory corruption.
+  -- Fix a bug where future-dated records could be created when the
+     NetFlow v9 sysUptime rolled over.
+  -- Make small changes to log messages.
+  -- Add the --log-post-rotate switch to control post-processing of
+     the previous day's log file.
+* rwreceiver changes
+  -- Add ability to monitor disk usage when either --freespace-minimum
+     or --space-maximum-percent is specified.
+  -- Add the --unique-duplicates switch to create a complete copy of
+     files (as opposed to using hard links) when creating duplicates
+     via the --duplicate-destination switch.
+  -- Fix a potential bug in TLS connections where attempting to read
+     more data than was available would close a valid connection.
+  -- Fix a potential deadlock when disk space is exhausted.
+  -- Add the --log-post-rotate switch to control post-processing of
+     the previous day's log file.
+  -- Make small changes to log messages.
+  -- POTENTIAL INCOMPATIBILITY. Exit with an error when the argument
+     to --post-command contains any unknown '%'-conversions.
+* rwsender change
+  -- Add the --unique-local-copies switch to create a complete copy of
+     files (as opposed to using hard links) when creating duplicates
+     of the incoming files via the --local-directory switch.
+  -- Add the --log-post-rotate switch to control post-processing of
+     the previous day's log file.
+  -- Make small changes to log messages.
+* rwflowappend changes
+  -- Truncate the repository file to the size it had when it was
+     opened if there is a write error while appending an incremental
+     file to the repository file.
+  -- Add the --log-post-rotate switch to control post-processing of
+     the previous day's log file.
+  -- POTENTIAL INCOMPATIBILITY. Exit with an error when the argument
+     to --post-command or --hour-file-command contains any unknown
+     '%'-conversions.
+* rwpollexec changes
+  -- Fix an issue where the stdout and stderr from the command would
+     not appear in the log file after the log file had been rotated.
+  -- Add the --log-post-rotate switch to control post-processing of
+     the previous day's log file.
+  -- POTENTIAL INCOMPATIBILITY. Exit with an error when the argument
+     to --command contains any unknown '%'-conversions.
+* libsilk change
+  -- When reading SiLK Flow records, ensure that the initialFlags and
+     sessionFlags values are 0 for records that are not TCP, ignoring
+     any value stored in the file.
+  -- When writing SiLK Flow records, always store the attributes value
+     (if the file format supports it).  Previously, some very old file
+     formats only stored attributes when the protocol was TCP.
+  -- POTENTIAL INCOMPATIBILITY. Exit with an error when the
+     path-format in silk.conf contains any unknown '%'-conversions.
+* Building changes
+  -- Require automake 1.12 or later to rebuild the Makefile.in files.
+  -- Remove the --disable-silk3-ipsets switch from configure.
+
+
+SiLK-3.5.1 Release, 2012-Dec-20
+
+* IPset bug fix
+  -- Fix a bug that made it impossible to save very large IPset files.
+* rwsiteinfo changes
+  -- Change the output to print rows that have some empty fields.  For
+     example, previously --fields=sensor,class would print a sensor
+     only if it was assigned to a class.  Now all sensors are printed.
+  -- Treat the default-class field as all other fields are handled.
+  -- Fix a bug where restrictions specified by --flowtypes, --classes,
+     --types, and --sensors were not being applied across all fields.
+* PySiLK bug fix
+  -- Fix a bug in reporting the cardinality of IPSets that contain
+     more than 2^63-1 addresses.
+* rwfilter bug fix
+  -- Fix a bug during parsing the silk.conf file that prevented
+     putting a sensorgroup into another sensorgroup.
+  -- Alter error messages printed when the parsing of silk.conf fails.
+* rwsender, rwreceiver bug fixes
+  -- Fix a bug when reading data that could cause rwsender or
+     rwreceiver to close a valid connection.
+  -- Fix a crash that could occur on the server-side when the server
+     rejects a client due to the client having an invalid identifier.
+  -- Slow how quickly a client reconnects to a server when the
+     server rejects the client due to unrecognized identifier.
+
+
+SiLK-3.5.0 Release, 2012-Nov-01
+
+* Country Codes enhancement
+  -- Modify the country code library so it supports IPv6 addresses.
+  -- Add new --v6-csv-input switch to rwgeoip2ccmap to support
+     building a country code prefix map that contains IPv6 addresses.
+  -- NOTE: Previous releases of SiLK are unable to read the IPv6
+     country code file.
+* rwflowappend change
+  -- POTENTIAL INCOMPATIBILITY: Modify rwflowappend to use the packed
+     file information in a file's header instead of relying on the
+     name of the file.  The file name will only be checked if the file
+     does not contain the necessary header.
+* rwreceiver, rwsender bug fix
+  -- Fix a bug when reading data that could cause rwsender or
+     rwreceiver to close a valid connection.
+* rwfilter bug fix
+  -- Fix a bug where two binary streams could be written to the
+     standard output by using "stdout" for one and "-" for the other.
+  -- Fix a bug where --pass-destination or --fail-destination could be
+     used without partitioning rules when --all-destination was given.
+* rwcut bug fix
+  -- Fix a bug where the --num-recs switch was not being handled
+     properly when there were multiple input files.
+* rwstats bug fix
+  -- Fix a bug that prevented counting distinct values originating
+     from a plug-in when the key contained a field from a plug-in.
+* rwuniq bug fix
+  -- Fix a bug that prevented counting distinct values originating
+     from a plug-in when the key contained a field from a plug-in.
+* rwpmatch bug fix
+  -- Fix a bug where "stdin" and "-" were treated as separate input
+     streams instead of as aliases.
+* libsilk bug fixes
+  -- Fix a bug in LZO decompression on 32 bit platforms that could
+     cause memory corruption.
+  -- When parsing silk.conf, ensure that the names of classes, types,
+     and sensors are of legal length and do not contain invalid
+     characters.
+* PySiLK change
+  -- Throw an exception when an attempt is make to pickle or unpickle
+     silk objects.  Previously, attempts to pickle or unpickle these
+     objects could cause the application to crash.
+
+
+SiLK-3.4.1 Release, 2012-Sep-27
+
+* rwcut enhancement
+  -- Add new --tail-recs switch to print some number of records at the
+     end of a file or an input stream.
+* rwflowpack, flowcap bug fix
+  -- Fix an issue where receiving incorrect data from a previously
+     rejected UDP client could cause the application to exit.
+* silk.magic
+  -- Include a sample "magic" file for use with the UNIX file utility.
+     The file is installed in share/silk/silk.magic.
+
+
+SiLK-3.4.0 Release, 2012-Sep-13
+
+* Change across all tools
+  -- Modify processing of some ICMP SiLK Flow records.  ICMP type and
+     code are normally encoded in the destination port.  Due to a bug
+     when processing IPFIX bi-flow ICMP records, the type and code
+     were sometimes stored in the source port.  SiLK-3.4.0 attempts to
+     fix this bad encoding.  However, this change removes a previous
+     work-around designed to fix issues with SiLK Flow records
+     collected prior to SiLK-0.8.0 that originated as NetFlow v5 PDUs
+     from some types of Cisco routers.
+* rwsetcat change
+  -- Print the IPset file name when either --print-statistics or
+     --count-ips is used and multiple files appear on command line.
+  -- Add new switch --print-filenames which can explicitly enable or
+     suppress printing of the IPset file name.
+* rwsetmember change
+  -- Process all files specified on the command line despite being
+     unable to read some files.
+* rwscan change
+  -- Provide new --trw-internal-set switch that implements the
+     behavior of the --trw-sip-set switch, and mark the latter as
+     deprecated.
+  -- Generate an error when multiple internal IPsets are specified.
+* rwpmaplookup changes
+  -- Change the width of the column that contains the value (i.e., the
+     label) from 20 characters to width of the longest label.
+  -- Fix a display issue where labels longer than 45 characters were
+     being truncated.
+* rwuniq bug fixes
+  -- Fix a bug where the --bin-time value was not being applied to the
+     eTime field unless the key fields included sTime and dur as well.
+  -- Fix a crash that could occur when using more than eight fields
+     and some the fields were defined by plug-ins.
+  -- Fix a display issue where prefix map labels longer than 128
+     characters were being truncated.
+* rwstats bug fixes
+  -- Fix a bug where the --bin-time value was not being applied to the
+     eTime field unless the key fields included sTime and dur as well.
+  -- Fix a crash that could occur when using more than eight fields
+     and some the fields were defined by plug-ins.
+  -- Fix a display issue where prefix map labels longer than 128
+     characters were being truncated.
+* rwcut bug fix
+  -- Fix a display issue where prefix map labels longer than 128
+     characters were being truncated.
+* rwipfix2silk bug fix
+  -- Fix a bug when processing IPFIX bi-flow ICMP records that caused
+     the Type and Code to be recorded incorrectly.
+* rwflowpack, flowcap changes
+  -- Allow multiple NetFlow v9 or IPFIX-over-UDP sources to connect
+     to the same source port.  (Requires libfixbuf-1.2.0 or later.)
+  -- Require libfixbuf-1.1.0 or newer for supporting collection of
+     NetFlow v9 flow records.
+     (As of SiLK-3.9.0, NetFlow v9 support requires libfixbuf-1.3.0.)
+  -- Add the --no-chdir switch which prevents the daemon from changing
+     directory to / on start-up.
+  -- Change how statistics received from yaf are logged, and include
+     additional statistics in the log message.
+  -- Suppress printing of yaf statistics until a statistics message is
+     received.
+  -- Fix a bug when processing IPFIX bi-flow ICMP records that caused
+     the Type and Code to be recorded incorrectly.
+* rwreceiver, rwsender changes
+  -- Add the --no-chdir switch which prevents the daemon from changing
+     directory to / on start-up.
+* rwflowappend change
+  -- Add the --no-chdir switch which prevents the daemon from changing
+     directory to / on start-up.
+* rwpollexec change
+  -- Add the --no-chdir switch which prevents the daemon from changing
+     directory to / on start-up.
+* Building
+  -- Add new configure switch --disable-silk3-ipsets.  When specified,
+     SiLK is built with the IPset code as it existed in SiLK-2 (which
+     means IPsets will be unable to store IPv6 addresses).  Use of
+     this switch may give worse or better performance depending on the
+     types of IPsets used.
+  -- Add new configure switch --enable-asa-zero-packet-hack to work
+     around a bug in the NetFlow9 template used by Cisco ASA routers
+     wherein the template is missing a packetTotalCount field, causing
+     rwflowpack to treat these flows as having 0 packets. When the
+     switch is specified, SiLK sets the packet count to 1 for flow
+     records having a source IP, a byte count, but no packet count.
+     In addition, if SiLK is compiled without IPv6 support, the hack
+     causes rwflowpack to a use fully-expanded file format to store
+     IPv4 flow records collected from netflow-v9 probes.
+
+
+SiLK-3.3.4 Release, 2012-Aug-01
+
+* rwscanquery bug fix
+  -- Fix a bug where rwscanquery would attempt to create a file whose
+     name started and ended with a quote character.
+* rwsender changes
+  -- Fix an issue where rwsender may hang or crash while it attempts
+     to exit after encountering an unexpected condition.
+  -- Properly handle the case where a message is only partially
+     written to a socket.
+  -- Make some internal changes to how GnuTLS connections are handled.
+  -- Make changes to some log messages.
+* rwreceiver changes
+  -- Make some internal changes to how GnuTLS connections are handled.
+  -- Make changes in how rwreceiver reads messages so that when data
+     is available, rwreceiver reads all of the data.
+  -- Make changes to some log messages.
+
+
+SiLK-3.3.3 Release, 2012-Jul-19
+
+* flowcap, rwflowappend, rwflowpack, rwpollexec, rwreceiver, rwsender
+  -- Fix an issue with log file locking that may cause an application
+     to hang or crash when it attempts to rotate the daily log file.
+
+
+SiLK-3.3.2 Release, 2012-Jul-12
+
+* IPset bug fix
+  -- Fix a bug in the libsilk function that performs IPset difference.
+     The bug could cause rwsettool to create a corrupt IPset file
+     which is unreadable by other applications.
+* Bag bug fixes
+  -- Fix a bug in the Bag iterator function when using a key that was
+     smaller than four octets.  The bug caused the iterator to visit
+     the entries in the bag multiple times.
+  -- Fix a bug in the Bag iterator function when iterating over an
+     empty Bag where the key was one octet.  The bug caused the
+     application to crash.
+* rwsetcat change
+  -- Modify --print-statistics so output is generated when the IPset
+     is empty.  Previously, no output was generated.
+* rwsettool change
+  -- Do not copy the invocation history from the input IPset files to
+     the output IPset file.
+
+
+SiLK-3.3.0 Release, 2012-Jun-14
+
+* IPset bug fixes
+  -- Important Bug Fixes.
+  -- Fix bugs in the libsilk functions that perform IPset union,
+     intersect, and difference operations.  These bugs could cause
+     IPset applications (e.g., rwsettool) to produce incorrect output
+     or to exit unexpectedly.
+  -- Modify the skIPSetIterateBind() and skIPSetWalk() functions to
+     use the ipv6-policy parameter.
+* rwstats bug fixes
+  -- Fix bugs that could cause an expected exit when rwstats was
+     unable to hold all of its data in memory.
+  -- Fix a bug in computing --values=distinct:KEY when the KEY is an
+     IP address field and rwstats is processing IPv6 flow records.
+* rwuniq bug fixes
+  -- Fix bugs that could cause an expected exit when rwuniq was unable
+     to hold all of its data in memory.
+  -- Fix a bug in computing --values=distinct:KEY when the KEY is an
+     IP address field and rwuniq is processing IPv6 flow records.
+* rwsort changes
+  -- Internal changes that may speed merging of temporary files.
+  -- Print an error message when rwsort fails to write records to a
+     temporary file.
+* rwdedupe bug fix
+  -- Print an error message when rwdedupe fails to write records to a
+     temporary file.
+* rwflowpack changes
+  -- POTENTIAL INCOMPATIBILITY: The internal identifiers for probe
+     types have changed.  All packing logic plug-ins must be
+     recompiled.
+  -- When --pack-interfaces is specified, use the smallest file format
+     that is large enough to hold the additional fields.
+  -- Fix a potential crash and/or deadlock when reading NetFlow v5
+     PDUs over the network.
+  -- Modify the log messages produced by libfixbuf to follow the
+     format of other rwflowpack log messages.
+* rwscanquery changes
+  -- Allow use of both --daddress and --dipset for the scanset report.
+  -- Perform more robust parsing of IP addresses specified by the
+     --saddress switch.
+  -- Write verbose output to standard error instead of to standard out.
+  -- Fix a bug in date parsing where the value specified by --end-date
+     was sometimes ignored.
+* flowcap changes
+  -- Print a log message that specifies the number of packets received
+     when closing an empty file.  Previously, the message was only
+     printed when closing a file that contained records.
+  -- Add a log message documenting the number of flow records
+     processed and ignored when closing files based on IPFIX or
+     NetFlow v9 probes.
+  -- Fix a deadlock that would occur during shutdown after certain fatal
+     error conditions were detected.
+  -- Fix a potential crash and/or deadlock when reading NetFlow v5
+     PDUs over the network.
+  -- Modify the log messages produced by libfixbuf to follow the
+     format of other flowcap log messages.
+* rwsender, rwreceiver bug fix
+  -- Fix a bug where the application would exit when it was unable to
+     create a socket with the first address returned by getaddrinfo.
+
+
+SiLK-3.2.1 Release, 2012-Apr-26
+
+* rwscanquery
+  -- Add support for querying a SQLite database.
+  -- Improvements to the manual page.
+  -- Update rwscan manual page with description of SQLite support.
+* rwflowpack, flowcap bug fixes
+  -- Be more robust in handling error codes from libfixbuf.
+  -- Fix an issue that prevented shutdown on some BSD OSes.
+* rwsender, rwreceiver bug fix
+  -- Fix an issue that prevented shutdown on some BSD OSes.
+* rwpollexec bug fix
+  -- Fix an issue that prevented shutdown on some BSD OSes.
+* rwsettool bug fix
+  -- Modify rwsettool to exit with status 1 when it is unable to read
+     any IPset file.  Previously, rwsettool when only exit with status
+     1 when it was unable to read the first IPset file.
+
+
+SiLK-3.2.0 Release, 2012-Mar-20
+
+* PySiLK bug fixes
+  -- Fix a bug when coercing IPv6 bags to a have a 4 byte key.
+  -- Add the documented but unimplemented key_type argument to
+     Bag_load(), and fix bugs in the deprecated Bag.load_ipaddr() and
+     Bag.load_integer() functions.
+  -- Fix an issue where some functions in the silk.site module failed
+     to call init_site(), contrary to the documented behavior.
+  -- Fix a bug that prevented use of silk.site.sensor_description().
+  -- Improvements to the manual page.
+* rwfglob changes
+  -- Fix a bug where the --no-file-names switch did nothing.
+  -- Add a --no-block-check switch to suppress checking the block
+     count of the files.
+* rwreceiver bug fix
+  -- Handle the case where rwreceiver attempts to receive files with
+     the same name from multiple rwsender processes simultaneously.
+  -- Stop transferring the current file when a critical error occurs.
+* rwgeoip2ccmap change
+  -- Update the country code array used when parsing binary MaxMind
+     data to be consistent with GeoIP C API 1.4.8 of 2011-06-24.
+* Building
+  -- Fix a minor bug in generating the names of manual pages.
+  -- Support a static packing logic file when building an RPM.
+
+
+SiLK-3.1.0 Release, 2012-Feb-15
+
+* rwset enhancement
+  -- Add support for the --ipv6-policy switch.
+* rwbag enhancement
+  -- Add support for the --ipv6-policy switch.
+* rwipfix2silk change
+  -- Ignore IPFIX records that have a packet or byte count of zero.
+* rwsender, rwreceiver enhancement
+  -- Add support for GnuTLS 3.x.
+  -- Fix a potential deadlock during shutdown.
+* flowcap changes
+  -- Ignore return codes from libfixbuf that indicate it received a
+     NetFlow v9 element it did not understand.
+  -- Ignore IPFIX records that have a packet or byte count of zero.
+  -- Fix an issue when multiple NetFlow v5 sources attempted to listen
+     on the same port.
+  -- Improvements and changes to log messages.
+* rwflowpack changes
+  -- Allow for categorizing flow records solely based on VLAN tags.
+     To support this change, the sensor.conf file allows multiple
+     blocks for the same sensor to use the same probe.
+  -- Fix an issue when processing IPFIX files where the file was never
+     closed.  This could cause rwflowpack to exit unexpectedly once it
+     ran out of file handles.
+  -- Fix a crash that would occur at start-up when a NetFlow v5 reader
+     failed to bind to a port.
+  -- Ignore return codes from libfixbuf that indicate it received a
+     NetFlow v9 element it did not understand.
+  -- Ignore IPFIX records that have a packet or byte count of zero.
+  -- Fix an issue of having multiple NetFlow v5 sources listen on the
+     same port.
+  -- Improvements and changes to log messages.
+* rwflowappend change
+  -- Use advisory write locks on files in the repository to avoid
+     conflicts when multiple rwflowappend processes attempt to write
+     to the same hourly file.
+  -- The new switch --no-file-locking can be used to disable these
+     advisory locks.
+* rwpollexec change
+  -- On systems where "/bin/sh -c" does not use exec, attempt to find
+     a shell that does use exec.
+* rwfilter change
+  -- rwfilter now exits with status 0 if there is a problem opening or
+     reading an input flow file.  Previously, its exit status was 1.
+* PySiLK changes
+  -- Add a constant containing the maximum bag counter value.
+  -- Fix a bug in Bag.clear().
+* rwfileinfo bug fix
+  -- Fix an issue when processing a compressed file containing a
+     corrupted compressed block that caused rwfileinfo to report fewer
+     valid records than actually existed.
+* rwpdedupe bug fix
+  -- Fix fatal error.
+* rwpmaplookup bug fix
+  -- Fix a fatal error that would occur if the --map-file was invalid.
+* Building
+  -- Modify the expected result of some tests run with "make check"
+     when standard input is not a terminal.
+  -- Fix a configuration issue when testing for Python on Ubuntu.
+
+
+SiLK-3.0.0 Release, 2011-Sep-30
+
+* IPsets support IPv6 addresses
+  -- In a mixed IPv4 and IPv6 environment, IPv4 addresses are stored
+     in the ::ffff:0:0/96 prefix.
+  -- rwset and rwsetbuild create IPsets that contain IPv6 addresses.
+  -- rwsettool manipulates IPsets containing IPv6 addresses.
+  -- rwsetcat prints IPsets containing IPv6 addresses, though the
+     --network-structure only supports IPv4 currently.
+  -- INCOMPATIBILITY: By default, rwset, rwsetbuild, and rwsettool
+     create IPsets that are incompatible with SiLK-2.x unless the
+     --record-version=2 switch is specified.
+  -- INCOMPATIBILITY: The legacy IPset tools rwsetunion and
+     rwsetintersect have been removed.  Use rwsettool instead.
+* rwset enhancement
+  -- The newly added --any-set switch creates a IPset containing both
+     the source and destination IP addresses on the SiLK Flow records.
+* rwsetcat change
+  -- The --cidr-blocks switch now accepts an optional argument.
+* Bags support IPv6 addresses
+  -- In a mixed IPv4 and IPv6 environment, IPv4 addresses are stored
+     in the ::ffff:0:0/96 prefix.
+  -- rwbag and rwbagbuild create bags that contain IPv6 addresses.
+  -- rwbagtool manipulates IPsets containing IPv6 addresses.
+  -- rwsetcat prints bags containing IPv6 addresses, though the
+     --network-structure only supports IPv4 currently.
+  -- Bag files now record the type of the key and counter when the Bag
+     is created.
+  -- Bag files that contain IPv4 addresses are readable by SiLK-2.x.
+  -- INCOMPATIBILITY: The maximum counter value supported by bag files
+     has been reduced by 1, to 2^64 - 2.
+* rwbagbuild change
+  -- The new --key-type and --counter-type switches allow the type of
+     the key and counter to be specified when the bag is created.
+* rwbag changes
+  -- rwbag no longer stops processing records when an overflow occurs
+     for a particular key.  Instead, rwbag sets that key's counter to
+     the maximum value and continues.
+  -- INCOMPATIBILITY: Deprecated switches (e.g., --sf-file) have been
+     removed, as well as the --legacy-help switch.
+* rwbagcat change
+  -- INCOMPATIBILITY: The --stats and --tree-stats switches have been
+     removed and replaced by the new switch --print-statistics.
+* Prefix maps support IPv6 addresses
+  -- rwpmapbuild creates prefix maps that contain IPv6 addresses.
+  -- rwpmapcat prints prefix maps that contain IPv6 addresses.
+* rwpmapbuild enhancements
+  -- There is better support for prefix maps that use numbers as
+     labels.
+  -- Performance is hugely improved when building very large prefix
+     maps.
+  -- The new --dry-run switch checks the syntax of the file without
+     building the prefix map.
+  -- The new --ignore-errors switch causes rwpmapbuild to write the
+     output despite errors in the input.
+* rwpmaplookup
+  -- New tool
+  -- rwpmaplookup finds information about specific IP address(es) or
+     protocol/port pair(s) in a binary prefix map file and prints the
+     result as text.
+  -- This tool is an expanded version of rwip2cc, which is now
+     deprecated.
+* rwsiteinfo
+  -- New tool
+  -- rwsiteinfo prints information about the sensors, classes, and
+     types specified in the silk.conf site configure file.
+  -- This tool is an expanded version of mapsid, which is now
+     deprecated.
+* int-ext-fields.so
+  -- New plug-in for rwcut, rwgroup, rwsort, rwstats, and rwuniq.
+  -- The int-ext-fields plug-in defines fields (int-ip, ext-ip,
+     int-port, ext-port) which can be used to print, sort by, or group
+     by the internal or external IP or port.  This plug-in is useful
+     when a single flow file contains flows in multiple directions.
+* PySiLK enhancements
+  -- Support for Python 3.x has been added.
+  -- Support for Python 2.4 and 2.5 is now considered frozen.
+  -- There are numerous changes to support the IPv6 capability in
+     IPsets and bags.
+  -- The silk.site class has many changes, especially regarding the
+     reading of the silk.conf file.
+  -- Three new methods in silk.site class---repository_iter(),
+     repository_silkfile_iter(), and repository_full_iter()---are
+     provided to iterate over files in the data repository.  Their use
+     is recommended over the FGlob class.
+  -- INCOMPATIBILITY: The key_type attribute on Bag objects has been
+     removed.
+  -- INCOMPATIBILITY: When creating PySiLK plug-ins, any filters must
+     be registered by calling register_filter().  Previously, PySiLK
+     would automatically register a filter.
+  -- INCOMPATIBILITY: When creating PySiLK plug-ins, fields must be
+     registered with register_field().  The legacy method
+     register_plugin_field() has been removed.
+* Changes across many analysis tools
+  -- Almost all analysis tools now accept the --xargs switch to read
+     the list of names of files to process from the standard input or
+     a file.
+  -- A new switch --timestamp-format provides more control over how
+     timestamps are printed.  The --epoch-time and --legacy-timestamp
+     switches are now deprecated.
+  -- A new value for 'attribute' is available.  The attribute 'S' is
+     set when the flow generator notices that all packets in the flow
+     are the same size.
+  -- The key field 'dur' has been renamed to 'duration'.  Most uses
+     will be unaffected by this change, but there is a POTENTIAL
+     INCOMPATIBILITY if a user-defined plug-in defines a key field
+     named 'duration' or with a similar prefix.
+  -- Binary output to a pipe is no longer compressed by default, which
+     provides increased throughput when piping data between SiLK
+     applications.
+  -- Almost all tools support the SILK_CLOBBER environment variable.
+     When this variable is set, SiLK allows new output files to
+     overwrite existing files.
+  -- INCOMPATIBILITY: When the --no-columns switch is specified,
+     fields containing TCP flags and attributes are printed without
+     embedded spaces.
+  -- INCOMPATIBILITY: The --dynamic-library switch has been removed,
+     as well as support for the old dynlib API.  Applications must use
+     the --plugin switch and skplugin API.
+  -- Tools affected by one or more of these changes are rwaddrcount,
+     rwbag, rwbagbuild, rwbagcat, rwbagtool, rwcat, rwcount, rwcut,
+     rwdedupe, rwfilter, rwgroup, rwip2cc, rwipaexport, rwipfix2silk,
+     rwmatch, rwnetmask, rwpackchecker, rwptoflow, rwrandomizeip,
+     rwscan, rwset, rwsetbuild, rwsettool, rwsilk2ipfix, rwsort,
+     rwsplit, rwstats, rwtotal, rwtuc, rwuniq
+* rwcount enhancements
+  -- New --load-scheme=5 computes the maximum possible values for each
+     bin, as if the entire flow record had occurred in that bin.
+  -- New --load-scheme=6 computes the minimum possible values for each
+     bin, as if the entire flow record had occurred in some other bin,
+     for records that span multiple bins.
+* rwuniq enhancements
+  -- Support added for counting the number of distinct values of
+     almost any field.
+  -- The value 'flows' is now provided as an alias for 'records'.
+* rwstats enhancements
+  -- Support added for counting the number of distinct values of
+     almost any field.
+  -- The key 'dur' has been renamed to 'duration'.
+  -- The value 'flows' is now provided as an alias for 'records'.
+  -- INCOMPATIBILITY: Deprecated switches (e.g., --sip-topn) have been
+     removed.
+* rwresolve enhancements
+  -- Support has been added for IPv6 addresses.
+  -- rwresolve defaults to using the C-ares asynchronous resolving
+     library, if that library was found during compilation.
+* rwfilter changes
+  -- Better support when writing to a pipe and a file or another pipe
+     simultaneously.  Specifically, rwfilter used to exit when any
+     pipe stopped receiving data.  Now, rwfilter will finish writing
+     the output to the file or other pipe when one pipe closes.
+  -- INCOMPATIBILITY: The deprecated --ipport-* and --ippair-*
+     switches have been removed.  Use the --tuple-* family of switches
+     instead.
+  -- INCOMPATIBILITY: The argument to --xargs is now optional.  As a
+     result, any use of "--xargs <file>" must be changed to
+     --xargs=<file>.
+* rwcat enhancements
+  -- Support for putting annotations in the header of the output file
+     has been added (i.e., support for --note-add, --note-file-add).
+* rwmatch enhancement
+  -- Support for putting annotations in the header of the output file
+     has been added (i.e., support for --note-add, --note-file-add).
+  -- Support for setting the compression of the output file.
+* rwfileinfo enhancements
+  -- New --field=16 prints information about an IPset file.
+  -- New --field=17 prints information about a bag file.
+* rwsort change
+  -- Internal changes that may affect the order of records that have
+     the same key.
+* rwpdu2silk
+  -- New tool
+  -- rwpdu2silk reads files containing NetFlow v5 records and writes
+     a stream of SiLK Flow records.
+* rwipfix2silk, rwsilk2ipfix change
+  -- These tools are only built when the configure script finds
+     libfixbuf-1.0.0 or later.
+     (As of SiLK-3.9.0, these tool require libfixbuf-1.3.0 or later.)
+* Deprecated tools
+  -- rwip2cc is deprecated.  Use rwpmaplookup instead.
+  -- mapsid is deprecated.  Use rwsiteinfo instead.
+* rwflowpack, flowcap enhancements
+  -- rwflowpack and flowcap only support IPFIX (and NetFlow v9) when
+     libfixbuf-1.0.0 or later is available.
+     (As of SiLK-3.9.0, IPFIX and NetFlow v9 require libfixbuf-1.3.0.)
+  -- A single IPFIX probe listening on a TCP port will accept
+     connections from multiple IPFIX clients.
+  -- An IPFIX probe can specify the name or address of a single host
+     that is allowed to connect.
+  -- Multiple IPFIX probes can listen on the same TCP port.  Listening
+     on a single UDP port for multiple IPFIX probes is not permitted.
+  -- rwflowpack and flowcap properly handle status messages from yaf
+     and write a message to the log file.
+  -- rwflowpack and flowcap support listening for flow records on IPv6
+     addresses.
+  -- The sensor.conf file accepts a host name as a valid address to
+     listen as or to accept a connection from.
+  -- INCOMPATIBILITY: Parsing of the sensor.conf file is more strict.
+     Some statements that previous versions of SiLK used to ignore
+     will now cause errors.
+  -- rwflowpack now writes log messages about missing NetFlow v5
+     records when reading PDUs from a file.
+* rwsender, rwreceiver enhancements
+  -- rwsender and rwreceiver support communicating over IPv6
+     addresses.
+  -- When running in server mode, rwsender and rwreceiver support
+     binding to a particular IP address on multi-homed machines.
+* Numerous changes to C functions in libraries.
+  -- Support for dynlib API has been removed.  Use the skplugin API
+     instead.
+  -- The iochecks.h header has been deleted.
+  -- Functions for skipaddr_t have been moved into skipaddr.h, which
+     you may need to include.
+  -- The bag API has been largely rewritten, and the old API is
+     deprecated.
+  -- Many deprecated functions have been removed.
+  -- Many additional changes.
+
+
+SiLK-2.5.0 Release, 2012-Jun-28
+
+* rwflowpack change
+  -- Modify the log messages produced by libfixbuf to follow the
+     format of other rwflowpack log messages.
+  -- Modify NetFlow v9 support to require libfixbuf-1.1.0.
+     (As of SiLK-3.9.0, NetFlow v9 support requires libfixbuf-1.3.0.)
+* flowcap change
+  -- Modify the log messages produced by libfixbuf to follow the
+     format of other rwflowpack log messages.
+  -- Modify NetFlow v9 support to require libfixbuf-1.1.0.
+     (As of SiLK-3.9.0, NetFlow v9 support requires libfixbuf-1.3.0.)
+* Building
+  -- Add new configure switch --enable-asa-zero-packet-hack to work
+     around a bug in the NetFlow9 template used by Cisco ASA routers
+     wherein the template is missing a packetTotalCount field, causing
+     rwflowpack to treat these flows as having 0 packets. When the
+     switch is specified, SiLK sets the packet count to 1 for flow
+     records having a source IP, a byte count, but no packet count.
+     In addition, if SiLK is compiled without IPv6 support, the hack
+     causes rwflowpack to a use fully-expanded file format to store
+     IPv4 flow records collected from netflow-v9 probes.
+
+
+SiLK-2.4.7 Release, 2012-Feb-15
+
+* rwfilter enhancement
+  -- Better support when writing to a pipe and a file or another pipe
+     simultaneously.  Specifically, rwfilter used to exit when any
+     pipe stopped receiving data.  Now, rwfilter will finish writing
+     the output to the file or other pipe when one pipe closes.
+* rwset bug fix
+  -- Ignore IPv6 flow records.
+* rwipfix2silk changes
+  -- Ignore IPFIX records that have a packet or byte count of zero.
+  -- Fix an issue where rwipfix2silk did not free the memory for the
+     current input file before opening the next file.
+* rwgeoip2ccmap bug fixes
+  -- Provide better error messages when the user provides the wrong
+     input switch to the program.
+  -- When processing binary input, tell the user about any
+     unrecognized values.
+  -- Verify that the resulting prefix map is valid before writing the
+     map to the output.
+* rwpmapbuild enhancement
+  -- Performance is hugely improved when building very large prefix
+     maps.
+* rwfileinfo bug fix
+  -- Fix an issue when processing a compressed file containing a
+     corrupted compressed block that caused rwfileinfo to report fewer
+     valid records than actually existed.
+* rwflowpack bug fix
+  -- Fix an issue when processing IPFIX files where the file was never
+     closed.  This could cause rwflowpack to exit unexpectedly once it
+     ran out of file handles.
+  -- Ignore return codes from libfixbuf that indicate it received a
+     NetFlow v9 element it did not understand.
+  -- Ignore IPFIX records that have a packet or byte count of zero.
+  -- Ignore IPFIX records from yaf marked as "udp-uniflow".
+* flowcap bug fix
+  -- Ignore return codes from libfixbuf that indicate it received a
+     NetFlow v9 element it did not understand.
+  -- Ignore IPFIX records that have a packet or byte count of zero.
+  -- Ignore IPFIX records from yaf marked as "udp-uniflow".
+* PySiLK change
+  -- Add a constant containing the maximum bag counter value.
+* rwpdedupe bug fix
+  -- Fix fatal error.
+* Building
+  -- Modify the expected result of some tests run with "make check"
+     when standard input is not a terminal.
+  -- Fix a configuration issue when testing for Python on Ubuntu.
+* rwsetunion, rwsetintersect
+  -- Mark these applications as deprecated. Use rwsettool instead.
+
+
+SiLK-2.4.5 Release, 2011-Feb-25
+
+* flowcap, rwflowpack
+  -- Modify NetFlow v5 collection to handle changes in sequence number
+     due to router reboots and sequence number roll-overs.
+  -- Change how missing NetFlow records are reported.
+  -- Fix potential deadlock that can occur when buffer holding packets
+     to process fills to capacity.
+* rwflowpack
+  -- For netflow-v5 probes, always use the 'log-flags' setting from
+     sensor.conf regardless of source of the records.
+* rwbag
+  -- Stop processing input once memory is exhausted.
+* rwfilter
+  -- Manual page enhancements.
+
+
+SiLK-2.4.4 Release, 2011-Jan-13
+
+* rwcut, rwuniq, rwstats
+  -- Add a new --integer-tcp-flags switch that prints the TCP flag
+     fields as an integer value instead of characters.
+* rwtuc
+  -- Provide the --verbose and --stop-on-error switches that report
+     why a field failed to parse.
+* rwfilter, ipafilter.so
+  -- Fix a bug where the ipafilter.so plug-in prevented rwfilter from
+     using multiple threads, even when ipafilter was not active.
+* rwp2yaf2silk
+  -- Add a --version switch.
+* Manual page updates in several tools.
+* Configuring/Building
+  -- Have "make" create Perl and Python scripts from .in files using
+     the paths to Perl and Python found by configure.
+
+
+SiLK-2.4.2 Release, 2010-Dec-01
+
+* rwfilter, ipafilter.so
+  -- Fix an issue where rwfilter attempted to initialize ipafilter on
+     every invocation, even when IPA-related switches were not given.
+     This prevented rwfilter from running when SiLK was built with IPA
+     support but run-time support for IPA was not configured.
+* flowcap
+  -- Fix bug in start-up script that passed wrong value to the
+     --clock-time switch.
+  -- Internal changes.
+
+
+SiLK-2.4.1 Release, 2010-Nov-11
+
+* PySiLK
+  -- Fix bug in IPv4Addr.mask_prefix() when prefix was 32.
+* rwpmapcat
+  -- Fix bug where final newline would not be printed for some types
+     of output.
+* rwfileinfo
+  -- Fix floating point exception when attempting to print record
+     counts for very old SiLK files.
+* rwpollexec
+  -- Fix unexpected exit that would occur when rwpollexec was run
+     without an archive-directory.
+  -- Modify rwpollexec so it no longer exits when there is a problem
+     archiving a file or moving it to the error-directory.
+* Configuring/Building
+  -- Fix issue that prevented building with static packing logic.
+
+
+SiLK-2.4.0 Release, 2010-Sep-30
+
+* rwuniq
+  -- Change the hashing function used internally.  This may affect the
+     order in which bins are printed for unsorted output.
+  -- Fix a bug in --sorted-output that caused the sort order to always
+     consider start-time and plug-in fields after all other fields,
+     regardless of order they appeared in the --fields switch.
+  -- Fix a bug when --fields contained start-time, end-time, and
+     duration that caused the output to appear to contain two
+     identically keyed bins.
+  -- Remove limit on number of temporary files rwuniq may open.
+  -- WARNING: These changes will affect the output of rwuniq.
+* rwstats
+  -- Remove limit on number of temporary files rwstats may open.
+  -- Fix a bug when --fields contained start-time, end-time, and
+     duration that caused the output to appear to contain two
+     identically keyed bins.
+* rwsort
+  -- Remove limit on number of temporary files rwsort may open.
+* rwtuc
+  -- Fix a bug in the time parsing code that would be triggered when
+     the time was given as seconds since the UNIX epoch and the field
+     included trailing whitespace.
+* rwcut
+  -- Fix a bug where --all-fields would fail unless rwcut found the
+     mapping files for country code and address type.
+* rwipaexport, rwipaimport
+  -- Modified to require libipa-0.5.0.
+* ipafilter.so
+  -- New plug-in for rwfilter that supports partitioning flow records
+     based on IPA data.
+* PySiLK
+  -- Minor bug fixes in site initialization.
+  -- Other minor enhancements.
+* rwpollexec
+  -- New daemon that monitors a directory for files and invokes a
+     user-supplied command on each file.
+* rwflowpack
+  -- Add new input mode, respool, that takes SiLK Flow files as input
+     and puts the records into a data repository, maintaining the
+     sensor and class/type values on the original records.
+  -- Fix a bug when using multiple IPFIX directory-based probes.
+* flowcap
+  -- Add the --clock-time switch that allows flowcap to expire files
+     at predictable wall-clock times.
+* rwsender, rwreceiver
+  -- Add a check to determine if the timestamps on the TLS
+     certificates provided on the command line are valid.  Have the
+     application write a log message and exit if the certificates are
+     not valid.
+  -- Explicitly check the timestamps of the TLS certificates received
+     from the other side of the connection in order to provide a
+     better log message when expired certificates are received.
+  -- Fix issues in handling of simultaneous connections that could
+     cause the process to hang.
+  -- Fix issues during shutdown that could cause the process to hang.
+* libsilk
+  -- Fix an issue when reading compressed files that caused the
+     uncompress function to be called more times than was necessary.
+* Configuring/Building/C API
+  -- Add an SK_ prefix to all CPP macros generated by autoconf to
+     avoid conflicts with other packages that use autoconf.
+  -- Change some features previously supported by plug-ins to be part
+     of libsilk instead.  This affects country code (ccfilter),
+     address type (addrtype), and prefix map (pmapfilter) support.
+
+
+SiLK-2.3.1 Release, 2010-May-11
+
+* rwflowpack
+  -- Fix a bug in expiring flows from the stream cache that could
+     cause rwflowpack to deadlock or to exit unexpectedly.
+* rwscan
+  -- Ignore additional flags when checking status of SYN flag.
+* rwsort
+  -- Fix a bug in the handling presorted input that would occur if
+     rwsort ran out of file descriptors.
+* rwstats
+  -- Fix a bug in the handling presorted input that would occur if
+     rwstats ran out of file descriptors.
+  -- Fix a bug in merging temporary files when no distinct fields had
+     been specified.
+* rwuniq
+  -- Fix a bug in the handling presorted input that would occur if
+     rwuniq ran out of file descriptors.
+  -- Fix a bug in merging temporary files when no distinct fields had
+     been specified.
+
+
+SiLK-2.3.0 Release, 2010-Apr-29
+
+* rwfileinfo
+  -- Determining the number of records in a file is much faster.
+* silk.conf
+  -- The sensor command now allows an optional textual description.
+     To use this feature, the file's version must be set to 2.
+* mapsid
+  -- New --print-descriptions switch prints the description of the
+     sensors (as set in the silk.conf file).
+* rwflowpack
+  -- Added a --flat-archive switch that prevents rwflowpack from
+     creating subdirectories below the --archive-directory.
+  -- The default size of the --file-cache, which determines the number
+     of open files to use for writing, is now 128.  The file cache
+     will now close files and remove them from the cache after a
+     period of inactivity.  Improve performance of the file cache when
+     attempting to write to more files than will fit into the cache.
+  -- Improve performance when many poll-directory probes are defined,
+     and fix an issue that could lead to too many open files.
+  -- In the sensor.conf file, multiple probes may specified within a
+     single sensor block.
+  -- Modified NetFlow v9 support to require libfixbuf-1.0.0.
+     (As of SiLK-3.9.0, NetFlow v9 support requires libfixbuf-1.3.0.)
+* rwflowappend
+  -- Added a --flat-archive switch that prevents rwflowappend from
+     creating subdirectories below the --archive-directory.
+* rwreceiver
+  -- Fix a bug in handling the --post-command.
+
+
+SiLK-2.2.0 Release, 2010-Mar-17
+
+* PySiLK
+  -- Country code support is now available from PySiLK.  Use
+     init_country_code() to initialize, and the IPAddr.country_code()
+     method to return the country code.
+  -- IPAddr() is replaced by IPv4Addr() and IPv6Addr() which both
+     inherit from an IPAddr() object that will never be instantiated.
+     IPAddr() is now a constructor for IPv4Addr() and IPv6Addr().
+  -- INCOMPATIBILITY: The IPAddr() constructor no longer accepts an
+     integer as an argument.  You must use IPv4Addr() or IPv6Addr().
+  -- INCOMPATIBILITY: The IPAddr.to_ipv4() and IPAddr.to_ipv6()
+     methods now return new IPv4Addr and IPv6Addr objects,
+     respectively, and no longer modify the exiting IPAddr.
+  -- New methods on IPAddr objects: mask(), mask_prefix(), octets().
+  -- New method IPAddr.is_ipv6() should be used in place of
+     IPAddr.isipv6() which is now deprecated.
+  -- INCOMPATIBILITY: The deprecated IPAddr.ipv6() method has been
+     removed.  Use IPAddr.is_ipv6() instead.
+  -- Bug fixes in plug-in support.
+* rwfilter
+  -- New --scidr, --not-scidr, --dcidr, etc switches support
+     partitioning by comma separated list of IPs and/or CIDR blocks.
+* rwreceiver
+  -- Add new --duplicate-destination switch that copies received files
+     to an additional directory.  The switch may be repeated.
+  -- Uses finer grained locking which should improve throughput when
+     receiving from multiple rwsenders.
+* rwsender
+  -- Add new --local-directory switch that copies incoming files to a
+     local directory (i.e., "send" to the local host).  The switch may
+     be repeated.
+* rwflowpack
+  -- Add new --post-archive-command that specifies a command to run on
+     an input file once rwflowpack has processed the file and moved
+     the file to the archive directory.
+* rwflowappend
+  -- Add new --reject-hours-past and --reject-hours-future switches
+     that allow rwflowappend to reject files whose records are outside
+     a time window (based on the current time).
+* flowcap
+  -- Modify log message to report number of missing records when
+     closing a file.
+  -- Additional log messages added when using --log-level=debug.
+* rwstats
+  -- Fix a crash that would occur when using --presorted-input on
+     files that contained no records.
+* rwresolve
+  -- Fix a bug that would occur if the fields were not monotonically
+     increasing.
+* num2dot
+  -- Fix a bug that resulted in a newline not being printed when
+     converting the final column and there was no final delimiter.
+* Prefix Maps
+  -- Fix a bug on big-endian 64bit machines where a prefix map file
+     would appear to have no entries.
+* rwscanquery
+  -- Fix a long-standing bug were rwscanquery used an old name for the
+     rwsetcat command.
+* Configuring/Building/C API
+  -- Provide simplified APIs in C for creating new fields for rwcut,
+     rwgroup, rwsort, rwstats, and rwuniq via plug-ins.  These APIs
+     are similar to those available in PySiLK.
+  -- New silk_config program can be used to determine the headers and
+     libraries needed to link a program against the SiLK libraries.
+  -- The hashlib_* functions are now part of libsilk and are no longer
+     in a separate library (libhash).
+
+
+SiLK-2.1.0 Release, 2009-Oct-28
+
+* PySiLK
+  -- New register_switch() function allows user to create a command
+     line switch that can be used when PySiLK is running as a plug-in.
+  -- Provide new functions to simplify the registering of fields when
+     working with common data types.
+* rwflowpack
+  -- In the sensor.conf file, provide a way for the administrator to
+     give a name to a list of IPs or interface values.
+  -- When reading IPFIX, allow the VLAN identifiers to be stored in
+     the SiLK Flow records in place of the SNMP interface numbers.
+  -- Allow rwflowpack to discard records (as opposed to packing them)
+     when the records have an IP address or an interface value that
+     matches a list specified by the administrator.
+* rwipfix2silk
+  -- When reading IPFIX, allow the VLAN identifiers to be stored in
+     the SiLK Flow records in place of the SNMP interface numbers.
+* flowcap
+  -- When reading IPFIX, allow the VLAN identifiers to be stored in
+     the SiLK Flow records in place of the SNMP interface numbers.
+* rwfilter
+  -- Add --max-fail switch for consistency with --max-pass.
+  -- New 'app-mismatch' plug-in will pass flows when the application
+     determined by the flow generator does not match either the source
+     or destination port.
+  -- Fix a bug when running with multiple threads.
+* rwcut
+  -- Fix bug where --end-rec-num was being ignored when no other
+     limiting switches were present.
+* rwreceiver
+  -- Fix a potential deadlock that could occur when an rwsender
+     suddenly becomes unavailable.
+* Building/Installation
+  -- Fix an issue where we attempted to install rwp2yaf2silk twice.
+
+
+SiLK-2.0.0 Release, 2009-Aug-20
+
+* Prefix Maps
+  -- Add a map-name keyword to rwpmapbuild which allows a MAPNAME to
+     be specified in the prefix map file.
+  -- Modify --pmap-file switch to allow an optional MAPNAME: to appear
+     before the file name.
+  -- Allow rwfilter to use multiple prefix maps in a single
+     invocation: For each MAPNAME, switches --pmap-src-MAPNAME,
+     --pmap-dst-MAPNAME, and --pmap-any-MAPNAME are generated to
+     partition the SiLK Flow records.
+  -- Allow rwcut, rwgroup, rwsort, rwstats, and rwuniq to use multiple
+     prefix maps in a single invocation: For each MAPNAME, new
+     src-MAPNAME and dst-MAPNAME fields are available.
+  -- NOTE: The prefix map code is fully backward compatible with
+     previous releases of SiLK.
+* rwuniq
+  -- Add --values switch that specifies the volumes (aggregate values)
+     that rwuniq should compute.  Value columns will be printed in the
+     order they appear in this list.
+  -- Allow the user to define new aggregate fields by loading plug-ins
+     written in PySiLK or C.
+  -- Fix issue where IPv4 addresses were being printed as IPv6 by
+     default.
+  -- Fix a possible bug when sorted output is requested.
+  -- WARNING: There is a slight difference in the names of the columns
+     that contain the counts of distinct IPs.
+* rwstats
+  -- Add support for an arbitrary key.  The --fields switch specifies
+     the fields that rwstats should as the key.  It supports the same
+     fields as rwuniq.
+  -- Add support for computing multiple volumes.  The --values switch
+     specifies the volumes (aggregate values) that rwstats should
+     compute.  Value columns will be printed in the order they appear
+     in this list.  The first value column will be used as the basis
+     for computing the top-N or bottom-N.
+  -- Add support for country codes, for generating fields from prefix
+     maps, and for defining fields by loading PySiLK or C plug-ins.
+  -- Add support for defining new aggregate fields by loading plug-ins
+     written in PySiLK or C.
+  -- Add support for IPv6 (when enabled at compile time).
+  -- Add numerous switches to specify the form of the output
+     (--epoch-time, --integer-senors, etc).
+  -- NOTE: rwstats continues to support the same switches, but many
+     switches are now deprecated.
+  -- WARNING: There are some differences in the headers and column
+     titles that rwstats generates, and columns may have different
+     widths.
+* rwgroup
+  -- Add support for the same fields as rwcut.
+  -- Add support for country codes, for generating fields from prefix
+     maps, and for defining fields by loading PySiLK or C plug-ins.
+  -- Add support for IPv6 (when enabled at compile time).
+  -- Allow the user to specify the initial ID to write into the next
+     hop IP field via the --group-offset switch.
+  -- Add support for the --output-path and --copy-input switches.
+  -- WARNING: When the --delta-field refers to the source or
+     destination IP address, the --delta-value switch is now taken to
+     be the number of least significant bits to mask off prior to
+     comparing the records.
+* rwcompare
+  -- New tool to determine whether two SiLK Flow files contain the
+     same records in the same order (in the spirit of UNIX cmp).
+* PySiLK
+  -- Add Bag support (creating, reading, and writing).
+  -- Add Prefix map support (read-only).
+  -- Add operators to IPAddr objects for converting to IPv4 or IPv6.
+  -- Add operator to IPAddr objects for returning a string that is
+     fully expanded and padded with 0's.
+  -- Modified the API for creating fields when PySiLK is used as a
+     plug-in: register_field() replaces register_plugin_field().  The
+     previous API is supported but deprecated.
+  -- Provide new register_filter() function for rwfilter plug-ins.
+  -- WARNING: The str() method on TCPFlags objects no longer pads the
+     value with spaces.  Use the new padded() method on TCPFlags
+     objects to get the old string presentation.
+* General Changes
+  -- Make the field names case insensitive in rwcut, rwdedupe,
+     rwgroup, rwsort, rwstats, rwtuc, and rwuniq.
+  -- Provide a new --plugin switch for loading C plug-ins.  The
+     --dynamic-library switch on rwcut, rwfilter, rwflowpack, rwgroup,
+     rwptoflow, rwsort, rwstats, and rwuniq is available but
+     deprecated.
+  -- Allow the SILK_COUNTRY_CODES environment variable to name the
+     location of the country code (ccfilter.so) mapping file to use.
+  -- Allow the SILK_ADDRESS_TYPES environment variable to name the
+     location of the address types (addrtype.so) mapping file to use.
+  -- Treat protocol 58 as ICMPv6 when SiLK is compiled with IPv6
+     support.  The rwfilter --icmp-type and --icmp-code will match
+     ICMPv6, and the icmpTypeCode field (rwcut, rwgroup, rwsort,
+     rwstats, rwuniq) will decode the ICMPv6 type and code.
+  -- Add annotation support (the --note-add family of switches) to
+     rwgroup, rwipaexport, rwipfix2silk, rwnetmask, rwptoflow, rwsort,
+     rwsplit, rwswapbytes, and rwtuc.
+  -- Allow specification of the compression method to use for the
+     output files created by rwgroup, rwipaexport, rwnetmask and
+     rwsplit.
+* rwnetmask
+  -- Add support for IPv6 via the --6sip-prefix-length,
+     --6dip-prefix-length, and --6nhip-prefix-length switches.
+  -- Add new --4sip-prefix-length, --4dip-prefix-length, and
+     --4nhip-prefix-length switches for consistency.  For backward
+     compatibility, alias the existing --sip-prefix-length, etc,
+     switches to these IPv4 names.
+  -- Add support for the --ipv6-policy switch.
+* rwbagcat
+  -- Enhance the --network-structure switch to allow arbitrary CIDR
+     blocks.  You can now print information about any CIDR block size.
+  -- Add --mask-set switch to print the intersection of the Bag and
+     the IPset.  With --zero-counts, prints a counter value for every
+     IP in the IPset.
+* rwbagtool
+  -- Modify the --subtract operator to no longer treat negative
+     counters as an error; instead the key is not included in the
+     result.
+  -- Modify the --divide operator to no longer treat values less than
+     1 as an error; instead the key is not included in the result.
+  -- Add the --scalar-multiply operator which takes a positive scalar
+     argument and multiplies every counter in the Bag by that value.
+  -- Add the --minimize operator which creates a Bag that contains,
+     for each key in the input Bags, the smallest counter.  A missing
+     key is treated as if its counter is 0.
+  -- Add the --maximize operator which creates a Bag that contains,
+     for each key in the input Bags, the largest counter.
+  -- Add the --compare operator to compares the contents of two Bags.
+  -- WARNING: Remove the deprecated --output-file switch.  Use
+     --output-path instead.
+* rwpmapcat
+  -- Add --left-justify-labels switch that causes the labels to be
+     left justified instead of right justified.
+  -- Allow the map to read to simply be specified on the command line;
+     that is, no longer require the use of the --map-file switch.
+* rwsetbuild
+  -- No longer require the file name arguments.  rwsetbuild writes to
+     the standard output when only one file is specified;
+     additionally, it reads from the standard input when no files are
+     specified.
+* rwsetcat
+  -- Enhance the --network-structure switch to allow arbitrary CIDR
+     blocks.  You can now print information about any CIDR block size.
+* rwsplit
+  -- Allow the user to specify value used to initialize the
+     pseudo-random number generator via the new --seed switch.
+* rwcat
+  -- Add --byte-order switch to allows the user to set the byte order
+     of the output file.
+  -- Add --ipv4-output switch to allows the user to force the output
+     to be SiLK's default IPv4 format.
+* rwfilter
+  -- Modify the --flags-all, --flags-initial, and --flags-session
+     switches to allow a comma separated list of HIGH/MASK flag pairs.
+  -- Modify the --attributes switch to allow a comma separated list of
+     HIGH/MASK attribute pairs.
+* rwscan
+  -- Fix a bug in the Bayesian Logistic Regression (BLR) method that
+     may have caused it to miss some scans.
+* rwflowpack
+  -- The "flowcap" input mode (which allowed rwflowpack to connect to
+     a flowcap running in server-mode) has been removed.  Use
+     rwsender/rwreceiver to transfer files instead.
+  -- Add support for processing files created by yaf.
+  -- Add support for processing SiLK flow files.
+  -- Add the --verify-sensor-config switch which causes rwflowpack to
+     exit after checking the syntax of the sensor.conf file.
+* flowcap
+  -- The "server-mode" (which allowed rwflowpack to contact flowcap)
+     has been removed.  Use rwsender/rwreceiver to transfer files.
+  -- Add the --verify-sensor-config switch which causes flowcap to
+     exit after checking the syntax of the sensor.conf file.
+* rwsender, receiver
+  -- Fix bugs related to using TLS.
+  -- Make daemons more robust with respect to sudden loss of
+     connectivity to their peer(s).
+  -- Better handle duplicate files and partially transferred files.
+  -- Fix a race condition in rwsender when attempting to transfer a
+     file to multiple rwreceivers.
+  -- Add --error-directory switch to rwsender.  rwsender will move to
+     this directory any files that failed to transfer.  The
+     --error-directory switch is required.
+* C-Code changes
+  -- Header files have been moved from src/include to src/include/silk
+     and files should use '#include <silk/foo.h>' for file foo.h.
+  -- Rewrite the API to plug-ins.  The old API is still supported, but
+     it is deprecated and will be removed in a future release.
+  -- Provide a new API to IPsets.
+  -- Many additional changes.
+
+
+SiLK-1.1.9 Release, 2009-Apr-22
+
+* rwflowpack
+  -- Modify internal buffering of unprocessed records.  This should
+     greatly reduce the memory usage.
+* flowcap
+  -- Allow the compression method to be set at run-time, but continue
+     to default to the "best" compression method available.
+  -- Modify internal buffering of unprocessed records.  This should
+     greatly reduce the memory usage.
+* rwdedupe
+  -- Fix a bug that caused one record not to be written to the output.
+  -- Modify the sort key so that the --delta-fields have the lowest
+     priority.
+* rwrandomizeip
+  -- Fix a bug and potential crash on Solaris.
+* rwpackchecker
+  -- Fix minor bugs in output and exit status.
+* rwsender/rwreceiver
+  -- Fix a crash that could occur due to a thread synchronization
+     error.
+* silk.spec
+  -- Fix an issue where the daemon control scripts would look in the
+     wrong location for their conf files.
+  -- Fix a bug in the pre-uninstall section.
+* daemon control scripts
+  -- Address potential shell quoting issues.
+
+
+SiLK-1.1.8 Release, 2009-Mar-19
+
+* rwflowpack
+  -- Allow the packing logic to use the ingressInterface and
+     egressInterface values in data from IPFIX probes.
+  -- Fix crash that would occur when multiple probes were configured
+     to listen on the same port.
+* rwsender/rwreceiver
+  -- Add a feature to close connections that have been completely
+     silent for two keep-alive cycles.
+  -- Fix a bug that prevented keep-alive messages from being sent.
+* rwipfix2silk
+  -- Fix a bug that prevented rwipfix2silk from handling multiple
+     input files.
+
+
+SiLK-1.1.7 Release, 2009-Mar-09
+
+* rwresolve
+  -- Add support for the ADNS library to speed IP to host mapping.
+  -- Add support for a name cache to avoid querying DNS repeatedly for
+     the same IP.
+* rwfilter
+  -- Any support for --pmap-any-address and --pmap-any-port-proto.
+  -- Fix a bug that caused threaded rwfilter to always exit with a
+     non-zero status.
+* rwsort
+  -- Add a --reverse switch that causes the records to be sorted from
+     largest key to smallest.
+* flowrate.so
+  -- Add switches to the flowrate.so plug-in to estimate the payload
+     bytes of a flow and the payload bytes per second.
+* cutmatch.so
+  -- Fix a bug that prevented the cutmatch.so plug-in from registering
+     its field name with rwcut.
+* Cygwin compatibility
+  -- Fix issues that prevented compilation of some packing tools.
+  -- Fix a bug in use of getaddrinfo.
+
+
+SiLK-1.1.6 Release, 2009-Feb-17
+
+* PySiLK
+  -- Add support for a new SILK_PYTHON_TRACEBACK environment
+     variable.  When set, errors in the Python code will be reported
+     to the user.
+  -- FUNCTIONAL CHANGE: IPSet.add(), IPSet.discard(), and
+     IPSet.remove() now accept only a single IPAddr or a single IP
+     Address string. (They used to support IPWildcards).
+  -- Fix bugs in RWRec when handling certain dates and time-ranges
+     from Python.
+  -- In the register_plugin_field() function, change the name of the
+     'field_len' parameter to 'text_len', but allow 'field_len' for
+     backwards compatibility.
+  -- The silk.plugin module is now available outside of PySiLK plug-ins,
+     allowing the use of register_plugin_field() from library code.
+  -- Deprecate IPAddr.ipv6() in favor of IPAddr.isipv6().
+  -- Update and expand documentation.
+* rwcount
+  -- Fix fatal error in --load-scheme=0 when used with --end-epoch.
+* rwip2cc
+  -- Fix minor bug in output when --address is specified.
+* rwpmapbuild
+  -- Fix a bug that prevented --input-file=stdin from working.
+* flowcap
+  -- Fix a bug that prevented processing of NetFlow v9 data.
+* rwflowpack
+  -- When any write error occurs, force rwflowpack to shutdown.
+  -- Change how shutdown is initiated and the order in which
+     structures are destroyed to avoid fatal memory errors.
+* rwflowappend
+  -- Do not exit when attempting to open an invalid incremental file;
+     instead, move the invalid file to the error-directory, log an
+     error, and continue to run.
+  -- Fix a bug where the --hour-file-command was not being invoked.
+  -- Fix an issue on Mac OS X where rwflowappend would not respond to
+     signals once the --post-command/--hour-file-command had run.
+* rwreceiver
+  -- Fix an issue on Mac OS X where rwreceiver would not respond to
+     signals once the --post-command had run.
+* Support systems that do not provide getaddrinfo.
+
+
+SiLK-1.1.3 Release, 2008-Nov-21
+
+* rwsender
+  -- Greatly reduce the memory requirement of rwsender by
+     memory-mapping the files as they are sent.  Previously, the files
+     were read into RAM, causing the rwsender process to have a large
+     memory footprint.
+* rwfilter
+  -- Fix a bug in parsing the user's times when SiLK was configured
+     with --enable-localtime and Daylight Savings Time is active.
+* flowrate.so
+  -- Provide a manual page for the flowrate plug-in.
+* rwuniq
+  -- Fix a bug that prevented the use of PySiLK from within rwuniq.
+* rwreceiver
+  -- Fix a memory error when using the --post-command.
+* rwflowappend
+  -- Fix a memory error when using the --post-command.
+* Plug-in support
+  -- Force SiLK plug-ins to have an ".so" suffix, to better support
+     systems that use a different suffix for shared objects.
+* Minor fixes to manual pages and --help output.
+
+
+SiLK-1.1.2 Release, 2008-Sep-18
+
+* rwuniq
+  -- New --sort-output switch causes rwuniq to present its output in
+     sorted order, where the sort-key is the --fields value.
+* rwflowpack
+  -- SiLK now supports collection of NetFlow-v9 when linked with
+     libfixbuf-0.8.0.
+     (As of SiLK-3.9.0, NetFlow v9 support requires libfixbuf-1.3.0.)
+  -- Writing of records by rwflowpack has been greatly enhanced by
+     using finer-grained locking and using pthread read/write locks on
+     systems that support them.
+  -- New --error-directory switch allows rwflowpack to continue
+     processing files in spite of an invalid input flow file.
+     Previously, an invalid input file would cause rwflowpack to exit.
+     rwflowpack will still exit unless the --error-directory is set.
+  -- New --file-cache-size switch allows the user to control the
+     number of output files that rwflowpack has open simultaneously.
+  -- Fixed some issues that occurred when reading data from IPFIX and
+     NetFlow-v9 probes when the UDP protocol was used.
+  -- rwflowpack now provides more logging messages, especially when
+     run with --log-level=debug.
+  -- Fixed a potential crash during shutdown when using PDU
+     Directory polling.
+* rwreceiver
+  -- New --post-command switch causes rwreceiver to invoke the
+     specified command on each file once the file has been received.
+* rwpmapcat
+  -- Enhanced the output to print Protocol/Port Prefix Maps as ranges
+     of protocol/port pairs.
+* rwpmapbuild
+  -- Fix a bug in reading Protocol/Port Prefix Maps where the file was
+     not marked as containing protocol/port pairs.
+* pmapfilter.so
+  -- Fix a crash on some operating systems caused by failure to
+     allocate enough memory for the Prefix Map.
+
+
+SiLK-1.1.1 Release, 2008-Aug-08
+
+* rwip2cc
+  -- POTENTIAL INCOMPATIBILITY. When reading the IP input from a file,
+     the default output is now two columns: the IP and the country
+     code.  The output for a single IP is unchanged.
+  -- Use the new --print-ips switch to force whether IPs should be
+     printed.
+  -- Additional switches have been added to control the format of the
+     columns.
+* rwfilter
+  -- New --flowtype switch allows selection of data from multiple
+     class/type pair, including data from different classes.
+  -- Support for the --tuple-* switch is now compiled into rwfilter
+     instead of being supported by a plug-in.
+  -- Fix a crash that would occur when a class in silk.conf listed no
+     default types.
+* flowrate.so
+  -- A new plugin exists to filter, display, sort, and bin by
+     packets-per-second, bytes-per-second, and bytes-per-packet.  The
+     flowrate.so plugin must be explicitly loaded in the application.
+* rwflowpack
+  -- Add capability to watch directories for NetFlow v5 files, where
+     each directory is associated with a probe.
+  -- Fix a bug in parsing the sensors from sensor.conf that causes
+     later *-probes statements to overwrite the previous probes.
+* flowcap
+  -- Fix crash that occurred when flowcap was called with no
+     arguments.
+* rwpmapbuild
+  -- Fix a bug that prevented parsing of protocol/port pairs.
+* rwbagtool, rwsettool
+  -- Fix a bug where the --note-strip switch was configured to require
+     an argument.
+* rwflowappend
+  -- Fix a bug where the default data format was network byte order
+     instead of native byte order.
+* PySiLK Configuration
+  -- Fix an issue that prevented the PySiLK code from being relocated
+     during installation.
+  -- Add a library whose absence prevented configuration on OpenBSD.
+  -- Fix a bug in the Makefile that preventing compilation when BSD
+     make was used.
+* Several tools
+  -- Fix a crash that would occur when attempting to read SiLK flows
+     from a non-flow file.
+
+
+SiLK-1.1.0 Release, 2008-Jul-09
+
+* PySiLK
+  -- Change the default install location for PySiLK so it is now
+     installed with other Python modules.  Use the configure script's
+     --with-python-prefix switch to change the install location.
+  -- Extend the PySiLK capability to support user-defined fields in
+     rwsort and rwuniq.
+  -- Change the way the user defines PySiLK fields for rwcut.
+     POTENTIAL INCOMPATIBILITY.
+  -- Fix a reference counting bug that led to a memory leak.
+  -- Improve the checks for Python that occur during configuration.
+* rwuniq
+  -- Enhance to handle the issue of fast memory being exhausted.
+     rwuniq will use temporary files to allow it to process more bins
+     than will fit in memory.
+  -- Fix an issue where rwuniq would not correctly process multiple
+     input files when the --presorted-input switch was given.
+* rwtotal
+  -- Add the ability to print only bins that meet minimum and/or
+     maximum thresholds for bytes, packets, and/or record counts.
+* rwaddrcount
+  -- Provide new --min-* and --max-* switches as aliases to the
+     existing --rec-min, --rec-max, etc switches.
+* rwsort
+  -- Modify so that the maximum buffer size is approached gradually,
+     making its memory usage more closely reflect only what it needs.
+  -- Add the --print-filenames switch for consistency with other
+     tools.
+* rwdedupe
+  -- Modify so that the maximum buffer size is approached gradually,
+     making its memory usage more closely reflect only what it needs.
+* rwfilter
+  -- Fix a bug that caused the --sensors switch not to accept a
+     numeric range of sensors.
+* rwsender
+  -- Improve performance by reducing the amount of memory that must be
+     copied when reading files.
+  -- Improve the logging.  The log now includes the time it took to
+     send a file.
+* rwreceiver
+  -- Improve the logging.
+* rwflowappend
+  -- Fix issue where rwflowappend would exit if the final record in an
+     incremental file was invalid.
+* rwflowpack
+  -- Enhance the sensor.conf syntax and packing logic so that all
+     flow records collected from a particular probe can be labeled as
+     traveling between two networks.  This allows all flows seen by
+     that probe to be labeled as incoming, for example.
+  -- In sensor.conf, rename the netflow probe to netflow-v5, but allow
+     netflow as an alias for netflow-v5 for compatibility.
+* flowcap
+  -- In sensor.conf, rename the netflow probe to netflow-v5, but allow
+     netflow as an alias for netflow-v5 for compatibility.
+
+
+SiLK-1.0.1 Release, 2008-May-01
+
+* rwcut
+  -- Extended the PySiLK capability to support user-defined columns in
+     rwcut.
+* rwmatch
+  -- Enhancements to allow both sides of the conversation to be
+     included in the output.
+* cutmatch.so
+  -- A new plug-in to print the values that rwmatch writes into the
+     next-hop IP field.
+* rwbagtool
+  -- Allow "--output" to be an abbreviation for "--output-path".
+* rwsender
+  -- Allow the block size used when sending files to rwreceiver to be
+     specified on the command line.
+* rwuniq
+  -- Fix bug that prevented the upper bound of the --bytes, --packets,
+     --flows, etc switches from being parsed.
+* rwptoflow
+  -- Fix bug that would result in the bytes value being incorrect (the
+     value was not being byte-swapped).
+* flowcap, rwflowpack, rwflowappend, rwreceiver, rwsender
+  -- Fix a fatal bug in the start-up of daemons that occurred when
+     logging was set to "syslog" or "none".
+* Additional minor bug fixes
+
+
+SiLK-1.0.0 Release, 2008-Mar-31
+
+* rwfilter can support filtering using expressions written in Python,
+  and it is possible to manipulate SiLK Flow records from within
+  Python.  This feature requires Python 2.4 or later, and you must
+  specify --with-python when you run configure.  See the "PySiLK: SiLK
+  in Python" language reference documentation, and the --python-expr
+  and --python-file switches on rwfilter.
+* Preliminary support for IPv6 addresses can be included.  Use the
+  --enable-ipv6 switch on the configure script to include IPv6 support
+  in SiLK.  When IPv6 is present, rwfilter provides a --ip-version
+  switch to filter on IPv4 and/or IPv6 addresses, and the tools rwuniq
+  and rwcut provide a --ipv6-policy switch (and SILK_IPV6_POLICY
+  environment variable) that controls the display of IPv6 addresses.
+* rwfilter now supports threads.  Performance is greatly improved for
+  queries that look at many files but return few records.  Use the
+  --threads switch on rwfilter or the SILK_RWFILTER_THREADS
+  environment variable to control the number of threads.  By default,
+  rwfilter will use a single thread.  Our testing has found that
+  performance peaks around four threads per CPU, but performance will
+  vary depending on the type of query and the number of records
+  returned.
+* There are new binary SiLK file formats, and the format of every SiLK
+  file has changed.  SiLK-1.0.0 can read files created by earlier
+  versions of SiLK; however, releases prior to SiLK-1.0.0 will not be
+  able to read SiLK-1.0.0 files.  Binary SiLK files now contain
+  additional information in their headers, including the version of
+  SiLK that produced the file.
+* Delimited textual output has changed in almost all tools.  Note this
+  is a POTENTIAL INCOMPATIBILITY and may break scripts.  A new
+  --no-final-delimiter switch prevents printing of the final delimiter
+  in the textual output of rwaddrcount, rwbagcat, rwcount, rwcut,
+  rwpmapcat, rwsetcat, rwstats, rwtotal, rwuniq.  In addition, the
+  --delimited switch now enables --no-final-delimiter, making it
+  easier for the output to be parsed by other tools.  If you need to
+  maintain compatibility with earlier versions of SiLK, replace
+  --delimited=X with --no-columns --column-sep=X.
+* Arbitrary notes (annotations) can be added to the headers of some
+  SiLK files.  Use the --note-add=TEXT to add a note, or
+  --note-file-add=FILE to add text from a file.  The rwfileinfo tool
+  will view the notes.  Notes are supported by rwbag, rwbagbuild,
+  rwbagtool, rwcat, rwfilter, rwset, rwsetbuild, rwsettool.
+* Site information is completely determined at run-time.  The
+  rules that rwflowpack uses to categorize flows are now controlled by
+  a run-time plug-in that rwflowpack loads.  The name of the plug-in
+  must be passed to rwflowpack via the --packing-logic switch, or set
+  in the silk.conf file.
+* The sensor.conf file used by rwflowpack and flowcap has a completely
+  different syntax.  See the Installation Handbook and the
+  rwflowpack(8) and sensor.conf(5) manual pages.  The
+  update-sensor-conf script converts the old syntax to the new.
+* A new rwidsquery tool is provided.  rwidsquery takes a Snort alert
+  log or rule file and invokes rwfilter with the appropriate arguments
+  to find the SiLK flow records that match the input file.
+* Bugs have been fixed in processing times on Solaris when the
+  machine's timezone was not UTC.
+* Configuring SiLK to use legacy timestamps by default is no longer
+  supported.  The --legacy-timestamps switch is still supported on the
+  applications.
+* When looking for support files (such as country_codes.pmap), tools
+  will look in $SILK_PATH/share/silk/ and $SILK_PATH/share/, but they
+  no longer look in $SILK_PATH/.
+* buildset, readset, setintersect, rwset-union
+  -- These symbolic links to rwsetbuild, rwsetcat, rwsetintersect, and
+     rwsetunion are no longer created.
+* rwaddrcount
+  -- See discussion of --no-final-delimiter above.
+* rwbag
+  -- See discussion of --note-add above.
+* rwbagbuild
+  -- The --output switch has been renamed to --output-path.
+  -- See discussion of --note-add above.
+* rwbagcat
+  -- The --output switch has been renamed to --output-path.
+  -- See discussion of --no-final-delimiter above.
+* rwbagtool
+  -- See discussion of --note-add above.
+  -- The --output-file switch is deprecated.  Use --output-path
+     instead.
+* rwcat
+  -- See discussion of --note-add above.
+* rwcount
+  -- Enhancement to support millisecond-sized bins.  Specify a
+     fractional value to the --bin-size switch: --bin-size=0.500.
+  -- As a side effect of this millisecond capability, the output from
+     the default load scheme (--load-scheme=4, splitting a flow by its
+     active time) will now divide flows across each millisecond that
+     the flow is active.  This results in slightly different output.
+  -- New --end-epoch switch allows user to control the final bin to
+     print.
+  -- The --delimiter switch has been removed.  Use the
+     --column-separator switch instead.  (Note that the --delimited
+     switch still exists).
+  -- See also discussion of --no-final-delimiter above.
+* rwcut
+  -- A new --all-fields switch causes all possible fields to be
+     printed.
+  -- New --ipv6-policy switch controls how IPv6 flows are handled.
+  -- See also discussion of --no-final-delimiter above.
+* rwdedupe
+  -- The --identical-fields switch has been renamed to
+     --ignore-fields, and --sort-buffer-size has been renamed to
+     --buffer-size.
+* rwfileinfo
+  -- Output has changed to reflect new SiLK binary file headers.
+* rwfilter
+  -- New --python-expr and --python-file switches.
+  -- New --threads switch.
+  -- See discussion of --note-add above.
+  -- New tuple.so plug-in filters flow records based on any subset of
+     the five-tuple {source-ip, destination-ip, source-port,
+     destination-port, protocol}.  The --ippair-any and --ipport-any
+     switches are deprecated.
+  -- The --ippair-any and --ipport-any switches no longer work for
+     files that use only TAB characters between the two columns of
+     input.  Change the TAB characters to spaces.
+  -- New --ip-version switch when IPv6 support is enabled.
+  -- Fix an issue where an error writing to the file system was not
+     being correctly reported.
+  -- Fix a bug that caused the --site-config-file switch to be
+     ignored.
+* rwmatch
+  -- New --unmatched switch allows unmatched records to be written to
+     the output.
+  -- New --symmetric-delta switch allows either input file to contain
+     the initiating flow.
+* rwpmapbuild
+  -- See discussion of --note-add above.
+  -- rwpmapbuild has been rewritten as a C application.
+* rwpmapcat
+  -- See discussion of --no-final-delimiter above.
+* rwnetmask
+  -- Enhancement so that it takes file names from the command line and
+     produces a file as output.
+  -- Renamed switches to be more consistent with other tools but leave
+     the old names for compatibility.
+* rwscan
+  -- Existing output files are no longer overwritten.
+  -- Printing of each file name processed, thread creation, etc. is
+     now only done when the user specifies --verbose-progress on the
+     command line.
+  -- New --verbose-results prints information about each IP.
+  -- New switches allow setting the parameters used by the TWR
+     algorithm.
+  -- New --integer-ips switch to print IPs as integers.
+  -- In the printed output, headers and output records now end with a
+     delimiter by default.  This can be turned off with
+     --no-final-delimiter.
+  -- The --scandb switch enables --no-final-delimiter.
+  -- The --output-file switch has been renamed to --output-path.
+  -- Improved manual page.
+* rwset: POTENTIAL INCOMPATIBILITY.
+  -- Running rwset with no arguments will no longer produce an IPset.
+     The IPset(s) to create MUST now be specified with the --sip,
+     --dip, and/or --nhip switches.
+  -- See discussion of --note-add above.
+* rwsetbuild
+  -- See discussion of --note-add above.
+* rwsetcat
+  -- See discussion of --no-final-delimiter above.
+* rwsettool
+  -- See discussion of --note-add above.
+* rwstats
+  -- See discussion of --no-final-delimiter above.
+* rwtotal
+  -- See discussion of --no-final-delimiter above.
+* rwuniq: POTENTIAL INCOMPATIBILITY.
+  -- The --threshold switch is no longer supported.  Use the --flows
+     switch instead.
+  -- The output from rwuniq may appear in a different order due from
+     previous releases due to changes in the internal hash table.
+  -- The --sip-distinct and --dip-distinct switches are handled more
+     efficiently for sparse IPs.
+  -- New --ipv6-policy switch controls how IPv6 flows are handled.
+  -- See discussion of --no-final-delimiter above.
+* Summary of changes that may break old scripts or usage patterns
+  -- See the discussion of --no-final-delimiter above.
+  -- rwbagbuild: The --output switch has been renamed to
+     --output-path.  Since --output is a legal abbreviation of
+     --output-path, no end-user effects should be seen.
+  -- rwbagtool: The --output switch has been renamed to --output-path.
+     Since --output is a legal abbreviation of --output-path, no
+     end-user effects should be seen.
+  -- rwcount: The --delimiter switch has been removed.  Use the
+     --column-separator switch instead.  (Note that the --delimited
+     switch still exists).
+  -- rwdedupe: The --identical-fields switch has been renamed to
+     --ignore-fields, and --sort-buffer-size has been renamed to
+     --buffer-size.
+  -- rwtotal: The --delimiter switch has been removed.  Use the
+     --column-separator switch instead.  (Note that the --delimited
+     switch still exists).
+  -- rwuniq: The --threshold switch is no longer supported.  Use the
+     --flows switch instead.
+* For programmers
+  -- The IP address is now an abstract object.
+  -- All access to the fields of an rwRec should occur through the
+     rwRec* wrappers.
+  -- Time is now represented as an sktime_t (a signed 64bit integer),
+     representing milliseconds since the UNIX epoch.
+  -- There have been many changes to the library functions.
+* The following incompatible changes exist in the packing tools
+  -- The sensor.conf syntax is completely different.
+  -- rwflowpack: When processing PDU-files as input, you need to use
+     --input-mode=pdufile instead of --input-mode=file.
+  -- rwflowpack: The --fc-address and --fc-port switches have been
+     removed; use --flowcap-address and --flowcap-port instead.
+  -- flowcap: The --sensors switch has been removed.  The --probes
+     switch offers similar functionality, but takes the names of
+     probes, not sensors.
+
+
+SiLK-0.11.9 Release, 2008-Jan-17
+
+* rwfilter
+  -- Provide a mechanism to log statistics about the commands that
+     were run and the number of files and records involved.
+* flowcap, rwflowpack
+  -- Fix occasional crashes when collecting flows from IPFIX sensors.
+     To collect flows from an IPFIX sensor, libfixbuf-0.7.2 or
+     greater is now required.
+     (As of SiLK-3.9.0, IPFIX support requires libfixbuf-1.3.0.)
+* rwstats
+  -- Fix a bug in the output generated by the --overall-stats switch
+     where the maximum would not be displayed correctly when the input
+     consisted of a single flow.
+* rwsender, rwreceiver
+  -- Fix a bug that was causing frequent retries and disconnects
+     between rwsender and rwreceiver.
+* rwaddrcount, rwcount, rwcut, rwtotal
+  -- Fix a bug where --output-path=/dev/null would send the textual
+     output to stdout.
+* rwtuc
+  -- Do not create the "bad-input-lines" file when all of the input is
+     successfully processed.
+* rwdedupe
+  -- New tool to remove duplicate SiLK Flow records from a file.
+* libippair.so
+  -- New plug-in for rwfilter to partition flow records based on the
+     source and destination IPs as a pair.
+* rwsort
+  -- New --presorted-input switch allows rwsort to process previously
+     sorted files (rwsort will merge-sort the files).
+* rwsetbuild
+  -- Now supports input having an IP range on each line when the
+     --ip-ranges switch is specified.
+* rwsettool
+  -- Added a new --mask operation so a user can see which IP blocks
+     contain an IP address.
+
+
+SiLK-0.11.7 Release, 2007-Sep-06
+
+* rwsender, rwreceiver
+  -- rwsender and rwreceiver can encrypt their communication if the
+     GnuTLS library is found when SiLK is configured.
+* rwnetmask
+  -- Always write the SiLK headers to the output file so that files
+     with no data are still valid SiLK files.
+* rwrandomizeip
+  -- Always write the SiLK headers to the output file so that files
+     with no data are still valid SiLK files.
+* rwswapbytes
+  -- Always write the SiLK headers to the output file so that files
+     with no data are still valid SiLK files.
+* rwsender
+  -- Fix a bug where rwsender was not properly closing files, leading
+     rwsender to eventually run out of file descriptors.
+  -- Fix a bug that causes rwsender to crash when it loses the
+     connection to an rwreceiver during the transfer of a file.
+* rwflowpack
+  -- Fix a bug in reading flowcap files on 64bit platforms that caused
+     the records in the file to be ignored.
+* rwscanquery
+  -- Require that the location of the output file be specified with
+     the --output-path switch.
+* rwcut, rwuniq
+  -- Fix several issues in rwcut and rwuniq when dealing with prefix
+     map (pmap) files that had dictionary items longer than 63
+     characters.  A new --pmap-column-width switch is available to
+     limit the number of characters that are printed.
+* rwfilter
+  -- Fix a bug where the --icmp-type and --icmp-code were not
+     filtering out non-ICMP traffic.
+* rwscan
+  -- Fix a bug by closing the output after all worker threads have
+     joined.  This fixes the problem of missing output and double
+     free() errors.
+* rwcut
+  -- Fix a bug where the --copy-input switch was not copying its
+     input.
+  -- Fix a bug where, when displaying the end-time and the
+     milliseconds value was larger than 1000, rwcut was not properly
+     incrementing the seconds value.
+* rwset
+  -- Fix misplaced text in the rwset man page.
+
+
+SiLK-0.11.2 Release, 2007-Jun-14
+
+* rwfilter
+  -- Fix a bug that occurred during parsing of the --sensors switch
+     when only numeric sensors were specified.
+  -- Fix a double close() of the --print-statistics stream.
+* rwbagcat
+  -- Recognize when the user explicitly sets 'minkey' to 0, which
+     fixes a bug.
+* rwsetcat
+  -- Add the switch --ip-ranges to allow printing the IPset as a list
+     of IP-ranges.
+* rwsort
+  -- Add the switch --sort-buffer-size to support setting the maximum
+     amount of RAM rwsort tries to allocate for the buffer used to
+     hold the SiLK Flow records prior to sorting.
+* rwfglob
+  -- Add the switch --no-file-names to suppress printing of file names.
+  -- Add the switch --no-summary to suppress printing of the number of
+     files found.
+* rwscanquery
+  -- Make the queries more efficient.
+  -- Make the --start-date switch more closely match the behavior of
+     rwfilter.
+* rwgeoip2ccmap
+  -- Append the string '-input' to the names of the options to match
+     the manual page.
+* Building
+  -- Add the 'pmap-example.txt' file that was missing from the
+     SiLK-0.11.1 release.
+  -- In the src/libskipfix and src/rwipa directories, make certain the
+     CFLAGS found during configuration are passed to CC when building.
+
+
+SiLK-0.11.1 Release, 2007-May-17
+
+This release has many changes from the previous SiLK-0.10.5 Release.
+
+End user features, enhancements, and bug fixes
+* New scan detection system: rwscan and rwscanquery
+  -- rwscan reads SiLK Flow data and uses a hybrid of Threshold Random
+     Walk and Bayesian Logistic Regression to detect scanning
+     activity.  rwscan output textual records describing the scan.  If
+     these are inserted into a relational database, rwscanquery can be
+     used to query for the scanning activity.  rwscanquery can query
+     Oracle, Postgres, or MySQL databases.
+* New tools for IPFIX support
+  -- rwsilk2ipfix converts SiLK Flow records to an IPFIX format.
+  -- rwipfix2silk converts IPFIX flow records to the SiLK format.
+  -- These tools can be used in place of the rwp2yaf2silk script.
+  -- Support for these tools requires that libfixbuf-0.6.0
+     (http://tools.netsa.cert.org/fixbuf/) be installed prior to
+     building SiLK.
+     (As of SiLK-3.9.0, IPFIX support requires libfixbuf-1.3.0.)
+* New tools for IP storage
+  -- rwipaexport takes IP addresses from an IP Address Association
+     (IPA) catalog and creates a SiLK IPset, Bag, or Prefix Map
+     (pmap).
+  -- rwipaimport enters the IP addresses from a SiLK IPset, Bag, or
+     Prefix Map into an IPA catalog.
+  -- Support for these tools requires that libipa-0.2.0
+     (http://tools.netsa.cert.org/ipa/) be installed prior to building
+     SiLK.
+     (As of SiLK-2.4.0, libipa support requires libipa-0.5.0.)
+* Additional new tools
+  -- rwsplit divides a SiLK Flow file into smaller files based on the
+     number of flows, bytes, packets, or unique IPs.  It also provides
+     the ability to sample the input.
+  -- rwsettool provides the functionality of rwsetintersect and
+     rwsetunion and additional functions such as set difference and
+     sampling of an IPset.  The rwsetintersect and rwsetunion tools
+     are deprecated.
+  -- rwsetmember determines if a (textual) IP is a member of an IPset.
+     Determining this in previous releases of SiLK required filtering
+     the output of rwsetcat or creating an IPset containing a single
+     IP.
+  -- rwpmapcat prints the contents of a Prefix Map (pmap) file.
+* rwfilter enhancements and bug fixes
+  -- Allow the parameter to the --flags-all, --flags-init, and
+     --flags-session switches to be a list of HIGH/MASK pairs
+     separated by commas, e.g., --flags-all=S/S,A/A.
+  -- Do not print statistics or create output files when the --dry-run
+     switch is specified.
+  -- Fix a file corruption issue that would occur when processing
+     multiple files if the first input file was not successfully
+     opened: the output file would be generated without a SiLK header.
+  -- Exit with a non-zero exit status if the class, type, or sensor
+     values are invalid.
+  -- Fix a bug in processing the --start-date and --end-date switches
+     when local timezone support was enabled and the local timezone
+     was east of UTC.
+* rwbag enhancements and bug fixes
+  -- rwbag now supports creating Bags whose key is the sensor ID, next
+     hop IP, input interface or output interface.
+  -- Allow rwbag to act like UNIX tee(1) by adding the --copy-input
+     switch.  This switch sends all SiLK Flow input to the specified
+     file, stream, or named pipe.
+  -- Print errors as human readable text, not error codes
+  -- Fix a bug with releasing memory multiple times when rwbag ran out
+     of memory.
+* rwrandomizeip enhancement
+  -- Allow the user to restrict the set of IPs that are modified via
+     two command line arguments: --dont-change-set and
+     --only-change-set.  Both switches take an IPset; the first switch
+     prevents the IP from being changed; the second causes only the
+     listed IPs to be changed.
+* mapsid enhancement
+  -- The --print-classes switch will print the class(es) to which each
+     sensor belongs.
+* rwcount enhancement and changes
+  -- Implement the --output-path switch which directs rwcount to
+     write its output to the specified location.
+  -- Allow rwcount to act like UNIX tee(1) by adding the --copy-input
+     switch.  This switch sends all SiLK Flow input to the specified
+     file, stream, or named pipe.
+  -- The column widths have changed slightly
+* rwaddrcount enhancement
+  -- Implement the --output-path and --copy-input switches as
+     described for rwcount.
+* rwcut enhancement
+  -- Implement the --output-path and --copy-input switches as
+     described for rwcount.
+* rwstats enhancement
+  -- Implement the --output-path and --copy-input switches as
+     described for rwcount.
+* rwset enhancement
+  -- Implement the --copy-input switch as described for rwcount.
+* rwtotal enhancement
+  -- Implement the --output-path switch as described for rwcount.
+* rwuniq enhancement
+  -- Implement the --output-path switch as described for rwcount.
+* rwsetcat bug fix
+  -- Fix bug where the $PAGER was not being used.
+* rwbagcat bug fixes
+  -- Do not print a warning message when attempting to print an empty
+     Bag or when the min/max limits caused no entries to be printed.
+  -- Fix bug where the $PAGER was not being used.
+  -- Print errors as human readable text, not error codes
+* rwbagtool bug fix
+  -- Print errors as human readable text, not error codes
+* rwcat bug fix
+  -- Modify rwcat so it will always print the SiLK header to a file,
+     even when no records are present
+* rwappend enhancement and bug fix
+  -- New --print-statistics switch causes the number of records
+     processed to be printed to the standard error.
+  -- Output change: Modified rwappend so it only prints the number of
+     records processed when --print-statistics is given.
+  -- Fix a problem that occurred when SiLK was compiled with
+     compression enabled by default and the applications were
+     processing SiLK files produced by releases of SiLK prior to
+     0.10.5: the application would exit with the error message
+     "Operation not permitted on compressed file" and no output would
+     be generated.
+* rwswapbytes bug fix
+  -- See compression-related bug fix for rwappend
+* rwnetmask bug fix
+  -- See compression-related bug fix for rwappend
+
+Administration and configuration changes
+* New "silk.conf" file removes the requirement that sensors be defined
+  at compile-time.
+  -- The sensors, classes, and types are now defined at run-time
+     through the use of a "silk.conf" text file.  This file should be
+     installed in the SILK_DATA_ROOTDIR directory.
+  -- The run-time configuration allows a single installation of the
+     analysis tools to query multiple data sets; simply set the
+     SILK_DATA_ROOTDIR environment variable to the location of the
+     data.
+  -- The location of this file can also be specified by setting the
+     SILK_CONFIG_FILE environment variable to its location, or by
+     using the --site-config-file switch on most SiLK applications.
+  -- The packer (rwflowpack) still requires certain classes and types
+     to be defined, and it cannot use new classes and types without
+     modifying C code.  This restriction will go away in a future
+     release.
+* Major changes to the build system
+  -- The build system now uses all aspects of the GNU Autotools chain
+     including 'automake' and 'libtool'.
+  -- The tools can now be built with shared library support, reducing
+     the size of the binaries and allowing the kernel to use a single
+     copy of libsilk when multiple SiLK tools are running.
+  -- Note that the use of shared libraries means the binaries can no
+     longer easily be relocated; instead you should run "make install"
+     again with the new location.
+  -- The SiLK headers are now copied to the install target directory
+  -- GNU make is no longer required to build the tools.
+* New packing rules are used by default.
+  -- The default site has changed from "generic" to "twoway".  The
+     twoway site allows flow records to be categorized and stored as
+     internal-to-internal (int2int) and external-to-external
+     (ext2ext).  In addition, the "out" type is no longer everything
+     that is not "in".  The files created by the generic site are
+     forward compatible with the twoway site; however, if you wish to
+     continue using your current packing rules, run configure with
+     the --enable-silk-site=generic switch.  See the Installation
+     Handbook for details.
+* New transfer daemons: rwsender and rwreceiver.
+  -- These are meant to replace the direct connectivity between
+     flowcap and rwflowpack.  These daemons allow the flowcap files to
+     be sent to multiple rwflowpack processes.
+  -- In addition, they allow rwflowpack to process data on one system
+     and send small files containing SiLK Flow records (called
+     "incremental files") to another system (where the rwflowappend
+     daemon is running) for analysis.
+* New packing tool: rwflowappend
+  -- rwflowappend appends SiLK Flow records contained in "incremental
+     files" to hourly files.
+* Changes to flowcap and rwflowpack
+  -- The flowcap and rwflowpack tools have been modified to work with
+     the new rwsender and rwreceiver, though they can also be used in
+     legacy mode.  With the transport removed from flowcap, flowcap
+     files can now be sent to multiple locations.
+* IPFIX flow collection enhancement
+  -- Previous releases of SiLK (rwflowpack and flowcap) could only
+     read IPFIX streams generated by YAF.  With this release, SiLK can
+     read flows from any IPFIX-compliant generator.
+* Remove zlib requirement in rwflowpack
+  -- Allow rwflowpack to be built even if zlib is not available.
+     However, rwflowpack will not be able to read files of NetFlow
+     PDUs when zlib is not present.
+* New packing tool: rwpackchecker
+  -- rwpackchecker performs a basic integrity check of a packed SiLK
+     file.
+
+
+
+SiLK-0.10.5 Release, 2006-Dec-12
+
+* Data file version number bump
+  -- Fix a forward compatibility issue in SiLK between releases prior
+     to 0.10.0 and releases 0.10.0 through 0.10.4 when data
+     compression is enabled (either via the
+     --enable-output-compression switch to 'configure' or the
+     --compression-method switch to various applications).  Versions
+     of SiLK prior to 0.10.0 did not check the value of the
+     'compression' byte in the header; when reading a SiLK file from
+     0.10.0 with compression enabled, these versions will silently
+     attempt to read the data section without uncompressing it,
+     leading to incorrect output.
+
+     The issue is resolved in SiLK 0.10.5 by incrementing the version
+     number of every SiLK file format that supports compression of the
+     data section of the file (IPsets, Bags, and the output from
+     rwfilter, rwcat, rwsort, rwflowpack, and rwptoflow).
+
+     We recommend using the "silk-version-bump-0-10-5" script included
+     with the distribution to increment the version number of files
+     created with releases of SiLK prior to 0.10.5 that have
+     compression enabled.  The script will only modify SiLK files that
+     have compression enabled; it will not modify non-SiLK files nor
+     SiLK files that do no have compression enabled.
+* rwcount change
+  -- IMPORTANT.  The default binning mode (load-scheme) has changed.
+     The former scheme put each flow's entire volume into the first
+     second of the flow.  The new scheme evenly divides the volume
+     across each second of the flow's duration, which should help
+     reduce "spikiness" in the data.  Any scripts that rely on the
+     former method should have "--load-scheme=1" added explicitly to
+     rwcount's invocation.
+* rwuniq enhancement and bug fix
+  -- New flag "--presorted-input" makes rwuniq assume that the data
+     has been sorted with rwsort using the same set of "--fields".
+     This reduces rwuniq's memory requirement and allows it to work
+     like it's UNIX counterpart 'uniq'.
+  -- Fix a memory fault that could occur when using the --sip-distinct
+     and/or --dip-distinct switches on large data sets.
+* rwfilter changes
+  -- rwfilter will continue to process even if there is a problem with
+     an input file.
+  -- rwfilter will now process multiple RWFILTER input files, though
+     it prints a warning that file history is being lost.
+  -- rwfilter supports time filtering (via the --stime and --etime
+     switches) to the millisecond.
+* New script 'rwp2yaf2silk'
+  -- rwp2yaf2silk converts a file of pcap data to SiLK Flow data; the
+     script requires that the SiLK tool 'rwtuc' is installed and that
+     the tools 'yaf' and 'yafscii' (http://tools.netsa.cert.org/yaf/)
+     are installed.
+* rwbagcat bug fix
+  -- Make certain the --bin-ips=linear switch properly handles Bag
+     entries where the count is greater than 4294967295.  These
+     entries are now attributed to the maximum key unless the
+     --maxcount value is used to filter out those entries.
+  -- When printing the output from --bin-ips=decimal, properly print
+     the key when its value is greater than 4294967295.
+  -- Set the output column width to 20 to maintain the columnar output
+     when the value is very large.
+  -- Support values larger than 4294967295 in the --mincount and
+     --maxcount switches.
+* rwbagtool bug fix
+  -- Fix a bug in the --invert switch which resulted in incorrect
+     results in the output.  This would occur when the value was
+     larger than the current key.
+  -- Make certain the --invert switch properly handles Bag entries
+     where the count is greater than 4294967295.  These entries are
+     now attributed to the maximum key unless the --maxcount value is
+     used to filter out those entries.
+  -- Allow the --invert switch to support multiple Bag files by adding
+     the Bags (making the switch consistent with the --coverset,
+     --intersect, and --compliment-intersect switches).  This fixes an
+     assertion that would cause the program to abort.
+  -- Support values larger than 4294967295 in the --mincount and
+     --maxcount switches.
+* rwflowpack input check
+  -- When processing NetFlow data from a file, rwflowpack now checks
+     that the input data is in NetFlow v5 format.  Previously, the
+     version check was not made and the file would be processed as if
+     it contained NetFlow v5 data.
+* rwpmatch enhancement and bug fix
+  -- Provide --ports-compare and --msec-compare switches to have
+     rwpmatch compare port data and compare times down to the
+     millisecond.
+  -- Fix a bug that caused rwpmatch to assume every packet would have
+     a corresponding flow.
+  -- Be more diligent about testing the length and type of packets we
+     read.
+* rwtuc change
+  -- Always print the SiLK header to the output, even when records
+     were read from the input.
+* flowcap fixes
+  -- Fix a bug in flowcap that caused it to process data from only the
+     final sensor listed in the sensor-configuration file.
+  -- Fix bugs in the flowcap control script.
+* File relocation
+  -- The man page "sensorconf.5" has been renamed "sensor.conf.5".
+  -- The source POD for man pages has moved from src/APP/doc/APP.pod
+     to src/APP/APP.pod.
+
+
+SiLK-0.10.3 Release, 2006-Nov-15
+
+* Fix a major bug in rwbagbuild that caused rwbagbuild to ignore every
+  other line of its input.
+* Fix a bug in the prefix map (pmap) support that caused rwsort to
+  crash when attempting to sort using fields defined in a pmap.
+* Fix syntax errors in the rwfpd script that runs rwflowpack.  These
+  errors were invoked when the compression was not set or when the
+  name of the script included a sensor-name suffix.
+* Add a --no-file-locking switch to rwflowpack.  With this switch,
+  rwflowpack will not attempt to get a write lock when writing flows
+  to data files.  This switch is required for rwflowpack use
+  file systems that do not support file locking.  During normal
+  operation multiple rwflowpacks should never attempt to write to the
+  same file; the use of advisory locks is not strictly necessary, but
+  it provides protection during unusual circumstances.
+* Modify rwflowpack so that when it encounters a disk error (unable to
+  open file, obtain a lock, write the flow, etc) when trying to write
+  a flow, it stops processing flows for that probe.  If all probes
+  encounter disk errors, rwflowpack will exit.
+* Fix a bug related to the sensor.conf file; the growth factor for an
+  array was too small which caused rwflowpack to abort.
+* Fix a bug in parsing time ranges when fractional seconds were
+  present.
+* Ensure that compressing flows with the LZO compressor always
+  produces the same binary output by clearing the temporary buffer
+  that is passed into LZO.
+* Fix a communication issue between flowcap and rwflowpack: on slow
+  and noisy networks, the ACK which rwflowpack sends to flowcap
+  indicating that it has received a file could be lost.  Since flowcap
+  never received the ACK, it would resend the same file to rwflowpack
+  thinking the first attempt had failed.  rwflowpack would store both
+  files, resulting in duplicate flows in the packed data.  rwflowpack
+  now stores the name of the most recent file it received.  If it
+  receives a file with the same name, the second file is ignored.
+
+
+SiLK-0.10.0 Release, 2006-Oct-06
+
+* There is a new Analysts' Handbook: Using SiLK for Network Traffic
+  Analysis.  This document provides a tutorial on learning the SiLK
+  tools and describes doing analysis with the tools.  The manual pages
+  that used to be in that document have been moved into a separate
+  document: The SiLK Reference Guide.
+* The SiLK packing tools now support reading IPFIX records generated
+  by the YAF Flow Sensor (http://tools.netsa.cert.org/yaf/).  YAF must
+  be installed prior to configuring SiLK.
+* When used with YAF, SiLK supports additional fields for dealing with
+  TCP data: The flags on the first packet on the flow are stored
+  separately from the flags on the other packets in the flow.  In
+  addition, when a TCP session is broken into multiple flows, the
+  flows are specially marked.
+* SiLK now supports using an external compression library to further
+  compress the "data" section of files, while leaving the "header" of
+  the file uncompressed.  This compression is available on SiLK Flow
+  files, as well as IPsets and Bags.  The supported compression
+  methods are "none", "zlib", and "lzo1x", subject to library
+  availability.  Most tools allow one to specify the compression.  The
+  default compression is set when the 'configure' script is run
+  (--enable-output-compression).
+* The logging library has been rewritten, and now supports syslog(3).
+  Logging messages can also be written to the standard error.
+  "Legacy" logging is still supported (SiLK can still write its log
+  files in a directory and rotate the files), but note that the FORMAT
+  OF LOG MESSAGES HAS CHANGED.  Also, rwflowpack will no longer
+  automatically include the value passed to --sensor-name switch as
+  part of the log file name and PID file name.  (The rwfpd init script
+  works around this; see the SiLK Installation Handbook.)
+* For people upgrading from previous releases, note that the list of
+  sensors has been moved from silk_site_generic.h to
+  generic_sensors.h.  Also note that the macros around the sensor list
+  have changed; please edit carefully.  See the SiLK Installation
+  Handbook.
+* A new library, libsksetbag, contains the functions to manipulate
+  IPsets and Bags.  libiptree has been removed; use libsksetbag
+  instead.
+* Additional manual pages have been added.
+* Additional changes
+  -- rwptoflow: does a better job of checking the validity of its
+     input; has plug-in support; new switches allow it to produce
+     "pass" and "fail" streams of pcap data and/or print statistics.
+  -- rwsort: when it receives no input, it now produces a SiLK Flow
+     file with no readers (only a header).  Previously it would
+     produce a completely empty file.
+  -- rwfileinfo: output changed to include new compression method.
+  -- flowcap: add a switch to manually set the ack timeout, which is
+     useful on slow networks.
+
+
+SiLK-0.9.10 Release, 2006-Aug-23
+
+* Critical bug fix
+  -- Fix a byte-swapping bug in FT_RWWWW V3 records.  When converting
+     an rwRec from or to this format and where the conversion included
+     a byte-swap, the record would be corrupted.  As long as all SiLK
+     data was handled in the machine's native byte order, the bug
+     would not manifest itself (the initial read of the NetFlow data
+     was/is handled correctly, so data on little endian (not network
+     byte order) machines is correct so long as it has always remained
+     on little endian machines).
+
+     The bug corrupted data, resulting in any of these behaviors: the
+     source and destination ports could be swapped, the service
+     (web-side) port could be incorrect, the TCP flags could be
+     incorrect, the packet and byte counts could be high (64 times
+     higher than they should be), and the millisecond times could be
+     wrong.
+* Potential Incompatibilities
+  -- When using SiLK flow records in contexts that do not use the
+     millisecond field, truncate the millisecond value instead of
+     rounding.
+  -- rwbagcat, rwbagtool, rwcat: When file names are listed on the
+     command line, do not attempt to read data from the standard input
+     unless the user explicitly uses "stdin" as the name of an input
+     file.  This change is required to allow the tools to work with
+     cron(1).
+  -- rwflowpack (sensor.conf): Allow a comma to occur between the IP
+     addresses in an ipblock list.  This means that a comma cannot
+     occur within the wildcard IP address, but it is believed few
+     people were using this functionality.
+  -- rwflowpack: minor log message changes; changed the log rotation
+     hour to 00:00; modified the umask() of log files
+* New feature: Address Type Plug-in (libaddrtype.so)
+  -- Support for partitioning by or displaying the address type
+     requires libaddrtype.so to exist in the $SILK_PATH/lib directory
+     and the "address_types.pmap" file to exist in the
+     $SILK_PATH/share/silk or $SILK_PATH/share directory.
+  -- To create this binary "address_types.pmap" file, first list CIDR
+     blocks in a text file (my-ips.txt) and label each as
+     "non-routable", "internal" or "external" (any address that is not
+     listed in the file is considered "external"), and then run the
+     commands:
+
+     rwpmapbuild -i my-ips.txt -o address_types.pmap
+
+     For the best results with the pmap code, the CIDR blocks should
+     be as large as possible.  One one to convert a list of IPs
+     (ips.txt) into a list of large CIDR blocks (cidr.txt) is to run:
+
+     rwsetbuild ips.txt stdout | rwsetcat --cidr > cidr.txt
+
+  -- For more information, see the rwpmapbuild man page and the man
+     pages of rwfilter, rwcut, rwsort, and rwuniq.
+* New feature: Prefix Map Plug-in (libpmapfilter.so)
+  -- Experimental creation and use of the user's own prefix maps
+     (pmaps) for partitioning (rwfilter), sorting (rwsort), counting
+     (rwuniq), and display (rwcut, rwuniq) is provided. The interface
+     is still considered experimental and is subject to change.
+  -- The rwpmapbuild tool reads a text file and builds a pmap file
+     that can be used by the tools.  This file can relate IPs or
+     Port/Protocol pairs to some attribute (this is how the country
+     code and addrtype pmaps work).
+  -- For details, see the rwpmapbuild and libpmapfilter man pages.
+* New feature: Record Partitioning via IP-Port Pairs (libipport.so)
+  -- The --ipport-any switch to rwfilter (provided by the libipport.so
+     plug-in) will pass a record if its source IP and port or its
+     destination IP and port are listed in the named text file.
+  -- To use this plug-in, one creates a text file where each line
+     contains a single IP address (either in dotted-decimal notation
+     or as an integer), whitespace, and a list of ports of interest
+     for that IP.  The port list can be a single number (80), a range
+     of numbers ("6000-6100"), or comma-separated list of numbers and
+     ranges ("6000-6100,80"). The file may also contain blank lines
+     and comments; comments begin with the "#" character and continue
+     to the end of the line.
+  -- Support in rwfilter for partitioning records by IP-port pairs
+     requires libipport.so to exist in the $SILK_PATH/lib directory.
+* Improved sorting
+  -- rwsort now supports getting fields from run-time plug-ins, like
+     rwcut and rwuniq.
+  -- When merging multiple temp-files, rwsort now attempts to open
+     them all and merge them in one step, considerably reducing the
+     I/O overhead of the merge sort.
+* Better support for ICMP data
+  -- rwfilter: new switches allow for filtering by the ICMP type and
+     code (--icmp-type, --icmp-code)
+  -- rwcut, rwsort, rwuniq: A new "icmpTypeCode" value to the --fields
+     switch is allowed.  When this value is present, the ICMP type and
+     code will be used as part of the key when sorting (rwsort) and
+     counting (rwuniq), and it will be displayed (by rwcut and rwuniq)
+     in separate columns labeled 'iType' and 'iCode' (which in
+     columnar output will shorted to 'iTy' and 'iCo').  The
+     --icmp-type-and-code switch on rwcut is still maintained for
+     backwards compatibility, but its use is deprecated.
+  -- rwstats: Supports using the ICMP type and code as a key with the
+     --icmp switch.
+* Configuration and Build System Changes
+  -- In preparation of using the GNU Autotools, we've made major
+     changes to build and configure system that bring us more in-line
+     with the Autotools.  Note that the 'release', 'debug', and
+     'profile' targets have gone away.  Use the --enable-debugging and
+     --disable-optimization switches to configure for a fully
+     debuggable binary.  See configure --help to see the full list of
+     new options.
+* Miscellaneous Improvements
+  -- rwcount: Add a new value to the --load-scheme switch that will
+     weigh the values assigned to each bin by the number of seconds
+     the flow spent in the bin.
+  -- rwfilter: new switch to filter on a negative next-hop IP
+     (--not-next-hop-id)
+  -- rwfilter: Filtering by IPsets is now supported directly in the
+     application itself.  Previously, this was handled by a plug-in.
+  -- flowcap: There is a new version of the flowcap file format, 5.
+     Version 5 is identical to version 3, save for the fact that the
+     input and output interface fields have been expanded to 16 bits.
+  -- rwcut, rwsort, rwuniq: Provide numerical identifiers for fields
+     (--fields switch) that hadn't had any previously.
+* Bug fixes
+  -- rwgroup: Fix several bugs, the majority of which have to do with
+     the interaction between summarization and other actions.
+  -- rwflowpack: Use fseeko() to fix an issue when writing large files
+     on Solaris.
+  -- rwfilter: Fix a crash that would occur when using a combination
+     of the switches --dynamic-library --pass for certain dynamic
+     libraries
+  -- rwmatch: Several bug fixes.
+  -- rwstats: Fix a bug that would cause rwstats to crash when
+     attempting to compute the top-N when no records were read as
+     input.
+  -- rwtuc: Fix a bug that occurred when the user provided the
+     --fields switch and a title line was present
+  -- rwuniq: Fix a display bug by using the width of the value (versus
+     the title) for setting width of columns that we get from
+     plug-ins.
+  -- rwuniq: Zero out the record prior to output to avoid getting
+     random data values in the millisecond fields.  These random
+     values were affecting the values in the time fields.
+  -- libflowsource: Fix a bug that prevented it from building when
+     used with certain parser generators.
+
+
+SiLK-0.9.5 Release, 2006-May-08
+
+* New packing support: flowcap
+  -- The flowcap daemon allows the collection of flow data and the
+     packing and storage of this flow data to occur on separate
+     machines.
+  -- To use flowcap, the LZO real-time data compression library must
+     be installed. If configure does not find the LZO library, flowcap
+     will not be built.
+  -- Compilation and use of flowcap is optional.
+* Improvements and significant changes to rwflowpack
+  -- Splitting by IP address: Instead of using your router's SNMP
+     interfaces to split traffic into inbound and outbound, rwflowpack
+     can now split data by CIDR block.
+  -- rwflowpack now requires configuration via a separate sensor.conf
+     file.
+  -- Many of rwflowpack's arguments have changed.
+  -- rwflowpack's control script, rwfpd, has been split into two
+     parts.
+* New local timezone support: Pass the --enable-localtime switch to
+  the configure script to use the local timezone in time input and
+  output. Without this switch, the tools will use UTC. (Data files
+  continue to be stored in UTC.)
+* Format of printed timestamps has changed, the new format is
+  2006/05/08T15:36:53.123. To enable the previous format by default,
+  pass the --enable-legacy-timestamp switch to configure. The printed
+  timestamp format can be set per invocation via the
+  --legacy-timestamps switch.
+* The tools that handle IPset files have been renamed. The old names
+  are still supported for this release.
+  -- rwsetbuild replaces buildset.
+  -- rwsetcat replaces readset.
+  -- rwsetintersect replaces setintersect.
+  -- rwsetunion replaces rwset-union.
+* New tool rwtuc: the text utility converter does the reverse of
+  rwcut---it reads textual input and generates binary SiLK flow data
+  from it.
+* Manual pages are now included. Additional improvements to the
+  documentation.
+* Improvements to rwuniq
+  -- Supports computing counts of unique source or destination IPs for
+     small input sets; the memory requirements to support these counts
+     can grow quickly.
+  -- Can be used with run-time plug-ins.
+* Improvements to rwbagtool: Less memory is used during merging of
+  multiple Bag files, and some recursive routines have been rewritten
+  to reduce memory and increase speed.
+* Changes to rwsetcat and rwbagcat: The output of the
+  --network-structure switch has changed.
+* For tools that produce textual output, columnar output and column
+  separator can be controlled separately. These tools all support the
+  --delimited switch; the former --delimiter switch which some tools
+  supported is deprecated.
+* Improvements to rwappend: Now supports "appending" to a nonexistent
+  file. Restrictions on the types of files that rwappend supported
+  have been removed.
+* Configuration for multiple sites is easier, though the choice of
+  which site to build for must still be made when you run the
+  configure script.
+* Significant rearrangement of the source code tree.

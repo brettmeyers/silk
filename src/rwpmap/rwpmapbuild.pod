@@ -1,0 +1,421 @@
+=pod
+
+=head1 NAME
+
+B<rwpmapbuild> - Create a binary prefix map from a text file
+
+=head1 SYNOPSIS
+
+  rwpmapbuild [--input-file=FILENAME] [--output-file=FILENAME]
+        [--mode={ipv4|ipv6|proto-port}] [--dry-run] [--ignore-errors]
+        [--note-add=TEXT] [--note-file-add=FILENAME]
+
+  rwpmapbuild --help
+
+  rwpmapbuild --version
+
+=head1 DESCRIPTION
+
+Prefix maps provide a way to map field values (specifically either IP
+addresses or protocol-port pairs) to string labels based on a
+user-defined map file.  B<rwpmapbuild> reads textual input to create a
+binary prefix map file.  The syntax of this input is described in the
+L</INPUT FILE FORMAT> section below.
+
+As described in B<pmapfilter(3)>, you can partition, count, sort and
+display SiLK flow records based on the string labels defined in the
+prefix map.  To view the contents of a prefix map file, use
+B<rwpmapcat(1)>.  To query the contents of a prefix map, use
+B<rwpmaplookup(1)>.
+
+The textual input is read from the specified input file, or from the
+standard input when the B<--input-file> switch is not provided.  The
+binary output is written to the named output file, or to the standard
+output when the B<--output-file> switch is not provided and the
+standard output is not connected to a terminal.
+
+=head1 OPTIONS
+
+Option names may be abbreviated if the abbreviation is unique or is an
+exact match for an option.  A parameter to an option may be specified
+as B<--arg>=I<param> or B<--arg> I<param>, though the first form is
+required for options that take optional parameters.
+
+=over 4
+
+=item B<--input-file>=I<FILENAME>
+
+Read the textual input from I<FILENAME>.  You may use C<stdin> or C<->
+to represent the standard input.  When this switch is not provided,
+the input is read from the standard input.  The input file format is
+described below.
+
+=item B<--output-file>=I<FILENAME>
+
+Write the binary prefix map to I<FILENAME>.  You may use C<stdout> or
+C<-> to represent the standard output.  When this switch is not
+provided, the prefix map is written to the standard output unless
+the standard output is connected to a terminal.
+
+=item B<--mode=>{B<ipv4>|B<ipv6>|B<proto-port>}
+
+Specify the type of the input, as if a B<mode> statement appeared in
+the input stream.  The value specified by this switch must not
+conflict with an explicit B<mode> statement appearing in the input.
+
+=item B<--dry-run>
+
+Do not write the output file.  Simply check the syntax of the input
+file.
+
+=item B<--ignore-errors>
+
+Write the output file regardless of any errors encountered while
+parsing the input file.
+
+=item B<--note-add>=I<TEXT>
+
+Add the specified I<TEXT> to the header of the output file as an
+annotation.  This switch may be repeated to add multiple annotations
+to a file.  To view the annotations, use the B<rwfileinfo(1)> tool.
+
+=item B<--note-file-add>=I<FILENAME>
+
+Open I<FILENAME> and add the contents of that file to the header of
+the output file as an annotation.    This switch may be repeated to
+add multiple annotations.  Currently the application makes no effort
+to ensure that I<FILENAME> contains text; be careful that you do not
+attempt to add a SiLK data file as an annotation.
+
+=item B<--help>
+
+Print the available options and exit.
+
+=item B<--version>
+
+Print the version number and information about how SiLK was
+configured, then exit the application.
+
+=back
+
+=head1 INPUT FILE FORMAT
+
+The input file format consists of any number of input lines of the
+forms described below.  Note that there is B<not> a form that accepts
+a single IP address and a label; therefore, to provide a label for a
+single IP address you must append C</32> to a single IPv4 address (or
+C</128> to a single IPv6 address).
+
+Blank lines in the input file are ignored, as are comments.  Comments
+begin with the first C<#> character on a line and extend to the end of
+the line.
+
+B<rwpmapbuild> maps ranges to string labels.  These string labels may
+be created either explicitly via the B<label> statement or implicitly
+by specifying text after a range, but a single input file must use
+only one method to create labels.  When the B<label> statement is
+used, all labels must be pre-declared in the B<label> statement prior
+to their use in the B<default> statement or an range statements.
+
+In the following, the I<label-value> represents either a numerical
+label identifier that was created with the B<label> statement or
+I<label-text>.
+
+B<NOTE:> Unlike many SiLK input files, there is no explicit delimiter
+between the range and the string label.  The range and string label
+are separated by whitespace.  The first non-whitespace character after
+the range begins the label.
+
+I<label-text> is a textual string that begins at the first
+non-whitespace character and extends to the final non-whitespace
+character on that line that does not appear in a comment.  The
+I<label-text> may include embedded whitespace and non-alphanumeric
+characters.  While a comma (C<,>) is legal in the I<label-text>, using
+a comma prevents the label from being used by the B<--pmap-src> and
+B<--pmap-dest> switches in B<rwfilter(1)>.
+
+The following statements are supported:
+
+=over 4
+
+=item B<map-name> I<simple-string>
+
+Creates a name for the data in this prefix map file.  The
+I<simple-string> cannot contain whitespace, a comma, or a colon.  When
+the prefix map file is used by B<rwfilter(1)>, the I<simple-string> is
+used to generate the filtering switch names.  When the prefix map file
+is used by B<rwcut(1)>, B<rwgroup(1)>, B<rwsort(1)>, B<rwstats(1)>, or
+B<rwuniq(1)>, the I<simple-string> is used to generate the field
+names.  See B<pmapfilter(3)> for details.
+
+=item B<label> I<num> I<label-text>
+
+Associate the numeric identifier I<num> with the given label text
+I<label-text>.  It is an error if I<num> or I<label-text> appear in
+any other B<label> statement.  The maximum allowed value for I<num> is
+2147483647, but note that B<rwpmapbuild> creates an empty label for
+all the unassigned numeric identifiers that are less than the maximum
+identifier used in the input file.  The B<label> statement must appear
+before the B<default> statement and before range definitions.  When a
+B<label> statement appears in the input, B<rwpmapbuild> will complain
+if you attempt to use a I<label-value> that was not previously defined
+in a B<label> statement.
+
+=item B<default> I<label-value>
+
+Make the given label identifier or label text the default value for
+any ranges not explicitly mentioned in this input file.  The
+B<default> statement must appear before any ranges are specified.  If
+the B<default> statement does not appear in the input, the label
+C<UNKNOWN> is automatically defined and used as the default.
+
+=item B<mode> { B<ipv4> | B<ipv6> | B<proto-port> | B<ip> }
+
+Specify how to process the file.  The B<mode> statement must appear
+before any ranges are specified.  The mode can also be set using the
+B<--mode> command line switch.  When both the B<mode> statement and
+the B<--mode> switch are given, their values must match.  When neither
+the B<mode> statement nor the B<--mode> switch is provided,
+B<rwpmapbuild> processes the input in IPv4 address mode.  The B<ip>
+mode is deprecated; it is an alias for B<ipv4>.
+
+=back
+
+=head2 Address Mode
+
+When B<rwpmapbuild> is in IPv4 address mode, any IPv6 address in the
+input file will raise an error.
+
+=over 4
+
+=item I<cidr-block> I<label-value>
+
+Associate the given label identifier or label text with this CIDR
+block.  The CIDR block is composed of an IP address in canonical
+notation (e.g, dotted-decimal for IPv4), a slash C</>, and the number
+of significant bits.
+
+=item I<low-ip> I<high-ip> I<label-value>
+
+Associate the given label identifier or label text with this IP
+range, where I<low-ip> and I<high-ip> are in canonical notation.
+
+=item I<low-int> I<high-int> I<label-value>
+
+Treat I<low-int> and I<high-int> as 32-bit values, convert the values
+to IPv4 addresses, and associate the given label identifier or label
+text with the IPv4 range.
+
+=back
+
+=head2 Protocol/Port Mode
+
+=over 4
+
+=item I<proto>/I<port> I<proto>/I<port> I<label-value>
+
+Associate the given label identifier or label text with all protocols
+and port numbers between these two values inclusive.  Note that while
+port is not meaningful for all protocols (specifically, it is
+meaningful for TCP and UDP and may contain type/code information for
+ICMP), this file allows port numbers to be given for any protocol.
+
+=item I<proto> I<proto> I<label-value>
+
+Associate the given label identifier or label text with all protocols
+between these two values.
+
+=back
+
+=head1 NOTES
+
+The IP Address input file can contain nested CIDR blocks.  They
+should be ordered with the more general blocks first, and the more
+specific blocks last.  That is, use:
+
+  10.0.0.0/8     My-network
+  10.1.0.0/16    Special-Subnet-1
+  10.1.2.0/24    Special-Subnet-2
+
+Likewise, the protocol/port data can be nested:
+
+  6 6            TCP
+  6/0  6/1024    TCP/Generic reserved
+  6/22 6/22      TCP/SSH
+  6/25 6/25      TCP/SMTP
+  6/80 6/80      TCP/HTTP
+
+=head1 EXAMPLE
+
+In the following examples, the dollar sign (C<$>) represents the shell
+prompt.  The text after the dollar sign represents the command line.
+Lines have been wrapped for improved readability, and the back slash
+(C<\>) is used to indicate a wrapped line.
+
+Reading and writing to a file:
+
+ $ echo "10.1.2.3/32 my favorite host" > fav.txt
+ $ rwpmapbuild -i fav.txt -o fav.pmap
+
+Reading and writing to stdin and stdout:
+
+ $ echo "10.9.8.128/27 suspicious subnet" \
+   | rwpmapbuild --input-file=stdin --output-file=stdout > suspicious.pmap
+
+=head2 Complex IP File
+
+  #    Numerical mappings of labels
+
+  label 0             non-routable
+  label 1             internal
+  label 2             external
+
+  #    Default to "external" for all un-defined ranges.
+
+  default             external
+
+  #    Force IP-mode
+
+  mode                ip
+
+  #    Create a name
+  #
+  #        This will add --pmap-src-network and --pmap-dst-network
+  #        switches to rwfilter, and src-network and dst-network
+  #        fields to rwcut, rwgroup, rwsort, rwstats, and rwuniq
+
+  map-name            network
+
+  ## Reserved and non-routable blocks ###########################
+
+  #    Addresses in this block refer to source hosts on "this"
+  #    network.  Address 0.0.0.0/32 may be used as a source
+  #    address for this host on this network; other addresses
+  #    within 0.0.0.0/8 may be used to refer to specified hosts
+  #    on this network [RFC1700, page 4].
+
+  0.0.0.0/8           non-routable
+
+  #    This block is set aside for use in private networks.  Its
+  #    intended use is documented in [RFC1918].  Addresses within
+  #    this block should not appear on the public Internet.
+
+  10.0.0.0/8          non-routable
+
+  #    This block is assigned for use as the Internet host
+  #    loopback address.  A datagram sent by a higher level
+  #    protocol to an address anywhere within this block should
+  #    loop back inside the host.  This is ordinarily
+  #    implemented using only 127.0.0.1/32 for loopback, but no
+  #    addresses within this block should ever appear on any
+  #    network anywhere [RFC1700, page 5].
+
+  127.0.0.0/8         non-routable
+
+  #    This is the "link local" block.  It is allocated for
+  #    communication between hosts on a single link.  Hosts
+  #    obtain these addresses by auto-configuration, such as when
+  #    a DHCP server may not be found.
+
+  169.254.0.0/16      non-routable
+
+  #    This block is set aside for use in private networks.  Its
+  #    intended use is documented in [RFC1918].  Addresses within
+  #    this block should not appear on the public Internet.
+
+  172.16.0.0/12       non-routable
+
+  #    This block is assigned as "TEST-NET" for use in
+  #    documentation and example code.  It is often used in
+  #    conjunction with domain names example.com or example.net
+  #    in vendor and protocol documentation.  Addresses within
+  #    this block should not appear on the public Internet.
+
+  192.0.2.0/24        non-routable
+
+  #    This block is set aside for use in private networks.
+  #    Its intended use is documented in [RFC1918].  Addresses
+  #    within this block should not appear on the public Internet.
+
+  192.168.0.0/16      non-routable
+
+  #    240.0.0.0/4 - This block, formerly known as the Class E
+  #    address space, is reserved.  The "limited broadcast"
+  #    destination address 255.255.255.255 should never be
+  #    forwarded outside the (sub-)net of the source.  The
+  #    remainder of this space is reserved for future use.
+  #    [RFC1700, page 4]
+
+  255.255.255.255/32  non-routable
+
+  # -- Below this line, would add any mappings appropriate to
+  # -- the local network.
+
+=head2 Complex Protocol/Port File
+
+  #    Default to a hyphen ("-") for all un-defined ranges.
+
+  default             -
+
+  #    Force Protocol/Port-mode
+  #
+  #        This MUST be present, since IP mode is the default.
+
+  mode                proto-port
+
+  #    Protocol Overview
+
+   1  1               ICMP
+   6  6               TCP
+  17 17               UDP
+  50 50               ESP
+  58 58               ICMPv6
+
+  #    TCP -- Specific Ports
+
+  6/0 6/1024          TCP/Generic Reserved
+  6/21 6/21           TCP/ftp
+  6/22 6/22           TCP/ssh
+  6/25 6/25           TCP/smtp
+  6/53 6/53           TCP/dns
+  6/80 6/80           TCP/http
+  6/6000 6/6063       TCP/X11
+
+  #    UDP -- Specific Ports
+
+  17/53 17/53         UDP/dns
+
+  #    ICMP -- Specific Type/Code
+  #
+  #    To convert a type/code to a "port" value as stored in SiLK:
+  #        (type << 8) | code     OR    (type * 256) + code
+  #    so 3/3 (Destination Unreachable/Port Unreachable) becomes:
+
+  1/771 1/771         ICMP/Destination Unreachable/Port Unreachable
+
+
+=head1 ENVIRONMENT
+
+=over 4
+
+=item SILK_CLOBBER
+
+The SiLK tools normally refuse to overwrite existing files.  Setting
+SILK_CLOBBER to a non-empty value removes this restriction.
+
+=back
+
+=head1 SEE ALSO
+
+B<pmapfilter(3)>, B<rwfilter(1)>, B<rwfileinfo(1)>, B<rwpmapcat(1)>,
+B<rwpmaplookup(1)>, B<rwcut(1)>, B<rwgroup(1)>, B<rwsort(1)>,
+B<rwstats(1)>, B<rwuniq(1)>, B<silk(7)>
+
+=cut
+
+$SiLK: rwpmapbuild.pod cd09f0a5fcc6 2014-06-14 15:43:33Z mthomas $
+
+Local Variables:
+mode:text
+indent-tabs-mode:nil
+End:

@@ -1,0 +1,254 @@
+=pod
+
+=head1 NAME
+
+B<rwfileinfo> - Print information about a SiLK file
+
+=head1 SYNOPSIS
+
+  rwfileinfo [--fields=FIELDS] [--summary] [--no-titles]
+        [--site-config-file=FILENAME]
+        FILE [ FILE ... ]
+
+  rwfileinfo --help
+
+  rwfileinfo --version
+
+=head1 DESCRIPTION
+
+B<rwfileinfo> prints information about a SiLK file.  The information
+that may be printed is:
+
+=over 4
+
+=item 1
+
+B<format>.  The output file format, a string and its hexadecimal
+equivalent: C<FT_RWSPLIT(0x12)>, C<FT_RWFILTER(0x13)>, etc
+
+=item 2
+
+B<version>.  The version of the file, an integer.  As of SiLK 1.0, the
+version of the file is distinct from the version of the records in the
+file.
+
+=item 3
+
+B<byte-order>.  The byte-order (endian-ness) of the file, a string
+
+=item 4
+
+B<compression>.  The compression library used to compress the
+data-section of the file, a string and its decimal equivalent
+(C<none(0)>, C<lzo1x(2)>.  Does not include any external compression,
+such as if the entire file has been compressed with B<gzip(1)>.
+
+=item 5
+
+B<header-length>.  The length of the header in bytes
+
+=item 6
+
+B<record-length>.  The length of a single record in bytes.  This will
+be 1 if the records do not have a fixed size.
+
+=item 7
+
+B<count-records>.  The number of records in the file.  If the
+record-size is 1, this value is the uncompressed size of the data
+section of the file.
+
+=item 8
+
+B<file-size>.  The size of the file as it is on disk
+
+=item 9
+
+B<command-lines>.  The command(s) used to generate this file, for
+tools that support writing that information to the header and for
+formats that store that information.
+
+=item 10
+
+B<record-version>.  The version of the records contained in the file
+
+=item 11
+
+B<silk-version>.  The release of SiLK that wrote this file, e.g.,
+C<1.0.0>.  This value is 0 for files written by releases of SiLK prior
+to 1.0.
+
+=item 12
+
+B<packed-file-info>.  The timestamp, flowtype, and sensor for a file
+in the SiLK data repository.
+
+=item 13
+
+B<probe-name>.  The probe information for files created by
+B<flowcap(8)>
+
+=item 14
+
+B<annotations>.  The notes (annotations) that have been added to the
+file with the B<--note-add> and B<--note-file-add> switches
+
+=item 15
+
+B<prefix-map>.  The mapname value for a prefix map file.  The C<v1:>
+that precedes the mapname denotes the version of the prefix-map header
+entry, and it is printed for completeness.
+
+=item 16
+
+B<ipset>.  The number and size of the nodes and leaves in an IPset
+file.
+
+=item 17
+
+B<bag>.  The type and size of the key and counter in a Bag file.
+
+=back
+
+=head1 OPTIONS
+
+Option names may be abbreviated if the abbreviation is unique or is an
+exact match for an option.  A parameter to an option may be specified
+as B<--arg>=I<param> or B<--arg> I<param>, though the first form is
+required for options that take optional parameters.
+
+=over 4
+
+=item B<--fields>=I<FIELDS>
+
+Determines which information about the file is printed.  I<FIELDS> is
+a list of integers representing fields to print.  The I<FIELDS> may be
+a comma separated list of integers; a range may be specified by
+separating the start and end of the range with a hyphen (C<->).  The
+available fields are listed above.  Fields are always printed in the
+order given above.  If the B<--fields> option is not given, all fields
+are printed.
+
+=item B<--summary>
+
+Prints a summary that lists the number of files processed, the sizes
+of those files, and the number of records contained in those files.
+
+=item B<--no-titles>
+
+Suppresses printing of the file name and field names; only the values
+are printed, left justified and one per line.
+
+=item B<--site-config-file>=I<FILENAME>
+
+Read the SiLK site configuration from the named file I<FILENAME>.
+When this switch is not provided, B<rwfileinfo> searches for the site
+configuration file in the locations specified in the L</FILES>
+section.
+
+=item B<--help>
+
+Print the available options and exit.
+
+=item B<--version>
+
+Print the version number and information about how SiLK was
+configured, then exit the application.
+
+=back
+
+=head1 EXAMPLE
+
+In the following examples, the dollar sign (C<$>) represents the shell
+prompt.  The text after the dollar sign represents the command line.
+
+=for comment
+Lines have been wrapped for improved readability, and the back slash
+(C<\>) is used to indicate a wrapped line.
+
+Get information about the file F<tcp-data.rw>:
+
+ $ rwfileinfo tcp-data.rw
+ tcp-data.rw:
+   format(id)          FT_RWGENERIC(0x16)
+   version             16
+   byte-order          littleEndian
+   compression(id)     none(0)
+   header-length       208
+   record-length       52
+   record-version      5
+   silk-version        1.0.1
+   count-records       7
+   file-size           572
+   command-lines
+                    1  rwfilter --proto=6 --pass=tcp-data.rw ...
+   annotations
+                    1  This is some interesting TCP data
+
+
+Return a single value which is the number of records in the file
+F<tcp-data.rw>:
+
+ $ rwfileinfo --no-titles --field=count-records tcp-data.rw
+ 7
+
+
+=head1 ENVIRONMENT
+
+=over 4
+
+=item SILK_CONFIG_FILE
+
+This environment variable is used as the value for the
+B<--site-config-file> when that switch is not provided.
+
+=item SILK_DATA_ROOTDIR
+
+This environment variable specifies the root directory of data
+repository.  As described in the L</FILES> section, B<rwfileinfo> may
+use this environment variable when searching for the SiLK site
+configuration file.
+
+=item SILK_PATH
+
+This environment variable gives the root of the install tree.  When
+searching for configuration files, B<rwfileinfo> may use this
+environment variable.  See the L</FILES> section for details.
+
+=back
+
+=head1 FILES
+
+=over 4
+
+=item F<${SILK_CONFIG_FILE}>
+
+=item F<${SILK_DATA_ROOTDIR}/silk.conf>
+
+=item F<@SILK_DATA_ROOTDIR@/silk.conf>
+
+=item F<${SILK_PATH}/share/silk/silk.conf>
+
+=item F<${SILK_PATH}/share/silk.conf>
+
+=item F<@prefix@/share/silk/silk.conf>
+
+=item F<@prefix@/share/silk.conf>
+
+Possible locations for the SiLK site configuration file which are
+checked when the B<--site-config-file> switch is not provided.
+
+=back
+
+=head1 SEE ALSO
+
+B<rwfilter(1)>, B<flowcap(8)>, B<silk(7)>, B<gzip(1)>
+
+=cut
+
+$SiLK: rwfileinfo.pod 52dafbdb77e6 2014-06-23 21:51:53Z mthomas $
+
+Local Variables:
+mode:text
+indent-tabs-mode:nil
+End:

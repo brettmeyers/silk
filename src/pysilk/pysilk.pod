@@ -1,0 +1,2701 @@
+=pod
+
+=head1 NAME
+
+B<PySiLK> - Silk in Python
+
+=head1 DESCRIPTION
+
+This document describes the features of B<PySiLK>, the SiLK Python
+extension.  It documents the objects and methods that allow one to
+read, manipulate, and write SiLK Flow records, IPsets, Bags, and
+Prefix Maps (pmaps) from within B<python(1)>.  PySiLK may be used in a
+stand-alone Python script or as a plug-in from within the SiLK tools
+B<rwfilter(1)>, B<rwcut(1)>, B<rwgroup(1)>, B<rwsort(1)>,
+B<rwstats(1)>, and B<rwuniq(1)>.  This document describes the objects
+and methods that PySiLK provides; the details of using those from
+within a plug-in are documented in the B<silkpython(3)> manual page.
+
+The SiLK Python extension defines the following objects and modules:
+
+=over 4
+
+=item L<B<IPAddr object>|/IPAddr Object>
+
+Represents an IP Address.
+
+=item L<B<IPv4Addr object>|/IPv4Addr Object>
+
+Represents an IPv4 Address.
+
+=item L<B<IPv6Addr object>|/IPv6Addr Object>
+
+Represents an IPv6 Address.
+
+=item L<B<IPWildcard object>|/IPWildcard Object>
+
+Represents CIDR blocks or SiLK IP wildcard addresses.
+
+=item L<B<IPSet object>|/IPSet Object>
+
+Represents a SiLK IPset.
+
+=item L<B<PrefixMap object>|/PrefixMap Object>
+
+Represents a SiLK Prefix Map.
+
+=item L<B<Bag object>|/Bag Object>
+
+Represents a SiLK Bag.
+
+=item L<B<TCPFlags object>|/TCPFlags Object>
+
+Represents TCP flags.
+
+=item L<B<RWRec object>|/RWRec Object>
+
+Represents a SiLK Flow record.
+
+=item L<B<SilkFile object>|/SilkFile Object>
+
+Represents a channel for writing to or reading from SiLK Flow files.
+
+=item L<B<FGlob object>|/FGlob Object>
+
+Allows retrieval of filenames in a SiLK data store.  See also the
+L<B<silk.site>|/silk.site Module> module.
+
+=item L<B<silk.site module>|/silk.site Module>
+
+Defines several functions that relate to the SiLK site configuration
+and allow iteration over the files in a SiLK data store.
+
+=item L<B<silk.plugin module>|/silk.plugin Module>
+
+Defines functions that may only be used in SiLK Python plug-ins.
+
+=back
+
+The SiLK Python extension provides the following functions:
+
+=over 4
+
+=item silk.B<get_configuration(>I<name>=B<None>B<)>
+
+When I<name> is B<None>, return a dictionary whose keys specify
+aspects of how SiLK was compiled.  When I<name> is provided, return
+the dictionary value for that key, or B<None> when I<name> is an
+unknown key.  The dictionary's keys and their meanings are:
+
+=over 4
+
+=item COMPRESSION_METHODS
+
+A list of strings specifying the compression methods that were
+compiled into this build of SiLK.  The list will contain one or more
+of C<NO_COMPRESSION>, C<ZLIB>, and/or C<LZO1X>.
+
+=item INITIAL_TCPFLAGS_ENABLED
+
+B<True> if SiLK was compiled with support for initial TCP flags;
+B<False> otherwise.
+
+=item IPV6_ENABLED
+
+B<True> if SiLK was compiled with IPv6 support; B<False> otherwise.
+
+=item SILK_VERSION
+
+The version of SiLK linked with PySiLK, as a string.
+
+=item TIMEZONE_SUPPORT
+
+The string C<UTC> if SiLK was compiled to use UTC, or the string
+C<local> if SiLK was compiled to use the local timezone.
+
+=back
+
+I<Since SiLK 3.8.1>.
+
+=item silk.B<ipv6_enabled(>I<>B<)>
+
+Return B<True> if SiLK was compiled with IPv6 support, B<False>
+otherwise.
+
+=item silk.B<initial_tcpflags_enabled(>I<>B<)>
+
+Return B<True> if SiLK was compiled with support for initial TCP
+flags, B<False> otherwise.
+
+=item silk.B<init_country_codes(>I<filename>=B<None>B<)>
+
+Initialize PySiLK's country code database.  I<filename> should be the
+path to a country code prefix map, as created by B<rwgeoip2ccmap(1)>.
+If I<filename> is not supplied, SiLK will look first for the file
+specified by F<$SILK_COUNTRY_CODES>, and then for a file named
+F<country_codes.pmap> in F<$SILK_PATH/share/silk>,
+F<$SILK_PATH/share>, F<@prefix@/share/silk>, and F<@prefix@/share>.
+(The latter two assume that SiLK was installed in F<@prefix@>.)  Will
+throw a B<RuntimeError> if loading the country code prefix map fails.
+
+=item silk.B<silk_version(>I<>B<)>
+
+Return the version of SiLK linked with PySiLK, as a string.
+
+=back
+
+=for comment
+############################################################################
+
+=head1 IPAddr Object
+
+An B<IPAddr> object represents an IPv4 or IPv6 address.  These two
+types of addresses are represented by two subclasses of B<IPAddr>:
+L<B<IPv4Addr>|/IPv4Addr Object> and L<B<IPv6Addr>|/IPv6Addr Object>.
+
+=over 4
+
+=item class silk.B<IPAddr(>I<address>B<)>
+
+The constructor takes a string I<address>, which must be a string
+representation of either an IPv4 or IPv6 address, or an IPAddr object.
+IPv6 addresses are only accepted if
+L<silk.B<ipv6_enabled()>|/ipv6_enabled> returns B<True>.  The
+B<IPAddr> object that the constructor returns will be either an
+B<IPv4Addr> object or an B<IPv6Addr> object.
+
+For compatibility with releases prior to SiLK 2.2.0, the B<IPAddr>
+constructor will also accept an integer I<address>, in which case it
+converts that integer to an B<IPv4Addr> object.  This behavior is
+deprecated.  Use the B<IPv4Addr> and B<IPv6Addr> constructors instead.
+
+Examples:
+
+ >>> addr1 = IPAddr('192.160.1.1')
+ >>> addr2 = IPAddr('2001:db8::1428:57ab')
+ >>> addr3 = IPAddr('::ffff:12.34.56.78')
+ >>> addr4 = IPAddr(addr1)
+ >>> addr5 = IPAddr(addr2)
+ >>> addr6 = IPAddr(0x10000000) # Deprecated as of SiLK 2.2.0
+
+=back
+
+Supported operations and methods:
+
+=over 4
+
+=item Inequality Operations
+
+In all the below inequality operations, whenever an IPv4 address is
+compared to an IPv6 address, the IPv4 address is converted to an IPv6
+address before comparison.  This means that B<IPAddr("0.0.0.0") ==
+IPAddr("::ffff:0.0.0.0")>.
+
+=over 4
+
+=item I<addr1> == I<addr2>
+
+Return B<True> if I<addr1> is equal to I<addr2>; B<False> otherwise.
+
+=item I<addr1> != I<addr2>
+
+Return B<False> if I<addr1> is equal to I<addr2>; B<True> otherwise.
+
+=item I<addr1> E<lt> I<addr2>
+
+Return B<True> if I<addr1> is less than I<addr2>; B<False> otherwise.
+
+=item I<addr1> E<lt>= I<addr2>
+
+Return B<True> if I<addr1> is less than or equal to I<addr2>; B<False>
+otherwise.
+
+=item I<addr1> E<gt>= I<addr2>
+
+Return B<True> if I<addr1> is greater than or equal to I<addr2>;
+B<False> otherwise.
+
+=item I<addr1> E<gt> I<addr2>
+
+Return B<True> if I<addr1> is greater than I<addr2>; B<False>
+otherwise.
+
+=back
+
+=item I<addr>.is_ipv6(I<>)
+
+Return B<True> if I<addr> is an IPv6 address, B<False> otherwise.
+
+=item I<addr>.isipv6(I<>)
+
+(DEPRECATED in SiLK 2.2.0) An alias for B<is_ipv6()>.
+
+=item I<addr>.to_ipv6(I<>)
+
+If I<addr> is an B<IPv6Addr>, return a copy of I<addr>.  Otherwise,
+return a new B<IPv6Addr> mapping I<addr> into the ::ffff:0:0/96
+prefix.
+
+=item I<addr>.to_ipv4(I<>)
+
+If I<addr> is an B<IPv4Addr>, return a copy of I<addr>.  If I<addr> is
+in the ::ffff:0:0/96 prefix, return a new B<IPv4Addr> containing the
+IPv4 address.  Otherwise, return B<None>.
+
+=item int(I<addr>)
+
+Return the integer representation of I<addr>.  For an IPv4 address,
+this is a 32-bit number.  For an IPv6 address, this is a 128-bit
+number.
+
+=item str(I<addr>)
+
+Return a human-readable representation of I<addr> in its canonical
+form.
+
+=item I<addr>.padded(I<>)
+
+Return a human-readable representation of I<addr> which is fully
+padded with zeroes.  With IPv4, it will return a string of the form
+"xxx.xxx.xxx.xxx".  With IPv6, it will return a string of the form
+"xxxx:xxxx:xxxx:xxxx:xxxx:xxxx:xxxx:xxxx".
+
+=item I<addr>.mask(I<mask>)
+
+Return a copy of I<addr> masked by the IPAddr I<mask>.
+
+When both addresses are either IPv4 or IPv6, applying the mask is
+straightforward.
+
+If I<addr> is IPv6 but I<mask> is IPv4, I<mask> is converted to IPv6
+and then the mask is applied.  This may result in an odd result.
+
+If I<addr> is IPv4 and I<mask> is IPv6, I<addr> will remain an IPv4
+address if masking I<mask> with C<::ffff:0000:0000> results in
+C<::ffff:0000:0000>, (namely, if bytes 10 and 11 of I<mask> are
+0xFFFF).  Otherwise, I<addr> is converted to an IPv6 address and the
+mask is performed in IPv6 space, which may result in an odd result.
+
+=item I<addr>.mask_prefix(I<prefix>)
+
+Return a copy of I<addr> masked by the high I<prefix> bits.  All bits
+below the I<prefix>th bit will be set to zero.  The maximum value for
+I<prefix> is 32 for an B<IPv4Addr>, and 128 for an B<IPv6Addr>.
+
+=item I<addr>.country_code(I<>)
+
+Return the two character country code associated with I<addr>.  If no
+country code is associated with I<addr>, return B<None>.  The country
+code association is initialized by the
+L<silk.B<init_country_codes()>|/init_country_codes> function.  If
+B<init_country_codes()> is not called before calling this method, it
+will act as if B<init_country_codes()> was called with no argument.
+
+=back
+
+=for comment
+############################################################################
+
+=head1 IPv4Addr Object
+
+An B<IPv4Addr> object represents an IPv4 address.  B<IPv4Addr> is a
+subclass of L<B<IPAddr>|/IPAddr Object>, and supports all operations
+and methods that B<IPAddr> supports.
+
+=over 4
+
+=item class silk.B<IPv4Addr(>I<address>B<)>
+
+The constructor takes a string I<address>, which must be a string
+representation of IPv4 address, an B<IPAddr> object, or an integer.  A
+string will be parsed as an IPv4 address.  An B<IPv4Addr> object will
+be copied.  An B<IPv6Addr> object will be converted to an IPv4
+address, or throw a B<ValueError> if the conversion is not possible.
+A 32-bit integer will be converted to an IPv4 address.
+
+Examples:
+
+ >>> addr1 = IPv4Addr('192.160.1.1')
+ >>> addr2 = IPv4Addr(IPAddr('::ffff:12.34.56.78'))
+ >>> addr3 = IPv4Addr(addr1)
+ >>> addr4 = IPv4Addr(0x10000000)
+
+=back
+
+Supported operations and methods:
+
+=over 4
+
+=item I<addr>.octets(I<>)
+
+Return a tuple of the octets of I<addr>.  This will be a tuple of
+length 4 for IPv4 addresses, and a tuple of length 16 for IPv6
+addresses.
+
+=back
+
+=for comment
+############################################################################
+
+=head1 IPv6Addr Object
+
+An B<IPv6Addr> object represents an IPv6 address.  B<IPv6Addr> is a
+subclass of L<B<IPAddr>|/IPAddr Object>, and supports all operations
+and methods that B<IPAddr> supports.
+
+=over 4
+
+=item class silk.B<IPv6Addr(>I<address>B<)>
+
+The constructor takes a string I<address>, which must be a string
+representation of either an IPv6 address, an B<IPAddr> object, or an
+integer.  A string will be parsed as an IPv6 address.  An B<IPv6Addr>
+object will be copied.  An B<IPv4Addr> object will be converted to an
+IPv6 address.  A 128-bit integer will be converted to an IPv6 address.
+
+Examples:
+
+ >>> addr1 = IPAddr('2001:db8::1428:57ab')
+ >>> addr2 = IPv6Addr(IPAddr('192.160.1.1'))
+ >>> addr3 = IPv6Addr(addr1)
+ >>> addr4 = IPv6Addr(0x100000000000000000000000)
+
+=back
+
+=for comment
+############################################################################
+
+=head1 IPWildcard Object
+
+An I<IPWildcard> object represents a range or block of IP addresses.
+The I<IPWildcard> object handles iteration over IP addresses with
+B<for I<x> in I<wildcard>>.
+
+=over 4
+
+=item class silk.B<IPWildcard(>I<wildcard>B<)>
+
+The constructor takes a string representation I<wildcard> of the
+wildcard address.  The string I<wildcard> can be an IP address, an IP
+with a CIDR notation, an integer, an integer with a CIDR designation,
+or an entry in SiLK wildcard notation.  In SiLK wildcard notation, a
+wildcard is represented as an IP address in canonical form with each
+octet (IPv4) or hexadectet (IPv6) represented by one of following: a
+value, a range of values, a comma separated list of values and ranges,
+or the character 'x' used to represent the entire octet or hexadectet.
+IPv6 wildcard addresses are only accepted if
+L<silk.B<ipv6_enabled()>|/ipv6_enabled> returns B<True>.  The
+I<wildcard> element can also be an IPWildcard, in which case a
+duplicate reference is returned.
+
+Examples:
+
+ >>> a = IPWildcard('1.2.3.0/24')
+ >>> b = IPWildcard('ff80::/16')
+ >>> c = IPWildcard('1.2.3.4')
+ >>> d = IPWildcard('::ffff:0102:0304')
+ >>> e = IPWildcard('16909056')
+ >>> f = IPWildcard('16909056/24')
+ >>> g = IPWildcard('1.2.3.x')
+ >>> h = IPWildcard('1:2:3:4:5:6:7.x')
+ >>> i = IPWildcard('1.2,3.4,5.6,7')
+ >>> j = IPWildcard('1.2.3.0-255')
+ >>> k = IPWildcard('::2-4')
+ >>> l = IPWildcard('1-2:3-4:5-6:7-8:9-a:b-c:d-e:0-ffff')
+ >>> m = IPWildcard(a)
+
+=back
+
+Supported operations and methods:
+
+=over 4
+
+=item I<addr> in I<wildcard>
+
+Return B<True> if I<addr> is in I<wildcard>, B<False> otherwise.
+
+=item I<addr> not in I<wildcard>
+
+Return B<False> if I<addr> is in I<wildcard>, B<True> otherwise.
+
+=item I<string> in I<wildcard>
+
+Return the result of B<IPAddr(I<string>) in I<wildcard>>.
+
+=item I<string> not in I<wildcard>
+
+Return the result of B<IPAddr(I<string>) not in I<wildcard>>.
+
+=item I<wildcard>.is_ipv6(I<>)
+
+Return B<True> if I<wildcard> contains IPv6 addresses, B<False>
+otherwise.
+
+=item str(I<wildcard>)
+
+Return the string that was used to construct I<wildcard>.
+
+=back
+
+
+=for comment
+############################################################################
+
+=head1 IPSet Object
+
+An B<IPSet> object represents a set of IP addresses, as produced by
+B<rwset(1)> and B<rwsetbuild(1)>.  The B<IPSet> object handles
+iteration over IP addresses with B<for I<x> in I<set>>, and iteration
+over CIDR blocks using B<for I<x> in I<set>.cidr_iter()>.
+
+In the following documentation, and I<ip_iterable> can be any of:
+
+=over 4
+
+=item *
+
+an L<B<IPAddr>|/IPAddr Object> object representing an IP address
+
+=item *
+
+the string representation of a valid IP address
+
+=item *
+
+an L<B<IPWildcard>|/IPWildcard Object> object
+
+=item *
+
+the string representation of an B<IPWildcard>
+
+=item *
+
+an iterable of any combination of the above
+
+=item *
+
+another B<IPSet> object
+
+=back
+
+=over 4
+
+=item class silk.B<IPSet(>I<[ip_iterable]>B<)>
+
+The constructor creates an empty IPset.  If an I<ip_iterable> is
+supplied as an argument, each member of I<ip_iterable> will be added
+to the IPset.
+
+=back
+
+Other constructors, all class methods:
+
+=over 4
+
+=item silk.B<IPSet.load(>I<path>B<)>
+
+Create an B<IPSet> by reading a SiLK IPset file.  I<path> must be a
+valid location of an IPset.
+
+=back
+
+Other class methods:
+
+=over 4
+
+=item silk.B<IPSet.supports_ipv6(>I<>B<)>
+
+Return whether this implementation of IPsets supports IPv6 addresses.
+
+=back
+
+Supported operations and methods:
+
+In the lists of operations and methods below,
+
+=over 4
+
+=item *
+
+I<set> is an B<IPSet> object
+
+=item *
+
+I<addr> can be an L<B<IPAddr>|/IPAddr Object> object or the string
+representation of an IP address.
+
+=item *
+
+I<set2> is an B<IPSet> object.  The operator versions of the methods
+require an B<IPSet> object.
+
+=item *
+
+I<ip_iterable> is an iterable over IP addresses as accepted by the
+B<IPSet> constructor.  Consider I<ip_iterable> as creating a temporary
+B<IPSet> to perform the requested method.
+
+=back
+
+The following operations and methods do not modify the B<IPSet>:
+
+=over 4
+
+=item I<set>.cardinality(I<>)
+
+Return the cardinality of I<set>.
+
+=item len(I<set>)
+
+Return the cardinality of I<set>.  In Python 2.x, this method will
+raise B<OverflowError> if the number of IPs in the set cannot be
+represented by Python's Plain Integer type--that is, if the value is
+larger than C<sys.maxint>.  The B<cardinality()> method will not raise
+this exception.
+
+=item I<set>.is_ipv6()
+
+Return B<True> if I<set> is a set of IPv6 addresses, and B<False> if
+it a set of IPv4 addresses.  For the purposes of this method,
+IPv4-in-IPv6 addresses (that is, addresses in the ::ffff:0:0/96
+prefix) are considered IPv6 addresses.
+
+=item I<addr> in I<set>
+
+Return B<True> if I<addr> is a member of I<set>; B<False> otherwise.
+
+=item I<addr> not in I<set>
+
+Return B<False> if I<addr> is a member of I<set>; B<True> otherwise.
+
+=item I<set>.copy(I<>)
+
+Return a new B<IPSet> with a copy of I<set>.
+
+=item I<set>.issubset(I<ip_iterable>)
+
+=item I<set> E<lt>= I<set2>
+
+Return B<True> if every IP address in I<set> is also in I<set2>.
+Return B<False> otherwise.
+
+=item I<set>.issuperset(I<ip_iterable>)
+
+=item I<set> E<gt>= I<set2>
+
+Return B<True> if every IP address in I<set2> is also in I<set>.
+Return B<False> otherwise.
+
+=item I<set>.union(I<ip_iterable>[, ...])
+
+=item I<set> | I<other> | ...
+
+Return a new B<IPset> containing the IP addresses in I<set> and all
+I<other>s.
+
+=item I<set>.intersection(I<ip_iterable>[, ...])
+
+=item I<set> E<amp> I<other> E<amp> ...
+
+Return a new B<IPset> containing the IP addresses common to I<set> and
+I<other>s.
+
+=item I<set>.difference(I<ip_iterable>[, ...])
+
+=item I<set> - I<other> - ...
+
+Return a new IPset containing the IP addresses in I<set> but not in
+I<other>s.
+
+=item I<set>.symmetric_difference(I<ip_iterable>)
+
+=item I<set> ^ I<other>
+
+Return a new IPset containing the IP addresses in either I<set> or in
+I<other> but not in both.
+
+=item I<set>.isdisjoint(I<ip_iterable>)
+
+Return B<True> when none of the IP addresses in I<ip_iterable> are
+present in I<set>.  Return B<False> otherwise.
+
+=item I<set>.cidr_iter(I<>)
+
+Return an iterator over the CIDR blocks in I<set>.  Each iteration
+returns a 2-tuple, the first element of which is the first IP address
+in the block, the second of which is the prefix length of the block.
+Can be used as B<for (I<addr>, I<prefix>) in I<set>.cidr_iter()>.
+
+=item I<set>.save(I<filename>, I<compression>=B<DEFAULT>)
+
+Save the contents of I<set> in the file I<filename>.  The
+I<compression> determines the compression method used when outputting
+the file.  Valid values are the same as those in
+silk.silkfile_open().
+
+=back
+
+
+The following operations and methods B<will> modify the B<IPSet>:
+
+=over 4
+
+=item I<set>.add(I<addr>)
+
+Add I<addr> to I<set> and return I<set>.  To add multiple IP
+addresses, use the B<add_range()> or B<update()> methods.
+
+=item I<set>.discard(I<addr>)
+
+Remove I<addr> from I<set> if I<addr> is present; do nothing if it is
+not.  Return I<set>.  To discard multiple IP addresses, use the
+B<difference_update()> method.  See also the B<remove()> method.
+
+=item I<set>.remove(I<addr>)
+
+Similar to B<discard()>, but raise B<KeyError> if I<addr> is not a
+member of I<set>.
+
+=item I<set>.pop(I<>)
+
+Remove and return an arbitrary address from I<set>.  Raise
+B<KeyError> if I<set> is empty.
+
+=item I<set>.clear(I<>)
+
+Remove all IP addresses from I<set> and return I<set>.
+
+=item I<set>.convert(I<version>)
+
+Convert I<set> to an IPv4 IPset if I<version> is 4 or to an IPv6 IPset
+if I<version> is 6.  Return I<set>.  Raise B<ValueError> if I<version>
+is not 4 or 6.  If I<version> is 4 and I<set> contains IPv6 addresses
+outside of the ::ffff:0:0/96 prefix, raise B<ValueError> and leave
+I<set> unchanged.
+
+=item I<set>.add_range(I<start>, I<end>)
+
+Add all IP addresses between I<start> and I<end>, inclusive, to
+I<set>.  Raise B<ValueError> if I<end> is less than I<start>.
+
+=item I<set>.update(I<ip_iterable>[, ...])
+
+=item I<set> |= I<other> | ...
+
+Add the IP addresses specified in I<other>s to I<set>; the result is
+the union of I<set> and I<other>s.
+
+=item I<set>.intersection_update(I<ip_iterable>[, ...])
+
+=item I<set> E<amp>= I<other> E<amp> ...
+
+Remove from I<set> any IP address that does B<not> appear in
+I<other>s; the result is the intersection of I<set> and I<other>s.
+
+=item I<set>.difference_update(I<ip_iterable>[, ...])
+
+=item I<set> -= I<other> | ...
+
+Remove from I<set> any IP address found in I<other>s; the result is
+the difference of I<set> and I<other>s.
+
+=item I<set>.symmetric_difference_update(I<ip_iterable>)
+
+=item I<set> ^= I<other>
+
+Update I<set>, keeping the IP addresses found in I<set> or in I<other>
+but not in both.
+
+=back
+
+
+=for comment
+############################################################################
+
+=head1 RWRec Object
+
+An B<RWRec> object represents a SiLK Flow record.
+
+=over 4
+
+=item class silk.B<RWRec(>I<[rec]>B<,>I<[field=value]>B<,...)>
+
+This constructor creates an empty B<RWRec> object.  If an B<RWRec>
+I<rec> is supplied, the constructor will create a copy of it.  The
+variable I<rec> can be a dictionary, such as that supplied by the
+B<as_dict()> method.  Initial values for record fields can be
+included.  Note that setting or accessing certain attributes on an
+B<RWRec> causes the L<silk.site.B<init_site()>|/init_site> function to
+be called with no argument if it has not yet been called successfully.
+
+Example:
+
+ >>> recA = RWRec(input=10, output=20)
+ >>> recB = RWRec(recA, output=30)
+ >>> (recA.input, recA.output)
+ (10, 20)
+ >>> (recB.input, recB.output)
+ (10, 30)
+
+=back
+
+Instance attributes:
+
+=over 4
+
+=item I<rec>.application
+
+The I<service> port of the flow I<rec> as set by the flow meter if the
+meter supports it, a 16-bit integer.  The B<yaf(1)> flow meter refers
+to this value as the I<appLabel>.  The default application value is 0.
+
+=item I<rec>.bytes
+
+The count of the number of bytes in the flow I<rec>, a 32-bit integer.
+The default bytes value is 0.
+
+=item I<rec>.classname
+
+(READ ONLY) The class name of assigned to the flow I<rec>, a string.
+Calls L<silk.site.B<init_site()>|/init_site>.  The default classname
+is C<?>.  The classname cannot be modified by itself.  In order to
+modify the classname, you also need to modify the typename.  See the
+L<I<rec>.classtype|/rec.classtype> attribute.
+
+=item I<rec>.classtype
+
+A tuple of the classname and the typename of the flow I<rec>.
+Implicitly calls L<silk.site.B<init_site()>|/init_site> with no
+arguments if L<silk.site.B<have_site_config()>|/have_site_config>
+returns B<False>.
+
+=item I<rec>.classtype_id
+
+The ID for the class and type of the flow I<rec>.  The default
+classtype_id value is 0.
+
+=item I<rec>.dip
+
+The destination IP of the flow I<rec>, an L<B<IPAddr>|/IPAddr Object>
+object.  The default dip value is IPAddr('0.0.0.0').  May be set using
+a string containing a valid IP address.
+
+=item I<rec>.dport
+
+The destination port of the flow I<rec>, a 16-bit integer.  The
+default dport value is 0.  Since the destination port field is also
+used to store the values for the ICMP type and code, setting this
+value may modify I<rec>.icmptype and I<rec>.icmpcode.
+
+=item I<rec>.duration
+
+The duration of the flow I<rec>, a B<datetime.timedelta> object.  The
+default duration value is 0.  Changing the I<rec>.duration attribute
+will modify the I<rec>.etime attribute such that (I<rec>.etime -
+I<rec>.stime) == the new I<rec>.duration.  The maximum possible
+duration is datetime.timedelta(milliseconds=0xffffffff).  See also
+L<I<rec>.duration_secs|/rec.duration_secs>.
+
+=item I<rec>.duration_secs
+
+The duration of the flow I<rec> in seconds, a float.  The default
+duration_secs value is 0.  Changing the I<rec>.duration_secs attribute
+will modify the I<rec>.etime attribute in the same way as changing
+I<rec>.duration.  The maximum possible duration_secs value is
+4294967.295.
+
+=item I<rec>.etime
+
+The end time of the flow I<rec>, a B<datetime.datetime> object.  The
+default etime value is the UNIX epoch time,
+datetime.datetime(1970,1,1,0,0).  Changing the I<rec>.etime attribute
+modifies the flow record's duration.  If the new duration would become
+negative or would become larger than B<RWRec> supports, a
+B<ValueError> will be raised.  See also
+L<I<rec>.etime_epoch_secs|/rec.etime_epoch_secs>.
+
+=item I<rec>.etime_epoch_secs
+
+The end time of the flow I<rec> as a number of seconds since the epoch
+time, a float.  Epoch time is 1970-01-01 00:00:00.  The default
+etime_epoch_secs value 0.  Changing the I<rec>.etime_epoch_secs
+attribute modifies the flow record's duration.  If the new duration
+would become negative or would become larger than B<RWRec> supports, a
+B<ValueError> will be raised.
+
+=item I<rec>.initial_tcpflags
+
+The TCP flags on the first packet of the flow I<rec>, a
+L<B<TCPFlags>|/TCPFlags Object> object.  The default initial_tcpflags
+value is B<None>.  The I<rec>.initial_tcpflags attribute may be set to
+a new B<TCPFlags> object, or a string or number which can be converted
+to a B<TCPFlags> object by the B<TCPFlags()> constructor.  Setting
+I<rec>.initial_tcpflags when I<rec>.session_tcpflags is B<None> sets
+the latter to TCPFlags('').  Setting I<rec>.initial_tcpflags or
+I<rec>.session_tcpflags sets I<rec>.tcpflags to the binary OR of their
+values.  Trying to set I<rec>.initial_tcpflags when I<rec>.protocol is
+not 6 (TCP) will raise an B<AttributeError>.
+
+=item I<rec>.icmpcode
+
+The ICMP code of the flow I<rec>, an 8-bit integer.  The default
+icmpcode value is 0.  The value is only meaningful when
+I<rec>.protocol is ICMP (1) or when B<is_ipv6()|/is_ipv6> is B<True>
+and I<rec>.protocol is ICMPv6 (58).  Since a record's ICMP type and
+code are stored in the destination port, setting this value may modify
+I<rec>.dport.
+
+=item I<rec>.icmptype
+
+The ICMP type of the flow I<rec>, an 8-bit integer.  The default
+icmptype value is 0.  The value is only meaningful when
+I<rec>.protocol is ICMP (1) or when B<is_ipv6()|/is_ipv6> is B<True>
+and I<rec>.protocol is ICMPv6 (58).  Since a record's ICMP type and
+code are stored in the destination port, setting this value may modify
+I<rec>.dport.
+
+=item I<rec>.input
+
+The SNMP interface where the flow I<rec> entered the router or the
+vlanId if the packing tools are configured to capture it (see
+B<sensor.conf(5)>), a 16-bit integer.  The default input value is 0.
+
+=item I<rec>.nhip
+
+The next-hop IP of the flow I<rec> as set by the router, an
+L<B<IPAddr>|/IPAddr Object> object.  The default nhip value is
+IPAddr('0.0.0.0').  May be set using a string containing a valid IP
+address.
+
+=item I<rec>.output
+
+The SNMP interface where the flow I<rec> exited the router or the
+postVlanId if the packing tools are configured to capture it (see
+B<sensor.conf(5)>), a 16-bit integer.  The default output value is 0.
+
+=item I<rec>.packets
+
+The packet count for the flow I<rec>, a 32-bit integer.  The default
+packets value is 0.
+
+=item I<rec>.protocol
+
+The IP protocol of the flow I<rec>, an 8-bit integer.  The default
+protocol value is 0.  Setting I<rec>.protocol to a value other than 6
+(TCP) causes I<rec>.initial_tcpflags and I<rec>.session_tcpflags to be
+set to B<None>.
+
+=item I<rec>.sensor
+
+The name of the sensor where the flow I<rec> was collected, a string.
+Implicitly calls L<silk.site.B<init_site()>|/init_site> with no
+arguments if L<silk.site.B<have_site_config()>|/have_site_config>
+returns B<False>.  The default sensor value is C<?>.
+
+=item I<rec>.sensor_id
+
+The ID of the sensor where the flow I<rec> was collected, a 16-bit
+integer.  The default sensor value is 0.
+
+=item I<rec>.session_tcpflags
+
+The union of the flags of all but the first packet in the flow I<rec>,
+a L<B<TCPFlags>|/TCPFlags Object> object.  The default
+session_tcpflags value is B<None>.  The I<rec>.session_tcpflags
+attribute may be set to a new B<TCPFlags> object, or a string or
+number which can be converted to a B<TCPFlags> object by the
+B<TCPFlags()> constructor.  Setting I<rec>.session_tcpflags when
+I<rec>.initial_tcpflags is B<None> sets the latter to TCPFlags('').
+Setting I<rec>.initial_tcpflags or I<rec>.session_tcpflags sets
+I<rec>.tcpflags to the binary OR of their values.  Trying to set
+I<rec>.session_tcpflags when I<rec>.protocol is not 6 (TCP) will raise
+an B<AttributeError>.
+
+=item I<rec>.sip
+
+The source IP of the flow I<rec>, an L<B<IPAddr>|/IPAddr Object>
+object.  The default sip value is IPAddr('0.0.0.0').  May be set using
+a string containing a valid IP address.
+
+=item I<rec>.sport
+
+The source port of the flow I<rec>, an integer.  The default sport
+value is 0.
+
+=item I<rec>.stime
+
+The start time of the flow I<rec>, a B<datetime.datetime> object.  The
+default stime value is the UNIX epoch time,
+datetime.datetime(1970,1,1,0,0).  Modifying the I<rec>.stime attribute
+will modify the flow's end time such that I<rec>.duration is constant.
+The maximum possible stime is 2038-01-19 03:14:07 UTC.  See also
+L<I<rec>.etime_epoch_secs|/rec.etime_epoch_secs>.
+
+=item I<rec>.stime_epoch_secs
+
+The start time of the flow I<rec> as a number of seconds since the
+epoch time, a float.  Epoch time is 1970-01-01 00:00:00.  The default
+stime_epoch_secs value 0.  Changing the I<rec>.stime_epoch_secs
+attribute will modify the flow's end time such that I<rec>.duration is
+constant.  The maximum possible stime_epoch_secs is 2147483647
+(2^31-1).
+
+=item I<rec>.tcpflags
+
+The union of the TCP flags of all packets in the flow I<rec>, a
+L<B<TCPFlags>|/TCPFlags Object> object.  The default tcpflags value is
+S<TCPFlags(' ')>.  The I<rec>.tcpflags attribute may be set to a new
+B<TCPFlags> object, or a string or number which can be converted to a
+B<TCPFlags> object by the B<TCPFlags()> constructor.  Setting
+I<rec>.tcpflags sets I<rec>.initial_tcpflags and
+I<rec>.session_tcpflags to B<None>.  Setting I<rec>.initial_tcpflags
+or I<rec>.session_tcpflags changes I<rec>.tcpflags to the binary OR of
+their values.
+
+=item I<rec>.timeout_killed
+
+Whether the flow I<rec> was closed early due to timeout by the
+collector, a boolean.  The default timeout_killed value is B<False>.
+
+=item I<rec>.timeout_started
+
+Whether the flow I<rec> is a continuation from a timed-out flow, a
+boolean.  The default timeout_started value is B<False>.
+
+=item I<rec>.typename
+
+(READ ONLY) The type name of the flow I<rec>, a string.  Implicitly
+calls L<silk.site.B<init_site()>|/init_site> with no arguments if
+L<silk.site.B<have_site_config()>|/have_site_config> returns B<False>.
+The default typename is 255.  The typename cannot be modified by
+itself.  In order to modify the typename, you also need to modify the
+classname.  See the L<I<rec>.classtype|/rec.classtype> attribute.
+
+=item I<rec>.uniform_packets
+
+Whether the flow I<rec> contained only packets of the same size, a
+boolean.  The default uniform_packets value is B<False>.
+
+=back
+
+Supported operations and methods:
+
+=over 4
+
+=item I<rec>.is_icmp(I<>)
+
+Return B<True> if the protocol of I<rec> is 1 (ICMP) or if the
+protocol of I<rec> is 58 (ICMPv6) and B<is_ipv6()/is_ipv6> is B<True>.
+Return B<False> otherwise.
+
+=item I<rec>.is_ipv6(I<>)
+
+Return B<True> if I<rec> contains IPv6 addresses, B<False>
+otherwise.
+
+=item I<rec>.is_web(I<>)
+
+Return B<True> if I<rec> can be represented as a web record, B<False>
+otherwise.  A record can be represented as a web record if the
+protocol is TCP (6) and either the source or destination port is one
+of 80, 443, or 8080.
+
+=item I<rec>.as_dict(I<>)
+
+Return a dictionary representing the contents of I<rec>.  Implicitly
+calls L<silk.site.B<init_site()>|/init_site> with no arguments if
+L<silk.site.B<have_site_config()>|/have_site_config> returns B<False>.
+
+=item I<rec>.to_ipv4(I<>)
+
+Return a new copy of I<rec> with the IP addresses (sip, dip, and nhip)
+converted to IPv4.  If any of these addresses cannot be converted to
+IPv4, (that is, if any address is not in the ::ffff:0:0/96 prefix)
+return B<None>.
+
+=item I<rec>.to_ipv6(I<>)
+
+Return a new copy of I<rec> with the IP addresses (sip, dip, and nhip)
+converted to IPv6.  Specifically, the function maps the IPv4 addresses
+into the ::ffff:0:0/96 prefix.
+
+=item str(I<rec>)
+
+Return the string representation of B<I<rec>.as_dict()>.
+
+=item I<rec1> == I<rec2>
+
+Return B<True> if I<rec1> is structurally equivalent to I<rec2>.
+Return B<False> otherwise.
+
+=item I<rec1> != I<rec2>
+
+Return B<True> if I<rec1> is not structurally equivalent to I<rec2>
+Return B<False> otherwise.
+
+=back
+
+
+=for comment
+############################################################################
+
+=head1 SilkFile Object
+
+A B<SilkFile> object represents a channel for writing to or reading
+from SiLK Flow files.  A SiLK file open for reading can be iterated
+over using B<for I<rec> in I<file>>.
+
+Creation functions:
+
+=over 4
+
+=item silk.B<silkfile_open(>I<filename>B<,> I<mode>B<,> I<compression>=B<DEFAULT>B<,> I<notes>=[]B<,> I<invocations>=[]B<)>
+
+This function takes a filename, a mode, and a set of optional keyword
+parameters.  It returns a B<SilkFile> object.  The I<mode> should be
+one of the following constant values:
+
+=over 4
+
+=item silk.B<READ>
+
+Open file for reading
+
+=item silk.B<WRITE>
+
+Open file for writing
+
+=item silk.B<APPEND>
+
+Open file for appending
+
+=back
+
+The I<filename> should be the path to the file to open.  A few
+filenames are treated specially.  The filename F<stdin> maps to the
+standard input stream when the mode is B<READ>.  The filenames
+F<stdout> and F<stderr> map to the standard output and standard error
+streams respectively when the mode is B<WRITE>.  A filename consisting
+of a single hyphen (F<->) maps to the standard input if the mode is
+B<READ>, and to the standard output if the mode is B<WRITE>.
+
+=begin comment
+
+If the file has been opened in B<WRITE> mode, the I<format>,
+I<policy>, and I<compression> values determine what kind of file is
+created.
+
+The I<format> parameter can be any constant from the
+silk.B<fileformat> module.
+
+The I<policy> parameter can be one of the following constants:
+
+=over 4
+
+=item silk.B<IGNORE>
+
+Completely ignore IPv6 flows
+
+=item silk.B<ASV4>
+
+Convert IPv6 flow records that contain addresses in the ::ffff:0:0/96
+prefix to IPv4 and ignore all other IPv6 flow records
+
+=item silk.B<MIX>
+
+Mix IPv4 and IPv6 flows in the result
+
+=item silk.B<FORCE>
+
+Force IPv4 flows to be converted to IPv6, mapping the IPv4 addresses
+into the ::ffff:0:0/96 prefix
+
+=item silk.B<ONLY>
+
+Return only IPv6 flows that were marked as IPv6
+
+=back
+
+=end comment
+
+The I<compression> parameter may be one of the following constants.
+(This list assumes SiLK was built with the required libraries.  To check
+which compression methods are available at your site, see
+L<silk.B<get_configuration("COMPRESSION_METHODS")>|get_configuration>).
+
+=over 4
+
+=item silk.B<DEFAULT>
+
+Use the default compression scheme compiled into SiLK.
+
+=item silk.B<NO_COMPRESSION>
+
+Use no compression.
+
+=item silk.B<ZLIB>
+
+Use zlib block compression (as used by B<gzip(1)>).
+
+=item silk.B<LZO1X>
+
+Use lzo1x block compression.
+
+=back
+
+If I<notes> or I<invocations> are set, they should be list of strings.
+These add annotation and invocation headers to the file.  These values
+are visible by the B<rwfileinfo(1)> program.
+
+Examples:
+
+ >>> myinputfile = silkfile_open('/path/to/file', READ)
+ >>> myoutputfile = silkfile_open('/path/to/file', WRITE,
+                                  compression=LZO1X,
+                                  notes=['My output file',
+                                         'another annotation'])
+
+=item silk.B<silkfile_fdopen(>I<fileno>B<,> I<mode>B<,> I<filename>=B<None>B<,> I<compression>=B<DEFAULT>B<,> I<notes>=[]B<,> I<invocations>=[]B<)>
+
+This function takes an integer file descriptor, a mode, and a set of
+optional keyword parameters.  It returns a B<SilkFile> object.  The
+I<filename> parameter is used to set the value of the I<name>
+attribute of the resulting object.  All other parameters work as
+described in the L<silk.B<silkfile_open()>|/silkfile_open> function.
+
+=back
+
+Deprecated constructor:
+
+=over 4
+
+=item class silk.B<SilkFile(>I<filename>B<,> I<mode>B<,> I<compression>=B<DEFAULT>B<,> I<notes>=[]B<,> I<invocations>=[]B<)>
+
+This constructor creates a B<SilkFile> object.  The parameters are
+identical to those used by the L<B<silkfile_open()>|/silkfile_open>
+function.  This constructor is deprecated as of SiLK 3.0.0.  For
+future compatibility, please use the
+L<B<silkfile_open()>|/silkfile_open> function instead of the
+B<SilkFile()> constructor to create B<SilkFile> objects.
+
+=back
+
+Instance attributes:
+
+=over 4
+
+=item I<file>.name
+
+The filename that was used to create I<file>.
+
+=item I<file>.mode
+
+The mode that was used to create I<file>.  Valid values are B<READ>,
+B<WRITE>, or B<APPEND>.
+
+=back
+
+Instance methods:
+
+=over 4
+
+=item I<file>.read(I<>)
+
+Return an L<B<RWRec>|/RWRec Object> representing the next record in
+the B<SilkFile> I<file>.  If there are no records left in the file,
+return B<None>.
+
+=item I<file>.write(rec)
+
+Write the L<B<RWRec>|/RWRec Object> I<rec> to the B<SilkFile> I<file>.
+Return B<None>.
+
+=item I<file>.next(I<>)
+
+A B<SilkFile> object is its own iterator.  For example,
+B<iter(I<file>)> returns I<file>.  When the B<SilkFile> is used as an
+iterator, the B<next()> method is called repeatedly.  This method
+returns the next record, or raises B<StopIteration> once the end of
+file is reached
+
+=item I<file>.notes(I<>)
+
+Return the list of annotation headers for the file as a list of
+strings.
+
+=item I<file>.invocations(I<>)
+
+Return the list of invocation headers for the file as a list of
+strings.
+
+=item I<file>.close(I<>)
+
+Close the file and return B<None>.
+
+=back
+
+
+=for comment
+############################################################################
+
+=head1 PrefixMap Object
+
+A B<PrefixMap> object represents an immutable mapping from IP
+addresses or protocol/port pairs to labels.  B<PrefixMap> objects are
+created from SiLK prefix map files as created by B<rwpmapbuild(1)>.
+
+=over 4
+
+=item class silk.B<PrefixMap(>I<filename>B<)>
+
+The constructor creates a prefix map initialized from the I<filename>.
+The B<PrefixMap> object will be of one of the two subtypes of
+B<PrefixMap>: an B<AddressPrefixMap> or a B<ProtoPortPrefixMap>.
+
+=back
+
+Supported operations and methods:
+
+=over 4
+
+=item I<pmap>[I<key>]
+
+Return the string label associated with I<key> in I<pmap>.  I<key>
+must be of the correct type: either an L<B<IPAddr>|/IPAddr Object> if
+I<pmap> is an B<AddressPrefixMap>, or a 2-tuple of integers
+S<(I<protocol>, I<port>)>, if I<pmap> is a B<ProtoPortPrefixMap>.  The
+method raises B<TypeError> when the type of the key is incorrect.
+
+=item I<pmap>.get(I<key>, I<default>=B<None>)
+
+Return the string label associated with I<key> in I<pmap>.  Return the
+value I<default> if I<key> is not in I<pmap>, or if I<key> is of the
+wrong type or value to be a key for I<pmap>.
+
+=item I<pmap>.values(I<>)
+
+Return a tuple of the labels defined by the B<PrefixMap> I<pmap>.
+
+=item I<pmap>.iterranges(I<>)
+
+Return an iterator that will iterate over ranges of contiguous values
+with the same label.  The return values of the iterator will be the
+3-tuple S<(I<start>, I<end>, I<label>)>, where I<start> is the first
+element of the range, I<end> is the last element of the range, and
+I<label> is the label for that range.
+
+=back
+
+=for comment
+############################################################################
+
+=head1 Bag Object
+
+A B<Bag> object is a representation of a multiset.  Each key
+represents a potential element in the set, and the key's value
+represents the number of times that key is in the set.  As such, it is
+also a reasonable representation of a mapping from keys to integers.
+
+Please note, however, that despite its set-like properties, B<Bag>
+objects are not nearly as efficient as L<B<IPSet>|/IPSet Object>
+objects when representing large contiguous ranges of key data.
+
+In PySiLK, the B<Bag> object is designed to look and act similar to
+Python dictionary objects, and in many cases B<Bag>s and B<dict>s can
+be used interchangeably.  There are differences, however, the primary
+of which is that B<bag[I<key>]> returns a value for all values in the
+key range of the bag.  That value will be an integer zero for all key
+values that have not been incremented.
+
+=over 4
+
+=item class silk.B<Bag(>I<mapping>=B<None>B<,> I<key_type>=B<None>B<,> I<key_len>=B<None>B<,> I<counter_type>=B<None>B<,> I<counter_len>=B<None>B<)>
+
+The constructor creates a bag.  All arguments are optional, and can be
+used as keyword arguments.
+
+If I<mapping> is included, the bag is initialized from that mapping.
+Valid mappings are:
+
+=over 4
+
+=item *
+
+a B<Bag>
+
+=item *
+
+a key/value dictionary
+
+=item *
+
+an iterable of key/value pairs
+
+=back
+
+=back
+
+The I<key_type> and I<key_len> arguments describe the key field of the
+bag.  The I<key_type> should be a string from the list of valid types
+below.  The I<key_len> should be an integer describing the number of
+bytes that will represent values of I<key_type>.  The I<key_type>
+argument is case-insensitive.
+
+If I<key_type> is not specified, it defaults to 'any-ipv6', unless
+L<silk.B<ipv6_enabled()>|/ipv6_enabled> is B<False>, in which case the
+default is 'any-ipv4'.  The one exception to this is when I<key_type>
+is not specified, but I<key_len> is specified with a value of less
+than 16.  In this case, the default type is 'custom'.
+
+B<Note:> Key types that specify IPv6 addresses are not valid if
+L<silk.B<ipv6_enabled()>|/ipv6_enabled> returns B<False>.  An error
+will be thrown if they are used in this case.
+
+If I<key_len> is not specified, it defaults to the default number of
+bytes for the given I<key_type> (which can be determined by the chart
+below).  If specified, I<key_len> must be one of the following
+integers: 1, 2, 4, 16.
+
+The I<counter_type> and I<counter_len> arguments describe the counter
+value of the bag.  The I<counter_type> should be a string from the
+list of valid types below.  The I<counter_len> should be an integer
+describing the number of bytes that will represent valid of
+I<counter_type>.  The I<counter_type> argument is case insensitive.
+
+If I<counter_type> is not specified, it defaults to 'custom'.
+
+If I<counter_len> is not specified, it defaults to 8.  Currently, 8 is
+the only valid value of I<counter_len>.
+
+Here is the list of valid key and counter types, along with their
+default I<key_len> values:
+
+=over 4
+
+=item 'sIPv4', 4
+
+=item 'dIPv4', 4
+
+=item 'sPort', 2
+
+=item 'dPort', 2
+
+=item 'protocol', 1
+
+=item 'packets', 4
+
+=item 'bytes', 4
+
+=item 'flags', 1
+
+=item 'sTime', 4
+
+=item 'duration', 4
+
+=item 'eTime', 4
+
+=item 'sensor', 2
+
+=item 'input', 2
+
+=item 'output', 2
+
+=item 'nhIPv4', 4
+
+=item 'initialFlags', 1
+
+=item 'sessionFlags', 1
+
+=item 'attributes', 1
+
+=item 'application', 2
+
+=item 'class', 1
+
+=item 'type', 1
+
+=item 'icmpTypeCode', 2
+
+=item 'sIPv6', 16
+
+=item 'dIPv6', 16
+
+=item 'nhIPv6', 16
+
+=item 'records', 4
+
+=item 'sum-packets', 4
+
+=item 'sum-bytes', 4
+
+=item 'sum-duration', 4
+
+=item 'any-ipv4', 4
+
+=item 'any-ipv6', 16
+
+=item 'any-port', 2
+
+=item 'any-snmp', 2
+
+=item 'any-time', 4
+
+=item 'custom', 4
+
+=back
+
+B<Deprecation Notice:> For compatibility with SiLK 2.x, the
+I<key_type> argument may be a Python class.  An object of the
+I<key_type> class must be constructable from an integer, and it must
+possess an B<__int__()> method which retrieves that integer from the
+object.  Regardless of the maximum integer value supported by the
+I<key_type> class, internally the bag will store the keys as type
+'custom' with length 4.
+
+Other constructors, all class methods:
+
+=over 4
+
+=item silk.B<Bag.ipaddr(>I<mapping>B<,> I<counter_type>=B<None>B<,> I<counter_len>=B<None>B<)>
+
+Creates a B<Bag> using 'any-ipv6' as the key type (or 'any-ipv4' if
+L<silk.B<ipv6_enabled()>|/ipv6_enabled> is B<False>).  I<counter_type>
+and I<counter_len> are used as in the standard B<Bag> constructor.
+Equivalent to B<Bag(>I<mapping>B<)>.
+
+=item silk.B<Bag.integer(>I<mapping>B<,> I<key_len>=B<None>B<,> I<counter_type>=B<None>B<,> I<counter_len>=B<None>B<)>
+
+Creates a B<Bag> using 'custom' as the I<key_type> (integer bag).
+I<key_len>, I<counter_type>, and I<counter_len> are used as in the
+standard B<Bag> constructor.  Equivalent to S<B<Bag(I<mapping>,
+I<key_type>='custom')>>.
+
+=item silk.B<Bag.load(>I<path>B<,> I<key_type>=B<None>B<)>
+
+Creates a B<Bag> by reading a SiLK bag file.  I<path> must be a valid
+location of a bag.  When present, the I<key_type> argument is used as
+in the B<Bag> constructor, ignoring the key type specified in the bag
+file.  When I<key_type> is not provided and the bag file does not
+contain type information, the key is set to 'custom' with a length of
+4.
+
+=item silk.B<Bag.load_ipaddr(>I<path>B<)>
+
+Creates an IP address bag from a SiLK bag file.  Equivalent to
+S<B<Bag.load(I<path>, I<key_type> = IPv4Addr)>>.  This constructor is
+deprecated as of SiLK 3.2.0.
+
+=item silk.B<Bag.load_integer(>I<path>B<)>
+
+Creates an integer bag from a SiLK bag file.  Equivalent to
+S<B<Bag.load(I<path>, I<key_type> = int)>>.  This constructor is
+deprecated as of SiLK 3.2.0.
+
+=back
+
+Constants:
+
+=over 4
+
+=item silk.B<BAG_COUNTER_MAX>
+
+This constant contains the maximum possible value for Bag counters.
+
+=back
+
+Other class methods:
+
+=over 4
+
+=item silk.B<Bag.field_types(>I<>B<)>
+
+Returns a tuple of strings which are valid I<key_type> or
+I<counter_type> values.
+
+=item silk.B<Bag.type_merge(>I<type_a>B<,> I<type_b>B<)>
+
+Given two types from B<Bag.field_types()>, returns the type that would
+be given (by default) to a bag that is a result of the co-mingling of
+two bags of the given types.  For example:
+S<B<Bag.type_merge('sport','dport') == 'any-port'>>.
+
+=back
+
+Supported operations and methods:
+
+In the lists of operations and methods below,
+
+=over 4
+
+=item *
+
+I<bag> and I<bag2> are B<Bag> objects
+
+=item *
+
+I<key> and I<key2> are L<B<IPAddr>s|/IPAddr Object> for bags that
+contain IP addresses, or integers for other bags
+
+=item *
+
+I<value> and I<value2> are integers which represent the counter
+associated a key in the bag
+
+=item *
+
+I<ipset> is an L<B<IPSet>|/IPSet Object> object
+
+=item *
+
+I<ipwildcard> is an L<B<IPWildcard>|/IPWildcard Object> object
+
+=back
+
+The following operations and methods do not modify the B<Bag>:
+
+=over 4
+
+=item I<bag>.get_info(I<>)
+
+Return information about the keys and counters of the bag.  The return
+value is a dictionary with the following keys and values:
+
+=over 4
+
+=item 'key_type'
+
+The current key type, as a string.
+
+=item 'key_len'
+
+The current key length in bytes.
+
+=item 'counter_type'
+
+The current counter type, as a string.
+
+=item 'counter_len'
+
+The current counter length in bytes.
+
+=back
+
+The keys have the same names as the keyword arguments to the bag
+constructor.  As a result, a bag with the same key and value
+information as an existing bag can be generated by using the following
+idiom: B<Bag(**I<bag>.get_info())>.
+
+=item I<bag>.copy(I<>)
+
+Return a new B<Bag> which is a copy of I<bag>.
+
+=item I<bag>[I<key>]
+
+Return the counter value associated with I<key> in I<bag>.
+
+=item I<bag>[I<key>:I<key2>] or I<bag>[I<key>,I<key2>,...]
+
+Return a new B<Bag> which contains only the elements in the key range
+[I<key>, I<key2>), or a new B<Bag> containing only the given elements
+in the comma-separated list.  In point of fact, the argument(s) in
+brackets can be any number of comma separated keys or key ranges.  For
+example: B<I<bag>[1,5,15:18,20]> will return a bag which contains the
+elements 1, 5, 15, 16, 17, and 20 from I<bag>.
+
+=item I<bag>[I<ipset>]
+
+Return a new B<Bag> which contains only elements in I<bag> that are
+also contained in I<ipset>.  This is only valid for IP address bags.
+The I<ipset> can be included as part of a comma-separated list of
+slices, as above.
+
+=item I<bag>[I<ipwildcard>]
+
+Return a new B<Bag> which contains only elements that are also
+contained in I<ipwildcard>.  This is only valid for IP address bags.
+The I<ipwildcard> can be included as part of a comma-separated list of
+slices, as above.
+
+=item I<key> in I<bag>
+
+Return B<True> if I<bag>[I<key>] is non-zero, B<False> otherwise.
+
+=item I<bag>.get(I<key>, I<default>=B<None>)
+
+Return I<bag>[I<key>] if I<key> is in I<bag>, otherwise return
+I<default>.
+
+=item I<bag>.items(I<>)
+
+Return a list of S<B<(I<key>, I<value>)>> pairs for all keys in I<bag>
+with non-zero values.  This list is not guaranteed to be sorted in any
+order.
+
+=item I<bag>.iteritems(I<>)
+
+Return an iterator over S<B<(I<key>, I<value>)>> pairs for all keys in
+I<bag> with non-zero values.  This iterator is not guaranteed to
+iterate over items in any order.
+
+=item I<bag>.sorted_iter(I<>)
+
+Return an iterator over S<B<(I<key>, I<value>)>> pairs for all keys in
+I<bag> with non-zero values.  This iterator is guaranteed to iterate
+over items in key-sorted order.
+
+=item I<bag>.keys(I<>)
+
+Return a list of I<key>s for all keys in I<bag> with non-zero values.
+This list is guaranteed to be in key-sorted order.
+
+=item I<bag>.iterkeys(I<>)
+
+Return an iterkeys over I<key>s for all keys in I<bag> with non-zero
+values.  This iterator is not guaranteed to iterate over keys in any
+order.
+
+=item I<bag>.values(I<>)
+
+Return a list of I<value>s for all keys in I<bag> with non-zero
+values.  The list is guaranteed to be in key-sorted order.
+
+=item I<bag>.itervalues(I<>)
+
+Return an iterator over I<value>s for all keys in I<bag> with non-zero
+values.  This iterator is not guaranteed iterate over values in any
+order, but the order is consistent with that returned by
+B<iterkeys()>.
+
+=item I<bag>.group_iterator(I<bag2>)
+
+Return an iterator over keys and values of a pair of B<Bag>s.  For
+each I<key> which is in either I<bag> or I<bag2>, this iterator will
+return a S<B<(I<key>, I<value>, I<value2>)>> triple, where I<value> is
+I<bag>.get(I<key>), and I<value2> is I<bag>.get(I<key>).  This
+iterator is guaranteed to iterate over triples in I<key> order.
+
+=item I<bag> + I<bag2>
+
+Add two bags together.  Return a new B<Bag> for which
+S<B<I<newbag>[I<key>] = I<bag>[I<key>] + I<bag2>[I<key>]>> for all
+keys in I<bag> and I<bag2>.  Will raise an B<OverflowError> if the
+resulting value for a key is greater than B<BAG_COUNTER_MAX>.  If the
+two bags are of different types, the resulting bag will be of a type
+determined by B<Bag.type_merge()>.
+
+=item I<bag> - I<bag2>
+
+Subtract two bags.  Return a new B<Bag> for which
+S<B<I<newbag>[I<key>] = I<bag>[I<key>] - I<bag2>[I<key>]>> for all
+keys in I<bag> and I<bag2>, as long as the resulting value for that
+key would be non-negative.  If the resulting value for a key would be
+negative, the value of that key will be zero.  If the two bags are of
+different types, the resulting bag will be of a type determined by
+B<Bag.type_merge()>.
+
+=item I<bag>.min(I<bag2>)
+
+Return a new B<Bag> for which S<B<I<newbag>[I<key>] =
+min(I<bag>[I<key>], I<bag2>[I<key>])>> for all keys in I<bag> and
+I<bag2>.
+
+=item I<bag>.max(I<bag2>)
+
+Return a new B<Bag> for which S<B<I<newbag>[I<key>] =
+max(I<bag>[I<key>], I<bag2>[I<key>])>> for all keys in I<bag> and
+I<bag2>.
+
+=item I<bag>.div(I<bag2>)
+
+Divide two bags. Return a new B<Bag> for which S<B<I<newbag>[I<key>] =
+I<bag>[I<key>] / I<bag2>[I<key>])>> rounded to the nearest integer for
+all keys in I<bag> and I<bag2>, as long as I<bag2>[I<key>] is
+non-zero.  S<B<I<newbag>[I<key>] = 0>> when I<bag2>[I<key>] is zero.
+If the two bags are of different types, the resulting bag will be of a
+type determined by B<Bag.type_merge()>.
+
+=item I<bag> * I<integer>
+
+=item I<integer> * I<bag>
+
+Multiple a bag by a scalar.  Return a new B<Bag> for which
+S<B<I<newbag>[I<key>] = I<bag>[I<key>] * I<integer>>> for all keys in
+I<bag>.
+
+=item I<bag>.intersect(I<set_like>)
+
+Return a new B<Bag> which contains I<bag>[I<key>] for each I<key>
+where S<B<I<key> in I<set_like>>> is true.  I<set_like> is any
+argument that supports Python's B<in> operator, including B<Bag>s,
+L<B<IPSet>s|/IPSet Object>, L<B<IPWildcard>s|/IPWildcard Object>, and
+Python sets, lists, tuples, et cetera.
+
+=item I<bag>.complement_intersect(I<set_like>)
+
+Return a new B<Bag> which contains I<bag>[I<key>] for each I<key>
+where S<B<I<key> in I<set_like>>> is not true.
+
+=item I<bag>.ipset(I<>)
+
+Return an L<B<IPSet>|/IPSet Object> consisting of the set of IP
+address key values from I<bag> with non-zero values.  This only works
+if I<bag> is an IP address bag.
+
+=item I<bag>.inversion(I<>)
+
+Return a new integer B<Bag> for which all values from I<bag> are
+inserted as key elements.  Hence, if two keys in I<bag> have a value
+of 5, I<newbag>[5] will be equal to two.
+
+=item I<bag> == I<bag2>
+
+Return B<True> if the contents of I<bag> are equivalent to the
+contents of I<bag2>, B<False> otherwise.
+
+=item I<bag> != I<bag2>
+
+Return B<False> if the contents of I<bag> are equivalent to the
+contents of I<bag2>, B<True> otherwise.
+
+=item I<bag>.save(I<filename>, I<compression>=B<DEFAULT>)
+
+Save the contents of I<bag> in the file I<filename>.  The
+I<compression> determines the compression method used when outputting
+the file.  Valid values are the same as those in silk.silkfile_open().
+
+=back
+
+The following operations and methods B<will> modify the B<Bag>:
+
+=over 4
+
+=item I<bag>.clear(I<>)
+
+Empty I<bag>, such that I<bag>[I<key>] is zero for all keys.
+
+=item I<bag>[I<key>] = I<value>
+
+Set the number of I<key> in I<bag> to I<value>.
+
+=item del I<bag>[I<key>]
+
+Remove I<key> from I<bag>, such that I<bag>[I<key>] is zero.
+
+=item I<bag>.update(I<mapping>)
+
+For each item in I<mapping>, I<bag> is modified such that for each key
+in I<mapping>, the value for that key in I<bag> will be set to the
+mapping's value.  Valid mappings are those accepted by the B<Bag()>
+constructor.
+
+=item I<bag>.add(I<key>[, I<key2>[, ...]])
+
+Add one of each I<key> to I<bag>.  This is the same as incrementing
+the value for each I<key> by one.
+
+=item I<bag>.add(I<iterable>)
+
+Add one of each I<key> in I<iterable> to I<bag>.  This is the same as
+incrementing the value for each I<key> by one.
+
+=item I<bag>.remove(I<key>[, I<key2>[, ...]])
+
+Remove one of each I<key> from I<bag>.  This is the same as
+decrementing the value for each I<key> by one.
+
+=item I<bag>.remove(I<iterable>)
+
+Remove one of each I<key> in I<iterable> from I<bag>.  This is the
+same as decrementing the value for each I<key> by one.
+
+=item I<bag>.incr(I<key>, I<value> = 1)
+
+Increment the number of I<key> in I<bag> by I<value>.  I<value>
+defaults to one.
+
+=item I<bag>.decr(I<key>, I<value> = 1)
+
+Decrement the number of I<key> in I<bag> by I<value>.  I<value>
+defaults to one.
+
+=item I<bag> += I<bag2>
+
+Equivalent to S<B<I<bag> = I<bag> + I<bag2>>>, unless an
+B<OverflowError> is raised, in which case I<bag> is no longer
+necessarily valid.  When an error is not raised, this operation takes
+less memory than S<B<I<bag> = I<bag> + I<bag2>>>.  This operation can
+change the type of I<bag>, as determined by B<Bag.type_merge()>.
+
+=item I<bag> -= I<bag2>
+
+Equivalent to S<B<I<bag> = I<bag> - I<bag2>>>. This operation takes
+less memory than S<B<I<bag> = I<bag> - I<bag2>>>.  This operation can
+change the type of I<bag>, as determined by B<Bag.type_merge()>.
+
+=item I<bag> *= I<integer>
+
+Equivalent to S<B<I<bag> = I<bag> * I<integer>>>, unless an
+B<OverflowError> is raised, in which case I<bag> is no longer
+necessarily valid.  When an error is not raised, this operation takes
+less memory than S<B<I<bag> = I<bag> * I<integer>>>.
+
+=item I<bag>.constrain_values(I<min>=B<None>, I<max>=B<None>)
+
+Remove I<key> from I<bag> if that key's value is less than I<min> or
+greater than I<max>.  At least one of I<min> or I<max> must be
+specified.
+
+=item I<bag>.constrain_keys(I<min>=B<None>, I<max>=B<None>)
+
+Remove I<key> from I<bag> if that key is less than I<min>, or greater
+than I<max>.  At least one of I<min> or I<max> must be specified.
+
+=back
+
+
+=for comment
+############################################################################
+
+=head1 TCPFlags Object
+
+A B<TCPFlags> object represents the eight bits of flags from a TCP
+session.
+
+=over 4
+
+=item class silk.B<TCPFlags(>I<value>B<)>
+
+The constructor takes either a B<TCPFlags> value, a string, or an
+integer.  If a B<TCPFlags> value, it returns a copy of that value.  If
+an integer, the integer should represent the 8-bit representation of
+the flags.  If a string, the string should consist of a concatenation
+of zero or more of the characters C<F>, C<S>, C<R>, C<P>, C<A>, C<U>,
+C<E>, and C<C>---upper or lower-case---representing the FIN, SYN, RST,
+PSH, ACK, URG, ECE, and CWR flags.  Spaces in the string are ignored.
+
+Examples:
+
+ >>> a = TCPFlags('SA')
+ >>> b = TCPFlags(5)
+
+=back
+
+Instance attributes (read-only):
+
+=over 4
+
+=item I<flags>.fin
+
+B<True> if the FIN flag is set on I<flags>, B<False> otherwise
+
+=item I<flags>.syn
+
+B<True> if the SYN flag is set on I<flags>, B<False> otherwise
+
+=item I<flags>.rst
+
+B<True> if the RST flag is set on I<flags>, B<False> otherwise
+
+=item I<flags>.psh
+
+B<True> if the PSH flag is set on I<flags>, B<False> otherwise
+
+=item I<flags>.ack
+
+B<True> if the ACK flag is set on I<flags>, B<False> otherwise
+
+=item I<flags>.urg
+
+B<True> if the URG flag is set on I<flags>, B<False> otherwise
+
+=item I<flags>.ece
+
+B<True> if the ECE flag is set on I<flags>, B<False> otherwise
+
+=item I<flags>.cwr
+
+B<True> if the CWR flag is set on I<flags>, B<False> otherwise
+
+=back
+
+Supported operations and methods:
+
+=over 4
+
+=item ~I<flags>
+
+Return the bitwise inversion (not) of I<flags>
+
+=item I<flags1> E<amp> I<flags2>
+
+Return the bitwise intersection (and) of the flags from I<flags1> and
+I<flags2>
+
+=item I<flags1> | I<flags2>
+
+Return the bitwise union (or) of the flags from I<flags1> and
+I<flags2>.
+
+=item I<flags1> ^ I<flags2>
+
+Return the bitwise exclusive disjunction (xor) of the flags from
+I<flags1> and I<flags2>.
+
+=item int(I<flags>)
+
+Return the integer value of the flags set in I<flags>.
+
+=item str(I<flags>)
+
+Return a string representation of the flags set in I<flags>.
+
+=item I<flags>.padded(I<>)
+
+Return a string representation of the flags set in I<flags>.  This
+representation will be padded with spaces such that flags will line up
+if printed above each other.
+
+=item I<flags>
+
+When used in a setting that expects a boolean, return B<True> if any
+flag value is set in I<flags>.  Return B<False> otherwise.
+
+=item I<flags>.matches(I<flagmask>)
+
+Given I<flagmask>, a string of the form I<high_flags>/I<mask_flags>,
+return B<True> if the flags of I<flags> match I<high_flags> after
+being masked with I<mask_flags>; B<False> otherwise.  Given a
+I<flagmask> without the slash (C</>), return B<True> if all bits in
+I<flagmask> are set in I<flags>.  I.e., a I<flagmask> without a slash
+is interpreted as "I<flagmask>/I<flagmask>".
+
+=back
+
+Constants:
+
+The following constants are defined:
+
+=over 4
+
+=item silk.B<TCP_FIN>
+
+A B<TCPFlags> value with only the FIN flag set
+
+=item silk.B<TCP_SYN>
+
+A B<TCPFlags> value with only the SYN flag set
+
+=item silk.B<TCP_RST>
+
+A B<TCPFlags> value with only the RST flag set
+
+=item silk.B<TCP_PSH>
+
+A B<TCPFlags> value with only the PSH flag set
+
+=item silk.B<TCP_ACK>
+
+A B<TCPFlags> value with only the ACK flag set
+
+=item silk.B<TCP_URG>
+
+A B<TCPFlags> value with only the URG flag set
+
+=item silk.B<TCP_ECE>
+
+A B<TCPFlags> value with only the ECE flag set
+
+=item silk.B<TCP_CWR>
+
+A B<TCPFlags> value with only the CWR flag set
+
+=back
+
+
+=for comment
+############################################################################
+
+=head1 FGlob Object
+
+An B<FGlob> object is an iterable object which iterates over filenames
+from a SiLK data store.  It does this internally by calling the
+B<rwfglob(1)> program.  The FGlob object assumes that the B<rwfglob>
+program is in the PATH, and will raise an exception when used if not.
+
+B<Note:> It is generally better to use the
+L<silk.site.B<repository_iter()>|/repository_iter> function from the
+L<silk.site Module> instead of the B<FGlob> object, as that function
+does not require the external B<rwfglob> program.  However, the
+B<FGlob> constructor allows you to use a different site configuration
+file every time, whereas the L<silk.site.B<init_site()>|/init_site>
+function only supports a single site configuration file.
+
+=over 4
+
+=item class silk.B<FGlob(>I<classname>=B<None>B<,> I<type>=B<None>B<,> I<sensors>=B<None>B<,> I<start_date>=B<None>B<,> I<end_date>=B<None>B<,> I<data_rootdir>=B<None>B<,> I<site_config_file>=B<None>B<)>
+
+Although all arguments have defaults, at least one of I<classname>,
+I<type>, I<sensors>, I<start_date> must be specified.  The arguments
+are:
+
+=over 4
+
+=item I<classname>
+
+if given, should be a string representing the class name.  If not
+given, defaults based on the site configuration file, B<silk.conf(5)>.
+
+=item I<type>
+
+if given, can be either a string representing a type name or
+comma-separated list of type names, or can be a list of strings
+representing type names.  If not given, defaults based on the site
+configuration file, F<silk.conf>.
+
+=item I<sensors>
+
+if given, should be either a string representing a comma-separated
+list of sensor names or IDs, and integer representing a sensor ID, or
+a list of strings or integers representing sensor names or IDs.  If
+not given, defaults to all sensors.
+
+=item I<start_date>
+
+if given, should be either a string in the format C<YYYY/MM/DD[:HH]>,
+a date object, a datetime object (which will be used to the precision
+of one hour), or a time object (which is used for the given hour on
+the current date).  If not given, defaults to start of current day.
+
+=item I<end_date>
+
+if given, should be either a string in the format C<YYYY/MM/DD[:HH]>,
+a date object, a datetime object (which will be used to the precision
+of one hour), or a time object (which is used for the given hour on
+the current date).  If not given, defaults to I<start_date>.  The
+I<end_date> cannot be specified without a I<start_date>.
+
+=item I<data_rootdir>
+
+if given, should be a string representing the directory in which to
+find the packed SiLK data files.  If not given, defaults to the value
+in the SILK_DATA_ROOTDIR environment variable or the compiled-in
+default (@SILK_DATA_ROOTDIR@).
+
+=item I<site_config_file>
+
+if given, should be a string representing the path of the site
+configuration file, F<silk.conf>.  If not given, defaults to the value
+in the SILK_CONFIG_FILE environment variable or
+F<$SILK_DATA_ROOTDIR/silk.conf>.
+
+=back
+
+=back
+
+An B<FGlob> object can be used as a standard iterator.  For example:
+
+ for filename in FGlob(classname="all", start_date="2005/09/22"):
+     for rec in silkfile_open(filename):
+         ...
+
+
+=for comment
+############################################################################
+
+=head1 silk.site Module
+
+The B<silk.site> module contains functions that load the SiLK site
+file, and query information from that file.
+
+=over 4
+
+=item silk.site.B<init_site(>I<siteconf>=B<None>B<,> I<rootdir>=B<None>B<)>
+
+Initializes the SiLK system's site configuration.  The I<siteconf>
+parameter, if given, should be the path and name of a SiLK site
+configuration file (see B<silk.conf(3)>).  If I<siteconf> is omitted,
+the value specified in the environment variable SILK_CONFIG_FILE will
+be used as the name of the configuration file.  If SILK_CONFIG_FILE is
+not set, the module looks for a file named F<silk.conf> in the
+following directories: the directory specified by the I<rootdir>
+argument, the directory specified in the SILK_DATA_ROOTDIR environment
+variable; the data root directory that is compiled into SiLK
+(@SILK_DATA_ROOTDIR@); the directories F<$SILK_PATH/share/silk/> and
+F<$SILK_PATH/share/>.
+
+The I<rootdir> parameter, if given, should be the path to a SiLK data
+repository that a configuration that matches the SiLK site
+configuration.  If I<rootdir> is omitted, the value specified in the
+SILK_DATA_ROOTDIR environment variable will be used, or if that
+variable is not set, the data root directory that is compiled into
+SiLK (@SILK_DATA_ROOTDIR@).  The I<rootdir> may be specified without a
+I<siteconf> argument by using I<rootdir> as a keyword argument.  I.e.,
+B<init_site(rootdir="/data")>.
+
+This function should not generally be called explicitly unless one
+wishes to use a non-default site configuration file.
+
+The B<init_site()> function can only be called successfully once.  The
+return value of B<init_site()> will be true if the site configuration
+was successful, or B<False> if a site configuration file was not
+found.  If a I<siteconf> parameter was specified but not found, or if
+a site configuration file was found but did not parse properly, an
+exception will be raised instead.  Once I<init_site()> has been
+successfully invoked,
+L<silk.site.B<have_site_config()>|/have_site_config> will return
+B<True>, and subsequent invocations of B<init_site()> will raise a
+B<RuntimeError> exception.
+
+Some B<silk.site> methods and L<B<RWRec>|/RWRec Object> members
+require information from the F<silk.conf> file, and when these methods
+are called or members accessed, the
+L<silk.site.B<init_site()>|/init_site> function is implicitly invoked
+with no arguments if it has not yet been called successfully.  The
+list of functions, methods, and attributes that exhibit this behavior
+include: silk.site.B<sensors()>, silk.site.B<classtypes()>,
+silk.site.B<classes()>, silk.site.B<types()>,
+silk.site.B<default_types()>, silk.site.B<default_class()>,
+silk.site.B<class_sensors()>, silk.site.B<sensor_id()>,
+silk.site.B<sensor_from_id()>, silk.site.B<classtype_id()>,
+silk.site.B<classtype_from_id()>, silk.site.B<set_data_rootdir()>,
+silk.site.B<repository_iter()>,
+silk.site.B<repository_silkfile_iter()>,
+silk.site.B<repository_full_iter()>, B<I<rwrec>.as_dict()>,
+B<I<rwrec>.classname>, B<I<rwrec>.typename>, B<I<rwrec>.classtype>,
+and B<I<rwrec>.sensor>.
+
+=item silk.site.B<have_site_config(>I<>B<)>
+
+Return B<True> if L<silk.site.B<init_site()>|/init_site> has been
+called and was able to successfully find and load a SiLK configuration
+file, B<False> otherwise.
+
+=item silk.site.B<set_data_rootdir(>I<rootdir>B<)>
+
+Change the current SiLK data root directory once the F<silk.conf> file
+has been loaded.  This function can be used to change the directory
+used by the B<silk.site> iterator functions.  To change the SiLK data
+root directory before loading the F<silk.conf> file, call
+L<silk.site.B<init_site()>|/init_site> with a I<rootdir> argument.
+B<set_data_rootdir()> implicitly calls
+L<silk.site.B<init_site()>|/init_site> with no arguments before
+changing the root directory if
+L<silk.site.B<have_site_config()>|/have_site_config> returns B<False>.
+
+=item silk.site.B<get_site_config(>I<>B<)>
+
+Return the current path to the SiLK site configuration file.  Before
+L<silk.site.B<init_site()>|/init_site> is called successfully, this
+will return the place that B<init_site()> called with no arguments
+will first look for a configuration file.  After B<init_site()> has
+been successfully called, this will return the path to the file that
+B<init_site()> loaded.
+
+=item silk.site.B<get_data_rootdir(>I<>B<)>
+
+Return the current SiLK data root directory.
+
+=item silk.site.B<sensors(>I<>B<)>
+
+Return a tuple of valid sensor names.  Implicitly calls
+L<silk.site.B<init_site()>|/init_site> with no arguments if
+L<silk.site.B<have_site_config()>|/have_site_config> returns B<False>.
+Returns an empty tuple if no site file is available.
+
+=item silk.site.B<classes(>I<>B<)>
+
+Return a tuple of valid class names.  Implicitly calls
+L<silk.site.B<init_site()>|/init_site> with no arguments if
+L<silk.site.B<have_site_config()>|/have_site_config> returns B<False>.
+Returns an empty tuple if no site file is available.
+
+=item silk.site.B<types(>I<class>B<)>
+
+Return a tuple of valid type names for class I<class>.  Implicitly
+calls L<silk.site.B<init_site()>|/init_site> with no arguments if
+L<silk.site.B<have_site_config()>|/have_site_config> returns B<False>.
+Throws B<KeyError> if no site file is available or if I<class> is not
+a valid class.
+
+=item silk.site.B<classtypes(>I<>B<)>
+
+Return a tuple of valid (class name, type name) tuples.  Implicitly
+calls L<silk.site.B<init_site()>|/init_site> with no arguments if
+L<silk.site.B<have_site_config()>|/have_site_config> returns B<False>.
+Returns an empty tuple if no site file is available.
+
+=item silk.site.B<default_class(>I<>B<)>
+
+Return the default class name.  Implicitly calls
+L<silk.site.B<init_site()>|/init_site> with no arguments if
+L<silk.site.B<have_site_config()>|/have_site_config> returns B<False>.
+Returns B<None> if no site file is available.
+
+=item silk.site.B<default_types(>I<class>B<)>
+
+Return a tuple of default types associated with class I<class>.
+Implicitly calls L<silk.site.B<init_site()>|/init_site> with no
+arguments if L<silk.site.B<have_site_config()>|/have_site_config>
+returns B<False>.  Throws B<KeyError> if no site file is available or
+if I<class> is not a valid class.
+
+=item silk.site.B<class_sensors(>I<class>B<)>
+
+Return a tuple of sensors that are in class I<class>.  Implicitly
+calls L<silk.site.B<init_site()>|/init_site> with no arguments if
+L<silk.site.B<have_site_config()>|/have_site_config> returns B<False>.
+Throws B<KeyError> if no site file is available or if I<class> is not
+a valid class.
+
+=item silk.site.B<sensor_classes(>I<sensor>B<)>
+
+Return a tuple of classes that are associated with I<sensor>.
+Implicitly calls L<silk.site.B<init_site()>|/init_site> with no
+arguments if L<silk.site.B<have_site_config()>|/have_site_config>
+returns B<False>.  Throws B<KeyError> if no site file is available or
+if I<sensor> is not a valid sensor.
+
+=item silk.site.B<sensor_description(>I<sensor>B<)>
+
+Return the sensor description as a string, or B<None> if there is no
+description.  Implicitly calls L<silk.site.B<init_site()>|/init_site>
+with no arguments if
+L<silk.site.B<have_site_config()>|/have_site_config> returns B<False>.
+Throws B<KeyError> if no site file is available or if I<sensor> is not
+a valid sensor.
+
+=item silk.site.B<sensor_id(>I<sensor>B<)>
+
+Return the numeric sensor ID associated with the string I<sensor>.
+Implicitly calls L<silk.site.B<init_site()>|/init_site> with no
+arguments if L<silk.site.B<have_site_config()>|/have_site_config>
+returns B<False>.  Throws B<KeyError> if no site file is available or
+if I<sensor> is not a valid sensor.
+
+=item silk.site.B<sensor_from_id(>I<id>B<)>
+
+Return the sensor name associated with the numeric sensor ID I<id>.
+Implicitly calls L<silk.site.B<init_site()>|/init_site> with no
+arguments if L<silk.site.B<have_site_config()>|/have_site_config>
+returns B<False>.  Throws B<KeyError> if no site file is available or
+if I<id> is not a valid sensor identifier.
+
+=item silk.site.B<classtype_id( (>I<class>B<,> I<type>B<) )>
+
+Return the numeric ID associated with the tuple (I<class>, I<type>).
+Implicitly calls L<silk.site.B<init_site()>|/init_site> with no
+arguments if L<silk.site.B<have_site_config()>|/have_site_config>
+returns B<False>.  Throws B<KeyError> if no site file is available, if
+I<class> is not a valid class, or if I<type> is not a valid type in
+I<class>.
+
+=item silk.site.B<classtype_from_id(>I<id>B<)>
+
+Return the (I<class>, I<type>) name pair associated with the numeric
+ID I<id>.  Implicitly calls L<silk.site.B<init_site()>|/init_site>
+with no arguments if
+L<silk.site.B<have_site_config()>|/have_site_config> returns B<False>.
+Throws B<KeyError> if no site file is available or if I<id> is not a
+valid identifier.
+
+=item silk.site.B<repository_iter(>I<start>=B<None>B<,> I<end>=B<None>B<,> I<classname>=B<None>B<,> I<types>=B<None>B<,> I<classtypes>=B<None>B<,> I<sensors>=B<None>B<)>
+
+Return an iterator over file names in a SiLK repository.  The
+repository is assumed to be in the data root directory that is
+returned by L<silk.site.B<get_data_rootdir()>|/get_data_rootdir> and
+to conform to the format of the current site configuration.  This
+function implicitly calls L<silk.site.B<init_site()>|/init_site> with
+no arguments if L<silk.site.B<have_site_config()>|/have_site_config>
+returns B<False>.  See also
+L<silk.site.B<repository_full_iter()>|/repository_full_iter> and
+L<silk.site.B<repository_silkfile_iter()>|/repository_silkfile_iter>.
+
+The following types are accepted for I<start> and I<end>:
+
+=over 4
+
+=item *
+
+a B<datetime.datetime> object, which is considered to be specified to
+hour precision
+
+=item *
+
+a B<datetime.date> object, which is considered to be specified to day
+precision
+
+=item *
+
+a string in the SiLK date format C<YYYY/MM/DD[:HH]>, where the
+timezone depends on how SiLK was compiled; check the value of
+L<silk.B<get_configuration("TIMEZONE_SUPPORT")>|get_configuration>.
+
+=back
+
+The rules for interpreting I<start> and I<end> are:
+
+=over 4
+
+=item *
+
+When both I<start> and I<end> are specified to hour precision, files
+from all hours within that time range are returned.
+
+=item *
+
+When I<start> is specified to day precision, the hour specified in
+I<end> (if any) is ignored, and files for all dates between midnight
+at I<start> and the end of the day represented by I<end> are returned.
+
+=item *
+
+When I<end> is not specified and I<start> is specified to day
+precision, files for that complete day are returned.
+
+=item *
+
+When I<end> is not specified and I<start> is specified to hour
+precision, files for that single hour are returned.
+
+=item *
+
+When neither I<start> nor I<end> are specified, files for the current
+day are returned.
+
+=item *
+
+It is an error to specify I<end> without I<start>, or to give an
+I<end> that proceeds I<start>.
+
+=back
+
+To specify classes and types, either use the I<classname> and I<types>
+parameters or use the I<classtypes> parameter.  It is an error to use
+I<classname> or I<types> when I<classtypes> is specified.
+
+The I<classname> parameter should be a named class that appears in
+L<silk.site.B<classes()>|/classes>.  If neither I<classname> nor
+I<classtypes> are specified, I<classname> will default to that
+returned by L<silk.site.B<default_class()>|/default_class>.
+
+The I<types> parameter should be either a named type that appears in
+silk.site.B<types(>I<classname>B<)> or a sequence of said named types.
+If neither I<types> nor I<classtypes> is specified, I<types> will
+default to silk.site.B<default_types(>I<classname>B<)>.
+
+The I<classtypes> parameter should be a sequence of (I<classname>,
+I<type>) pairs.  These pairs must be in the sequence returned by
+L<silk.site.B<classtypes()>|/classtypes>.
+
+The I<sensors> parameter should be either a sensor name or a sequence
+of sensor names from the sequence returned by
+L<silk.site.B<sensors()>|/sensors>.  If I<sensors> is left
+unspecified, it will default to the list of sensors supported by the
+given class(es).
+
+=item silk.site.B<repository_silkfile_iter(>I<start>=B<None>B<,> I<end>=B<None>B<,> I<classname>=B<None>B<,> I<types>=B<None>B<,> I<classtypes>=B<None>B<,> I<sensors>=B<None>B<)>
+
+Works similarly to L<silk.site.B<repository_iter()>|/repository_iter>
+except the file names that B<repository_iter()> would return are
+opened as L<B<SilkFile>|/SilkFile Object> objects and returned.
+
+=item silk.site.B<repository_full_iter(>I<start>=B<None>B<,> I<end>=B<None>B<,> I<classname>=B<None>B<,> I<types>=B<None>B<,> I<classtypes>=B<None>B<,> I<sensors>=B<None>B<)>
+
+Works similarly to L<silk.site.B<repository_iter()>|/repository_iter>.
+Unlike B<repository_iter()>, this iterator's output will include the
+names of files that do not exist in the repository.  The iterator
+returns (I<filename>, I<bool>) pairs where the I<bool> value
+represents whether the given I<filename> exists.  For more
+information, see the description of the B<--print-missing-files>
+switch in B<rwfglob(1)>.
+
+=back
+
+=for comment
+############################################################################
+
+=head1 silk.plugin Module
+
+B<silk.plugin> is a module to support using PySiLK code as a plug-in
+to the B<rwfilter(1)>, B<rwcut(1)>, B<rwgroup(1)>, B<rwsort(1)>,
+B<rwstats(1)>, and B<rwuniq(1)> applications.  The module defines the
+following methods, which are described in the B<silkpython(3)> manual
+page:
+
+=over 4
+
+=item silk.plugin.B<register_switch(>I<switch_name>B<,> B<handler=>I<handler>B<,> [B<arg=>I<needs_arg>]B<,> [B<help=>I<help_string>]B<)>
+
+Define the command line switch B<--I<switch_name>> that can be used by
+the PySiLK plug-in.
+
+=item silk.plugin.B<register_filter(>I<filter>B<,> [B<finalize=>I<finalize>]B<,> [B<initialize=>I<initialize>]B<)>
+
+Register the callback function I<filter> that can be used by
+B<rwfilter> to specify whether the flow record passes or fails.
+
+=item silk.plugin.B<register_field(>I<field_name>B<,> [B<add_rec_to_bin=>I<add_rec_to_bin>B<,>] [B<bin_compare=>I<bin_compare>B<,>] [B<bin_bytes=>I<bin_bytes>B<,>] [B<bin_merge=>I<bin_merge>B<,>] [B<bin_to_text=>I<bin_to_text>B<,>] [B<column_width=>I<column_width>B<,>] [B<description=>I<description>B<,>] [B<initial_value=>I<initial_value>B<,>] [B<initialize=>I<initialize>B<,>] [B<rec_to_bin=>I<rec_to_bin>B<,>] [B<rec_to_text=>I<rec_to_text>]B<)>
+
+Define the new key field or aggregate value field named I<field_name>.
+Key fields can be used in B<rwcut>, B<rwgroup>, B<rwsort>, B<rwstats>,
+and B<rwuniq>.  Aggregate value fields can be used in B<rwstats> and
+B<rwuniq>.  Creating a field requires specifying one or more callback
+functions---the functions required depend on the application(s) where
+the field will be used.  To simplify field creation for common field
+types, the remaining functions can be used instead.
+
+=item silk.plugin.B<register_int_field(>I<field_name>B<,> I<int_function>B<,> I<min>B<,> I<max>B<,> [I<width>]B<)>
+
+Create the key field I<field_name> whose value is an unsigned integer.
+
+=item silk.plugin.B<register_ipv4_field(>I<field_name>B<,> I<ipv4_function>B<,> [I<width>]B<)>
+
+Create the key field I<field_name> whose value is an IPv4 address.
+
+=item silk.plugin.B<register_ip_field(>I<field_name>B<,> I<ipv4_function>B<,> [I<width>]B<)>
+
+Create the key field I<field_name> whose value is an IPv4 or IPv6
+address.
+
+=item silk.plugin.B<register_enum_field(>I<field_name>B<,> I<enum_function>B<,> I<width>B<,>
+[I<ordering>]B<)>
+
+Create the key field I<field_name> whose value is a Python object
+(often a string).
+
+=item silk.plugin.B<register_int_sum_aggregator(>I<agg_value_name>B<,> I<int_function>B<,> [I<max_sum>]B<,> [I<width>]B<)>
+
+Create the aggregate value field I<agg_value_name> that maintains a
+running sum as an unsigned integer.
+
+=item silk.plugin.B<register_int_max_aggregator(>I<agg_value_name>B<,> I<int_function>B<,> [I<max_max>]B<,> [I<width>]B<)>
+
+Create the aggregate value field I<agg_value_name> that maintains the
+maximum unsigned integer value.
+
+=item silk.plugin.B<register_int_min_aggregator(>I<agg_value_name>B<,>
+I<int_function>B<,>
+[I<max_min>]B<,>
+[I<width>]B<)>
+
+Create the aggregate value field I<agg_value_name> that maintains the
+minimum unsigned integer value.
+
+=back
+
+=for comment
+############################################################################
+
+=head1 EXAMPLE
+
+The following is an example using the PySiLK bindings.  The code is
+meant to show some standard PySiLK techniques, but is not otherwise
+meant to be useful.  Explanations for the code can be found in-line in
+the comments.
+
+ #!/usr/bin/env python
+
+ # Use print functions (Compatible with Python 3.0; Requires 2.6+)
+ from __future__ import print_function
+
+ # Import the PySiLK bindings
+ from silk import *
+
+ # Import sys for the command line arguments.
+ import sys
+
+ # Main function
+ def main():
+
+     if len(sys.argv) != 3:
+         print ("Usage: %s infile outset" % sys.argv[0])
+         sys.exit(1)
+
+     # Open an silk file for reading
+     infile = silkfile_open(sys.argv[1], READ)
+
+     # Create an empty IPset
+     destset = IPSet()
+
+     # Loop over the records in the file
+     for rec in infile:
+
+       # Do comparisons based on rwrec field value
+       if (rec.protocol == 6 and rec.sport in [80, 8080] and
+           rec.packets > 3 and rec.bytes > 120):
+
+           # Add the dest IP of the record to the IPset
+           destset.add(rec.dip)
+
+     # Save the IPset for future use
+     try:
+         destset.save(sys.argv[2])
+     except:
+         sys.exit("Unable to write to %s" % sys.argv[2])
+
+     # count the items in the set
+     count = 0
+     for addr in destset:
+         count = count + 1
+
+     print("%d addresses" % count)
+
+     # Another way to do the same
+     print("%d addresses" % len(destset))
+
+     # Print the ip blocks in the set
+     for base_prefix in destset.cidr_iter():
+         print("%s/%d" % base_prefix)
+
+ # Call the main() function when this program is started
+ if __name__ == '__main__':
+     main()
+
+
+=for comment
+############################################################################
+
+=head1 ENVIRONMENT
+
+The following environment variables affect the tools in the SiLK tool
+suite.
+
+=over 4
+
+=item SILK_CONFIG_FILE
+
+This environment variable contains the location of the site
+configuration file, F<silk.conf>.  This variable will be used by
+L<silk.site.B<init_site()>|/init_site> if no argument is passed to
+that method.
+
+=item SILK_DATA_ROOTDIR
+
+This variable gives the root of directory tree where the data store of
+SiLK Flow files is maintained, overriding the location that is
+compiled into the tools (@SILK_DATA_ROOTDIR@).  This variable will be
+used by the L<B<FGlob>|/FGlob Object> constructor unless an explicit
+B<data_rootdir> value is specified.  In addition, the
+L<silk.site.B<init_site()>|/init_site> may search for the site
+configuration file, F<silk.conf>, in this directory.
+
+=item SILK_COUNTRY_CODES
+
+This environment variable gives the location of the country code
+mapping file that the
+L<silk.B<init_country_codes()>|/init_country_codes> function will use
+when no name is given to that function.  The value of this environment
+variable may be a complete path or a file relative to the SILK_PATH.
+See the L</FILES> section for standard locations of this file.
+
+=item SILK_CLOBBER
+
+The SiLK tools normally refuse to overwrite existing files.  Setting
+SILK_CLOBBER to a non-empty value removes this restriction.
+
+=item SILK_PATH
+
+This environment variable gives the root of the install tree.  When
+searching for configuration files, B<PySiLK> may use this environment
+variable.  See the L</FILES> section for details.
+
+=item PYTHONPATH
+
+This is the search path that Python uses to find modules and
+extensions.  The SiLK Python extension described in this document may
+be installed outside Python's installation tree; for example, in
+SiLK's installation tree.  It may be necessary to set or modify the
+PYTHONPATH environment variable so Python can find the SiLK extension.
+
+=item PYTHONVERBOSE
+
+If the SiLK Python extension fails to load, setting this environment
+variable to a non-empty string may help you debug the issue.
+
+=item SILK_PYTHON_TRACEBACK
+
+When set, Python plug-ins (see B<silkpython(3)>) will output trace
+back information regarding Python errors to the standard error.
+
+=item PATH
+
+This is the standard search path for executable programs.  The
+L<B<FGlob>|/FGlob Object> constructor will invoke the B<rwfglob(1)>
+program; the directory containing B<rwfglob> should be included in the
+PATH.
+
+=item TZ
+
+When a SiLK installation is built to use the local timezone (to
+determine if this is the case, check the value of
+L<silk.B<get_configuration("TIMEZONE_SUPPORT")>|get_configuration>),
+the value of the TZ environment variable determines the timezone in
+which L<silk.site.B<repository_iter()>|/repository_iter> parses
+timestamp strings.  If the TZ environment variable is not set, the
+default timezone is used.  Setting TZ to 0 or the empty string causes
+timestamps to be parsed as UTC.  The value of the TZ environment
+variable is ignored when the SiLK installation uses utc.  For system
+information on the TZ variable, see B<tzset(3)>.
+
+=back
+
+=head1 FILES
+
+=over 4
+
+=item F<${SILK_CONFIG_FILE}>
+
+=item F<ROOT_DIRECTORY/silk.conf>
+
+=item F<${SILK_PATH}/share/silk/silk.conf>
+
+=item F<${SILK_PATH}/share/silk.conf>
+
+=item F<@prefix@/share/silk/silk.conf>
+
+=item F<@prefix@/share/silk.conf>
+
+Possible locations for the SiLK site configuration file which are
+checked when no argument is passed to
+L<silk.site.B<init_site()>|/init_site>.
+
+=item F<${SILK_COUNTRY_CODES}>
+
+=item F<${SILK_PATH}/share/silk/country_codes.pmap>
+
+=item F<${SILK_PATH}/share/country_codes.pmap>
+
+=item F<@prefix@/share/silk/country_codes.pmap>
+
+=item F<@prefix@/share/country_codes.pmap>
+
+Possible locations for the country code mapping file used by
+L<silk.B<init_country_codes()>|/init_country_codes> when no name is
+given to the function.
+
+=item F<${SILK_DATA_ROOTDIR}/>
+
+=item F<@SILK_DATA_ROOTDIR@/>
+
+Locations for the root directory of the data repository.  The
+L<silk.site.B<init_site()>|/init_site> may search for the site
+configuration file, F<silk.conf>, in this directory.
+
+=back
+
+=head1 SEE ALSO
+
+B<silkpython(3)>, B<rwfglob(1)>, B<rwfileinfo(1)>, B<rwfilter(1)>,
+B<rwcut(1)>, B<rwpmapbuild(1)>, B<rwset(1)>, B<rwsetbuild(1)>,
+B<rwgroup(1)>, B<rwsort(1)>, B<rwstats(1)>, B<rwuniq(1)>,
+B<rwgeoip2ccmap(1)>, B<silk.conf(5)>, B<sensor.conf(5)>, B<silk(7)>,
+B<python(1)>, B<gzip(1)>, B<yaf(1)>, L<http://docs.python.org/>
+
+=cut
+
+$SiLK: pysilk.pod 7ed42ea5166b 2014-08-08 14:53:18Z mwd $
+
+Local Variables:
+mode:text
+indent-tabs-mode:nil
+End:

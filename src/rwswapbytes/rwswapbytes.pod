@@ -1,0 +1,96 @@
+=pod
+
+=head1 NAME
+
+B<rwswapbytes> - Convert the byte order of a SiLK Flow file
+
+=head1 SYNOPSIS
+
+  rwswapbytes
+        {--big-endian|--little-endian|--native-endian|--swap-endian}
+        [--note-add=TEXT] [--note-file-add=FILE]
+        INPUT_FILE OUTPUT_FILE
+
+  rwswapbytes --help
+
+  rwswapbytes --version
+
+=head1 DESCRIPTION
+
+Change the byte order of I<INPUT_FILE> as specified by the option and
+write the result to I<OUTPUT_FILE>.  B<rwswapbytes> will read the
+input from the standard input if you use the string C<stdin> for
+I<INPUT_FILE>; swapbytes will write the output to the standard output
+if you use the string C<stdout> for I<OUTPUT_FILE>.  B<rwswapbytes>
+knows how to read and write compressed (B<gzip(1)>ped) files.
+
+=head1 OPTIONS
+
+Option names may be abbreviated if the abbreviation is unique or is an
+exact match for an option.  A parameter to an option may be specified
+as B<--arg>=I<param> or B<--arg> I<param>, though the first form is
+required for options that take optional parameters.
+
+One of these switches must be provided:
+
+=over 4
+
+=item B<--big-endian>
+
+Write the output-file in big-endian (network byte-order) format.
+
+=item B<--little-endian>
+
+Write the output-file in little-endian format.
+
+=item B<--native-endian>
+
+Write the output-file in this machine's native format.
+
+=item B<--swap-endian>
+
+Unconditionally swap the byte-order of the input-file.
+
+=item B<--help>
+
+Print the available options and exit.
+
+=item B<--version>
+
+Print the version number and information about how SiLK was
+configured, then exit the application.
+
+=back
+
+These switches are optional:
+
+=over 4
+
+=item B<--note-add>=I<TEXT>
+
+Add the specified I<TEXT> to the header of the output file as an
+annotation.  This switch may be repeated to add multiple annotations
+to a file.  To view the annotations, use the B<rwfileinfo(1)> tool.
+
+=item B<--note-file-add>=I<FILENAME>
+
+Open I<FILENAME> and add the contents of that file to the header of
+the output file as an annotation.    This switch may be repeated to
+add multiple annotations.  Currently the application makes no effort
+to ensure that I<FILENAME> contains text; be careful that you do not
+attempt to add a SiLK data file as an annotation.
+
+=back
+
+=head1 SEE ALSO
+
+B<rwfileinfo(1)>, B<silk(7)>, B<gzip(1)>
+
+=cut
+
+$SiLK: rwswapbytes.pod 9e71f5672f24 2013-03-05 23:37:50Z mthomas $
+
+Local Variables:
+mode:text
+indent-tabs-mode:nil
+End:

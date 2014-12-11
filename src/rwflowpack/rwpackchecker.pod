@@ -1,0 +1,427 @@
+=pod
+
+=head1 NAME
+
+B<rwpackchecker> - Find unusual patterns that may indicate a corrupt file
+
+=head1 SYNOPSIS
+
+  rwpackchecker [--value=TEST=VALUE] [--allowable-count=TEST=ALLOWED]
+        [--print-all]
+        {[--xargs] | [--xargs=FILENAME] | [FILE [FILE ...]]}
+
+  rwpackchecker --help
+
+  rwpackchecker --version
+
+=head1 DESCRIPTION
+
+B<rwpackchecker> reads SiLK Flow records and checks for C<unusual>
+patterns that I<may> indicate the file has been corrupted.
+
+B<rwpackchecker> has a default series of tests it runs on every flow
+record in an input file.  Each default test has two numbers associated
+with it: a value threshold and an allowed count threshold.  A test
+compares a value on the flow record to the value threshold, and if the
+value violates the threshold, a counter for that test is incremented.
+In addition, if the flow record violates the value threshold for any
+test, a global counter is incremented to denote a suspect record.
+
+Once B<rwpackchecker> finishes processing a file, it determines
+whether the file appears to be valid.  A file is considered valid if
+either
+
+=over
+
+=item *
+
+the global counter of suspect records is 0, or
+
+=item *
+
+no test has a counter that exceeds the test's allowed count threshold
+
+=back
+
+If B<rwpackchecker> determines that all files are valid, it does not
+print any output by default.  If B<rwpackchecker> does find an invalid
+file, it will print the name of the input file, the global number of
+suspect records it found, and information for those tests where the
+counter exceeds the allowed count threshold.
+
+As an example, if there are 10 tests and the count threshold for each
+is 10, it is possible for the global suspect counter to be 90 and for
+B<rwpackchecker> to consider the file valid.
+
+To force B<rwpackchecker> to print the results for all tests and
+for all input files, specify the B<--print-all> switch.
+
+Some of the tests that run by default include checking the number of
+packets, the bytes per second ratio, the bytes per packet ratio, and
+the bytes per packet ratio for a particular protocol (TCP, UDP, and
+ICMP).
+
+The B<--value> and B<--allowable-count> switches modify the value
+threshold and allowed count threshold for a test, respectively.  The
+argument to the switch is the test name and the threshold, separated
+by a equals sign (C<=>).  Repeat the switches to set multiple
+thresholds.  For example, to change the value thresholds for the
+max-bytes test to 20000 and for the max-packets test to 15000, specify
+the following:
+
+ rwpackchecker --value=max-bytes=20000 --value max-packets=15000 ...
+
+To get the most value from B<rwpackchecker>, one should customize it
+for the particular site where it is being used, since the default
+value for a threshold may or may not be unusual for a particular
+installation.  For example, a router that has Ethernet connections
+should have no more than 1500 bytes per packet, since that is the
+Ethernet MTU; however, the default value for that ratio is 16384.  In
+some cases the default value is the largest value that a SiLK IPv4
+hourly repository file can store, making it impossible for a record to
+violate the threshold.
+
+B<rwpackchecker> supports additional tests which are not run by
+default.  Representative tests include checking whether an IP is (not)
+in an IPset or whether a port is (not) in an integer list.  To run an
+additional test, specify the name of the test using the B<--value>
+switch and provide an argument for the test.
+
+To see all of the tests that B<rwpackchecker> supports as well as the
+value threshold and allowed count threshold for each test, see the
+L</OPTIONS> section below, or run B<rwpackchecker> with the B<--help>
+switch.
+
+B<rwpackchecker> reads SiLK Flow records from the files named on the
+command line or from the standard input when no file names are
+specified and B<--xargs> is not present.  To read the standard input
+in addition to the named files, use C<-> or C<stdin> as a file name.
+If an input file name ends in C<.gz>, the file will be uncompressed as
+it is read.  When the B<--xargs> switch is provided, B<rwpackchecker>
+will read the names of the files to process from the named text file,
+or from the standard input if no file name argument is provided to the
+switch.  The input to B<--xargs> must contain one file name per line.
+
+=head1 OPTIONS
+
+Option names may be abbreviated if the abbreviation is unique or is an
+exact match for an option.  A parameter to an option may be specified
+as B<--arg>=I<param> or B<--arg> I<param>, though the first form is
+required for options that take optional parameters.
+
+=over 4
+
+=item B<--value>=I<TEST>=I<VALUE>
+
+Set the value of I<TEST> to the specified I<VALUE>; separate the test
+name from value by C<=>.  The available I<TEST>s are given below; the
+test name can be shortened to the shortest unique prefix.  The form of
+I<VALUE> depends on the type of I<TEST>:
+
+=over 4
+
+=item *
+
+If I<TEST> expects a minimum or maximum, I<VALUE> should be a number.
+
+=item *
+
+If I<TEST> expects a list of IPs, I<VALUE> should the name of a file
+containing an IPset (see B<rwsetbuild(1)>).
+
+=item *
+
+If I<TEST> expects a list of numbers (for example, ports or
+protocols), I<VALUE> should contain a comma separated list of integers
+and integer-ranges where a range is two integers separated by a hyphen
+(C<->).
+
+=back
+
+Repeat this switch for each value that you wish to set.
+
+=item B<--allowable-count>=I<TEST>=I<ALLOWED>
+
+Allow the named I<TEST> to be violated I<ALLOWED> of times before
+treating it as C<unusual>.  I<ALLOWED> is an integer value. Separate
+the test name from the allowed count by C<=>.  Repeat this switch for
+each allowable count you wish to set.
+
+=item B<--print-all>
+
+Print the result of all tests for all input files.  Normally only
+tests that are deemed C<unusual> are printed.
+
+=item B<--xargs>
+
+=item B<--xargs>=I<FILENAME>
+
+Causes B<rwpackchecker> to read file names from I<FILENAME> or from
+the standard input if I<FILENAME> is not provided.  The input should
+have one file name per line.  B<rwpackchecker> will open each file in
+turn and read records from it, as if the files had been listed on the
+command line.
+
+=item B<--help>
+
+Print the available options and exit.
+
+=item B<--version>
+
+Print the version number and information about how SiLK was
+configured, then exit the application.
+
+=back
+
+The following tests are always run:
+
+=over 4
+
+=item B<min-bpp-ratio>=I<NUMBER>
+
+Byte-per-packet ratio is less than I<NUMBER>.  Default value: 1.
+Allowed count: 0.
+
+=item B<max-bpp-ratio>=I<NUMBER>
+
+Byte-per-packet ratio is greater than I<NUMBER>.  Default value:
+16384.  Allowed count: 0.
+
+=item B<min-bps-ratio>=I<NUMBER>
+
+Byte-per-second ratio is less than I<NUMBER>.  Default value: 0.
+Allowed count: 0.
+
+=item B<max-bps-ratio>=I<NUMBER>
+
+Byte-per-second ratio is greater than I<NUMBER>.  Default value:
+4294967295.  Allowed count: 0.
+
+=item B<min-packets>=I<NUMBER>
+
+Packet count is less than I<NUMBER>.  Default value: 1.  Allowed
+count: 0.
+
+=item B<max-packets>=I<NUMBER>
+
+Packet count is greater than I<NUMBER>.  Default value: 67108864.
+Allowed count: 0.
+
+=item B<min-bytes>=I<NUMBER>
+
+Byte count is less than I<NUMBER>.  Default value: 1.  Allowed count:
+0.
+
+=item B<max-bytes>=I<NUMBER>
+
+Byte count is greater than I<NUMBER>.  Default value: 4294967295.
+Allowed count: 0.
+
+=item B<min-tcp-bpp-ratio>=I<NUMBER>
+
+TCP byte-per-packet ratio is less than I<NUMBER>.  Default value: 1.
+Allowed count: 0.
+
+=item B<max-tcp-bpp-ratio>=I<NUMBER>
+
+TCP byte-per-packet ratio is greater than I<NUMBER>.  Default value:
+16384.  Allowed count: 0.
+
+=item B<min-udp-bpp-ratio>=I<NUMBER>
+
+UDP byte-per-packet ratio is less than I<NUMBER>.  Default value: 1.
+Allowed count: 0.
+
+=item B<max-udp-bpp-ratio>=I<NUMBER>
+
+UDP byte-per-packet ratio is greater than I<NUMBER>.  Default value:
+16384.  Allowed count: 0.
+
+=item B<min-icmp-bpp-ratio>=I<NUMBER>
+
+ICMP byte-per-packet ratio is less than I<NUMBER>.  Default value: 1.
+Allowed count: 0.
+
+=item B<max-icmp-bpp-ratio>=I<NUMBER>
+
+ICMP byte-per-packet ratio is greater than I<NUMBER>.  Default value:
+16384.  Allowed count: 0.
+
+=back
+
+The following tests are only run when the B<--value> switch is used to
+specify a value for the test.
+
+=over 4
+
+=item B<match-protocol>=I<LIST>
+
+Protocol is present in I<LIST>.  No default.  Allowed count: 0.
+
+=item B<nomatch-protocol>=I<LIST>
+
+Protocol is not present in I<LIST>.  No default.  Allowed count: 0.
+
+=item B<match-flags>=I<LIST>
+
+TCP Flag Combination is present in I<LIST>.  No default.  Allowed
+count: 0.
+
+=item B<nomatch-flags>=I<LIST>
+
+TCP Flag Combination is not present in I<LIST>.  No default.  Allowed
+count: 0.
+
+=item B<match-sip>=I<IPSET_FILE>
+
+Source IP is present in I<IPSET_FILE>.  No default.  Allowed count: 0.
+
+=item B<nomatch-sip>=I<IPSET_FILE>
+
+Source IP is not present in I<IPSET_FILE>.  No default.  Allowed
+count: 0.
+
+=item B<match-dip>=I<IPSET_FILE>
+
+Destination IP is present in I<IPSET_FILE>.  No default.  Allowed
+count: 0.
+
+=item B<nomatch-dip>=I<IPSET_FILE>
+
+Destination IP is not present in I<IPSET_FILE>.  No default.  Allowed
+count: 0.
+
+=item B<match-sport>=I<LIST>
+
+Source Port is present in I<LIST>.  No default.  Allowed count: 0.
+
+=item B<nomatch-sport>=I<LIST>
+
+Source Port is not present in I<LIST>.  No default.  Allowed count: 0.
+
+=item B<match-dport>=I<LIST>
+
+Destination Port is present in I<LIST>.  No default.  Allowed count:
+0.
+
+=item B<nomatch-dport>=I<LIST>
+
+Destination Port is not present in I<LIST>.  No default.  Allowed
+count: 0.
+
+=item B<match-nhip>=I<IPSET_FILE>
+
+Next Hop IP is present in I<IPSET_FILE>.  No default.  Allowed count:
+0.
+
+=item B<nomatch-nhip>=I<IPSET_FILE>
+
+Next Hop IP is not present in I<IPSET_FILE>.  No default.  Allowed
+count: 0.
+
+=item B<match-input>=I<LIST>
+
+SNMP Input is present in I<LIST>.  No default.  Allowed count: 0.
+
+=item B<nomatch-input>=I<LIST>
+
+SNMP Input is not present in I<LIST>.  No default.  Allowed count: 0.
+
+=item B<match-output>=I<LIST>
+
+SNMP Output is present in I<LIST>.  No default.  Allowed count: 0.
+
+=item B<nomatch-output>=I<LIST>
+
+SNMP Output is not present in I<LIST>.  No default.  Allowed count: 0.
+
+=back
+
+=head1 EXAMPLES
+
+In these examples, the dollar sign (C<$>) represents the shell prompt
+and a backslash (C<\>) is used to continue a line for better
+readability.  The examples do not use the optional C<=> between the
+B<--value> switch and the switch's argument for better readability.
+
+Given the SiLK Flow file F<data.rw> where the number of flows with
+various byte and packet counts are described by this table:
+
+ Number of flows    bytes <= 2000000    bytes > 2000000     TOTAL
+ packets <= 500         379303                308          379611
+ packets >  500         119586               2679          122265
+ TOTAL                  498889               2987          501876
+
+Running B<rwpackchecker>:
+
+ $ rwpackchecker --value max-bytes=2000000            \
+        --value max-packets=500  data.rw
+ data.rw:
+              122573/501876 flows are bad or unusual
+              122265 flows where Packet Count > 500
+                2987 flows where Byte Count > 2000000
+
+The counts for the individual tests are greater than the overall total
+since 2679 records fall into both categories.
+
+To see the effect of the B<--allowable-count> switch:
+
+ $ rwpackchecker --value max-packets=500                              \
+        --value max-bytes=2000000 --allowable max-bytes=3000 data.rw
+ data.rw:
+              122573/501876 flows are bad or unusual
+              122265 flows where Packet Count > 500
+
+ $ rwpackchecker --value max-bytes=2000000                            \
+        --value max-packets=500 --allowable max-packets=150000 data.rw
+ data.rw:
+              122573/501876 flows are bad or unusual
+                2987 flows where Byte Count > 2000000
+
+In each case the total number of unusual flows did not change; the
+violation of the other limit is still noted, even when the test is not
+printed since the test's allowed count threshold was not reached.
+
+When the allowed count thresholds for none of the tests are reached,
+B<rwpackchecker> produces no output by default:
+
+ $ rwpackchecker --value max-bytes=2000000 --allowable max-bytes=3000 \
+        --value max-packets=500 --allowable max-packets=150000 data.rw
+ $
+
+Specify the B<--print-all> switch to print the results:
+
+ $ rwpackchecker --value max-bytes=2000000 --allowable max-bytes=3000 \
+        --value max-packets=500 --allowable max-packets=15000         \
+        --print-all data.rw
+ data.rw:
+              122573/501876 flows are bad or unusual
+                   0 flows where BPP Calculation is incorrect
+                   0 flows where Elapsed Time > 4096
+                   0 flows where Byte/Packet Ratio < 1
+                   0 flows where Byte/Packet Ratio > 16384
+                   0 flows where Byte/Second Ratio < 0
+                   0 flows where Byte/Second Ratio > 4294967295
+                   0 flows where Packet Count < 1
+              122265 flows where Packet Count > 500
+                   0 flows where Byte Count < 1
+                2987 flows where Byte Count > 2000000
+                   0 flows where TCP Byte/Packet Ratio < 1
+                   0 flows where TCP Byte/Packet Ratio > 16384
+                   0 flows where UDP Byte/Packet Ratio < 1
+                   0 flows where UDP Byte/Packet Ratio > 16384
+                   0 flows where ICMP Byte/Packet Ratio < 1
+                   0 flows where ICMP Byte/Packet Ratio > 16384
+
+=head1 SEE ALSO
+
+B<rwflowpack(8)>, B<rwsetbuild(1)>, B<silk(7)>
+
+=cut
+
+$SiLK: rwpackchecker.pod cd09f0a5fcc6 2014-06-14 15:43:33Z mthomas $
+
+Local Variables:
+mode:text
+indent-tabs-mode:nil
+End:

@@ -1,0 +1,1997 @@
+=pod
+
+=head1 NAME
+
+B<silkpython> - SiLK Python plug-in (silkpython.so)
+
+=head1 SYNOPSIS
+
+ rwfilter --python-file=FILENAME [--python-file=FILENAME ...] ...
+
+ rwfilter --python-expr=PYTHON_EXPRESSION ...
+
+ rwcut --python-file=FILENAME [--python-file=FILENAME ...]
+       --fields=FIELDS ...
+
+ rwgroup --python-file=FILENAME [--python-file=FILENAME ...]
+       --id-fields=FIELDS ...
+
+ rwsort --python-file=FILENAME [--python-file=FILENAME ...]
+       --fields=FIELDS ...
+
+ rwstats --python-file=FILENAME [--python-file=FILENAME ...]
+       --fields=FIELDS --values=VALUES ...
+
+ rwuniq --python-file=FILENAME [--python-file=FILENAME ...]
+       --fields=FIELDS --values=VALUES ...
+
+=head1 DESCRIPTION
+
+The SiLK Python plug-in provides a way to use PySiLK (the SiLK
+extension for B<python(1)> described in B<pysilk(3)>) to extend the
+capability of several SiLK tools.
+
+=over 4
+
+=item *
+
+In B<rwfilter(1)>, new partitioning rules can be defined in PySiLK to
+determine whether a SiLK Flow record is written to the
+B<--pass-destination> or B<--fail-destination>.
+
+=item *
+
+In B<rwcut(1)>, new fields can be defined in PySiLK and displayed for
+each record.
+
+=item *
+
+New fields can also be defined in B<rwgroup(1)> and B<rwsort(1)>.
+These fields are used as part of the key when grouping or sorting the
+records.
+
+=item *
+
+For B<rwstats(1)> and B<rwuniq(1)>, two types of fields can be
+defined: I<Key fields> are used to categorize the SiLK Flow records
+into bins, and I<aggregate value fields> compute a value across all
+the SiLK Flow records that are categorized into a bin.  (An example of
+a built-in aggregate value field is the number of packets that were
+seen for all flow records that match a particular key.)
+
+=back
+
+To extend the SiLK tools using PySiLK, the user writes a Python file
+that calls Python functions defined in the B<silk.plugin> Python
+module and described in this manual page.  When the user specifies the
+B<--python-file> switch to a SiLK application, the application loads
+the Python file and makes the new functionality available.
+
+The following sections will describe
+
+=over
+
+=item *
+
+how to create a command line switch with PySiLK that allows one to
+modify the run-time behavior of their PySiLK code
+
+=item *
+
+how to use PySiLK with B<rwfilter>
+
+=item *
+
+a simple API for creating fields in B<rwcut>, B<rwgroup>, B<rwsort>,
+B<rwstats>, and B<rwuniq>
+
+=item *
+
+the advanced API for creating fields in those applications
+
+=back
+
+Typically you will not need to explicitly import the B<silk.plugin>
+module, since the B<--python-file> switch does this for you.  In a
+module used by a Python plug-in, the module can gain access to the
+functions defined in this manual page by importing them from
+B<silk.plugin>:
+
+ from silk.plugin import *
+
+B<Hint:> If you want to check whether the Python code in I<FILENAME>
+is defining the switches and fields you expect, you can load the
+Python file and examine the output of B<--help>, for example:
+
+ rwcut --python-file=FILENAME --help
+
+
+=head2 User-defined command line switches
+
+Command line switches can be added and handled from within a SiLK
+Python plug-in.  In order to add a new switch, use the following
+function:
+
+B<register_switch(>I<switch_name>B<,>
+B<handler=>I<handler_func>B<,>
+[B<arg=>I<needs_arg>]B<,>
+[B<help=>I<help_string>]B<)>
+
+=over 4
+
+=item I<switch_name>
+
+Provides the name of the switch you are registering, a string.  Do not
+include the leading C<--> in the name.  If a switch already exists
+with the name I<switch_name>, the application will exit with an error
+message.
+
+=item I<handler_func>
+
+B<handler_func(>I<[string]>B<)>.
+Names a function that will be called by the application while it is
+processing its command line if and only if the command line includes
+the switch B<--switch_name>.  (If the switch is not given, the
+I<handler_func> function will not be called.)  When the B<arg>
+parameter is specified and its value is B<False>, the I<handler_func>
+function will be called with no arguments.  Otherwise, the
+I<handler_func> function will be called with a single argument: a
+string representing the value the user passed to the B<--switch_name>
+switch.  The return value from this function is ignored.  Note that
+the B<register_switch()> function requires a B<handler> argument which
+must be passed by keyword.
+
+=item I<needs_arg>
+
+Specifies a boolean value that determines whether the user must
+specify an argument to B<--switch_name>, and determines whether the
+I<handler_func> function should expect an argument.  When B<arg> is
+not specified or I<needs_arg> is B<True>, the user must specify an
+argument to B<--switch_name> and the I<handler_func> function will be
+called with a single argument.  When I<needs_arg> is B<False>, it is
+an error to specify an argument to B<--switch_name> and
+I<handler_func> will be called with no arguments.
+
+=item I<help_string>
+
+Provides the usage text to print describing this switch when the user
+runs the application with the B<--help> switch.  This argument is
+optional; when it is not provided, a simple "No help for this switch"
+message is printed.
+
+=back
+
+
+=head2 rwfilter usage
+
+When used in conjunction with B<rwfilter(1)>, the SiLK Python plug-in
+allows users to define arbitrary partitioning criteria using the SiLK
+extension to the Python programming language.  To use this capability,
+the user creates a Python file and specifies its name with the
+B<--python-file> switch in B<rwfilter>.  The file should call the
+B<register_filter()> function for each filter that it wants to create:
+
+B<register_filter(>I<filter_func>B<,>
+[B<finalize=>I<finalize_func>]B<,>
+[B<initialize=>I<initialize_func>]B<)>
+
+=over 4
+
+=item I<filter_func>
+
+I<Boolean>B< = filter_func(>I<silk.RWRec>B<)>.
+Names a function that must accept a single argument, a B<silk.RWRec>
+object (see B<pysilk(3)>).  When the B<rwfilter> program is run, it
+finds the records that match the selection options, and hands each
+record to the built-in partitioning switches.  A record that passes
+all of the built-in switches is handed to the first Python
+B<filter_func()> function as an B<RWRec> object.  The return value of
+the function determines what happens to the record.  The record fails
+the B<filter_func()> function (and the record is immediately written
+to the B<--fail-destination>, if specified) when the function returns
+one of the following: B<False>, B<None>, numeric zero of any type, an
+empty string, or an empty container (including strings, tuples, lists,
+dictionaries, sets, and frozensets).  If the function returns any
+other value, the record passes the first B<filter_func()> function,
+and the record is handed to the next Python B<filter_func()> function.
+If all B<filter_func()> functions pass the record, the record is
+written to the B<--pass-destination>, if specified.  (Note that when
+the B<--plugin> switch is present, the code it specifies will be
+called after the PySiLK code.)
+
+=item I<initialize_func>
+
+B<initialize_func()>.
+Names a function that takes no arguments.  When this function is
+specified, is will be called after B<rwfilter> has completed its
+argument processing, and just before B<rwfilter> opens the first input
+file.  The return value of this function is ignored.
+
+=item I<finalize_func>
+
+B<finalize_func()>.
+Names a function that takes no arguments.  When this function is
+specified, it will be called after all flow records have been
+processed.  One use of the these functions is to print any statistics
+that the B<filter_func()> function was computing.  The return value
+from this function is ignored.
+
+=back
+
+If B<register_filter()> is called multiple times, the
+B<filter_func()>, B<initialize_func()>, and B<finalize_func()>
+functions will be invoked in the order in which the
+B<register_filter()> functions were seen.
+
+B<NOTE:> For backwards compatibility, when the file named by
+B<--python-file> does not call B<register_filter()>, B<rwfilter> will
+search the Python file for functions named B<rwfilter()> and
+B<finalize()>.  If it finds the B<rwfilter()> function, B<rwfilter>
+will act as if the file contained:
+
+ register_filter(rwfilter, finalize=finalize)
+
+The B<--python-file> switch requires the user to create a file
+containing Python code.  To allow the user to write a small filtering
+check in Python, B<rwfilter> supports the B<--python-expr> switch.
+The value of the switch should be a Python expression whose result
+determines whether a given record passes or fails, using the same
+criterion as the B<filter_func()> function described above.  In the
+expression, the variable C<rec> is bound to the current B<silk.RWRec>
+object.  There is no support for the B<initialize_func()> and
+B<finalize_func()> functions.  The user may consider
+B<--python-expr>=I<PYTHON_EXPRESSION> as being implemented by
+
+ from silk import *
+ def temp_filter(rec):
+     return (PYTHON_EXPRESSION)
+
+ register_filter(temp_filter)
+
+The B<--python-file> and B<--python-expr> switches allow for much
+flexibility but at the cost of speed: converting a SiLK Flow record
+into an B<RWRec> is expensive relative to most operations in
+B<rwfilter>.  The user should use B<rwfilter>'s built-in partitioning
+switches to whittle down the input as much as possible, and only use
+the Python code to do what is difficult or impossible to do otherwise.
+
+
+=head2 Simple field registration functions
+
+The B<silk.plugin> module defines a function that can be used to
+define fields for use in B<rwcut>, B<rwgroup>, B<rwsort>, B<rwstats>,
+and B<rwuniq>.  That function is powerful, but it is also complex.  To
+make it easy to define fields for the common cases, the B<silk.plugin>
+provides the functions described in this section that create a key
+field or an aggregate value field.  The advanced function is
+described later in this manual page (L</Advanced field registration
+function>).
+
+Once you have created a key field or aggregate value field, you must
+include the field's name in the argument to the B<--fields> or
+B<--values> switch to tell the application to use the field.
+
+
+B<Integer key field>
+
+The following function is used to create a key field whose value is an
+unsigned integer.
+
+B<register_int_field(>I<field_name>B<,>
+I<int_function>B<,>
+I<min>B<,>
+I<max>B<,>
+[I<width>]B<)>
+
+=over 4
+
+=item I<field_name>
+
+The name of the new field, a string.  If you attempt to add a key
+field that already exists, you will get an an error message.
+
+=item I<int_function>
+
+I<int>B< = int_function(>I<silk.RWRec>B<)>.
+A function that accepts a B<silk.RWRec> object as its sole argument,
+and returns an unsigned integer which represents the value of this
+field for the given record.
+
+=item I<min>
+
+A number representing the minimum integer value for the field.  If
+I<int_function> returns a value less than I<min>, an error is raised.
+
+=item I<max>
+
+A number representing the maximum integer value for the field.  If
+I<int_function> returns a value greater than I<max>, an error is
+raised.
+
+=item I<width>
+
+The column width to use when displaying the field.  This parameter is
+optional; the default is the number of digits necessary to display
+the integer I<max>.
+
+=back
+
+B<IPv4 address key field>
+
+This function is used to create a key field whose value is an IPv4
+address.  (See also B<register_ip_field()>).
+
+B<register_ipv4_field(>I<field_name>B<,>
+I<ipv4_function>B<,>
+[I<width>]B<)>
+
+=over 4
+
+=item I<field_name>
+
+The name of the new field, a string.  If you attempt to add a key
+field that already exists, you will get an an error message.
+
+=item I<ipv4_function>
+
+I<silk.IPv4Addr>B< = ipv4_function(>I<silk.RWRec>B<)>.
+A function that accepts a B<silk.RWRec> object as its sole argument,
+and returns a B<silk.IPv4Addr> object.  This B<IPv4Addr> object will
+be the IPv4 address that represents the value of this field for the
+given record.
+
+=item I<width>
+
+The column width to use when displaying the field.  This parameter is
+optional, and it defaults to 15.
+
+=back
+
+
+B<IP address key field>
+
+The next function is used to create a key field whose value is an IPv4
+or IPv6 address.
+
+B<register_ip_field(>I<field_name>B<,>
+I<ip_function>B<,>
+[I<width>]B<)>
+
+=over 4
+
+=item I<field_name>
+
+The name of the new field, a string.  If you attempt to add a key
+field that already exists, you will get an an error message.
+
+=item I<ip_function>
+
+I<silk.IPAddr>B< = ip_function(>I<silk.RWRec>B<)>.
+A function that accepts a B<silk.RWRec> object as its sole argument,
+and returns a B<silk.IPAddr> object which represents the value of this
+field for the given record.
+
+=item I<width>
+
+The column width to use when displaying the field.  This parameter is
+optional.  The default width is 39.
+
+=back
+
+This key field requires more memory internally than fields registered
+by the B<register_ipv4_field()> function.  If SiLK is compiled without
+IPv6 support, B<register_ip_field()> works exactly like
+B<register_ipv4_field()>, including the default width of 15.
+
+
+B<Enumerated object key field>
+
+The following function is used to create a key field whose value is
+any Python object.  The maximum number of different objects that can
+be represented is 4,294,967,296, or 2^32.
+
+B<register_enum_field(>I<field_name>B<,>
+I<enum_function>B<,>
+I<width>B<,>
+[I<ordering>]B<)>
+
+=over 4
+
+=item I<field_name>
+
+The name of the new field, a string.  If you attempt to add a key
+field that already exists, you will get an an error message.
+
+=item I<enum_function>
+
+I<object>B< = enum_function(>I<silk.RWRec>B<)>.
+A function that accepts a B<silk.RWRec> object as its sole argument,
+and returns a Python object which represents the value of this field
+for the given record.  For typical usage, the Python objects returned
+by the I<enum_function> will be strings representing some categorical
+value.
+
+=item I<width>
+
+The column width to use when displaying this field.  The parameter is
+required.
+
+=item I<ordering>
+
+A list of objects used to determine ordering for B<rwsort> and
+B<rwuniq>.  This parameter is optional.  If specified, it lists the
+objects in the order in which they should be sorted.  If the
+I<enum_function> returns a object that is not in I<ordering>, the
+object will be sorted after all the objects in I<ordering>.
+
+=back
+
+
+B<Integer sum aggregate value field>
+
+This function is used to create an aggregate value field that
+maintains a running unsigned integer sum.
+
+B<register_int_sum_aggregator(>I<agg_value_name>B<,>
+I<int_function>B<,>
+[I<max_sum>]B<,>
+[I<width>]B<)>
+
+=over 4
+
+=item I<agg_value_name>
+
+The name of the new aggregate value field, a string.  The
+I<agg_value_name> must be unique among all aggregate values, but an
+aggregate value field and key field can have the same name.
+
+=item I<int_function>
+
+I<int>B< = int_function(>I<silk.RWRec>B<)>.
+A function that accepts a B<silk.RWRec> object as its sole argument,
+and returns an unsigned integer which represents the value that should
+be added to the running sum for the current bin.
+
+=item I<max_sum>
+
+The maximum possible sum.  This parameter is optional; if not
+specified, the default is 2^64-1 (18,446,744,073,709,551,615).
+
+=item I<width>
+
+The column width to use when displaying the aggregate value.  This
+parameter is optional.  The default is the number of digits necessary
+to display I<max_sum>.
+
+=back
+
+
+B<Integer maximum aggregate value field>
+
+The following function is used to create an aggregate value field that
+maintains the maximum unsigned integer value.
+
+B<register_int_max_aggregator(>I<agg_value_name>B<,>
+I<int_function>B<,>
+[I<max_max>]B<,>
+[I<width>]B<)>
+
+=over 4
+
+=item I<agg_value_name>
+
+The name of the new aggregate value field, a string.  The
+I<agg_value_name> must be unique among all aggregate values, but an
+aggregate value field and key field can have the same name.
+
+=item I<int_function>
+
+I<int>B< = int_function(>I<silk.RWRec>B<)>.
+A function that accepts a B<silk.RWRec> object as its sole argument,
+and returns an integer which represents the value that should be
+considered for the current highest value for the current bin.
+
+=item I<max_max>
+
+The maximum possible value for the maximum.  This parameter is
+optional; if not specified, the default is 2^64-1
+(18,446,744,073,709,551,615).
+
+=item I<width>
+
+The column width to use when displaying the aggregate value.  This
+parameter is optional.  The default is the number of digits necessary
+to display I<max_max>.
+
+=back
+
+
+B<Integer minimum aggregate value field>
+
+This function is used to create an aggregate value field that
+maintains the minimum unsigned integer value.
+
+B<register_int_min_aggregator(>I<agg_value_name>B<,>
+I<int_function>B<,>
+[I<max_min>]B<,>
+[I<width>]B<)>
+
+=over 4
+
+=item I<agg_value_name>
+
+The name of the new aggregate value field, a string.  The
+I<agg_value_name> must be unique among all aggregate values, but an
+aggregate value field and key field can have the same name.
+
+=item I<int_function>
+
+I<int>B< = int_function(>I<silk.RWRec>B<)>.
+A function that accepts a B<silk.RWRec> object as its sole argument,
+and returns an integer which represents the value that should be
+considered for the current lowest value for the current bin.
+
+=item I<max_min>
+
+The maximum possible value for the minimum.  When this optional
+parameter is not specified, the default is 2^64-1
+(18,446,744,073,709,551,615).
+
+=item I<width>
+
+The column width to use when displaying the aggregate value.  This
+parameter is optional.  The default is the number of digits necessary
+to display I<max_min>.
+
+=back
+
+
+=head2 Advanced field registration function
+
+The previous section provided functions to register a key field or an
+aggregate value field when dealing with common objects.  When you need
+to use a complex object, or you want more control over how the object
+is handled in PySiLK, you can use the B<register_field()> function
+described in this section.
+
+Many of the arguments to the B<register_field()> function are callback
+functions that you must create and that the application will invoke.
+(The simple registration functions above have already taken care of
+defining these callback functions.)
+
+Often the callback functions for handling fields will either take (as
+a parameter) or return a representation of a numeric value that can be
+processed from C.  The most efficient way to handle these
+representations is as a string containing binary characters, including
+the null byte.  We will use the term "byte sequence" for these
+representations; other possible terms include "array of bytes", "byte
+strings", or "binary values".  For hints on creating byte sequences
+from Python, see the L</Byte sequences> section below.
+
+To define a new field or aggregate value, the user calls:
+
+B<register_field(>I<field_name>B<,>
+[B<add_rec_to_bin=>I<add_rec_to_bin_func>B<,>]
+[B<bin_compare=>I<bin_compare_func>B<,>]
+[B<bin_bytes=>I<bin_bytes_value>B<,>]
+[B<bin_merge=>I<bin_merge_func>B<,>]
+[B<bin_to_text=>I<bin_to_text_func>B<,>]
+[B<column_width=>I<column_width_value>B<,>]
+[B<description=>I<description_string>B<,>]
+[B<initial_value=>I<initial_value>B<,>]
+[B<initialize=>I<initialize_func>B<,>]
+[B<rec_to_bin=>I<rec_to_bin_func>B<,>]
+[B<rec_to_text=>I<rec_to_text_func>]B<)>
+
+Although the keyword arguments to B<register_field()> are all optional
+from Python's perspective, certain keyword arguments must be present
+before an application will define the key or aggregate value.  The
+following table summarizes the keyword arguments used by each
+application.  An C<F> means the argument is required for a key field,
+an C<A> means the argument is required for an aggregate value field,
+C<f> and C<a> mean the application will use the argument for a key
+field or an aggregate value if the argument is present, and a dot
+means the application completely ignores the argument.
+
+                   rwcut  rwgroup  rwsort  rwstats  rwuniq
+ add_rec_to_bin      .       .       .        A       A
+ bin_compare         .       .       .        A       .
+ bin_bytes           .       F       F       F,A     F,A
+ bin_merge           .       .       .        A       A
+ bin_to_text         .       .       .       F,A     F,A
+ column_width        F       .       .       F,A     F,A
+ description         f       f       f       f,a     f,a
+ initial_value       .       .       .        a       a
+ initialize          f       f       f       f,a     f,a
+ rec_to_bin          .       F       F        F       F
+ rec_to_text         F       .       .        .       .
+
+The following sections describe how to use B<register_field()> in each
+application.
+
+=head2 rwcut usage
+
+The purpose of B<rwcut(1)> is to print attributes of (or attributes
+derived from) every SiLK record it reads as input.  A plug-in used by
+B<rwcut> must produce a printable (textual) attribute from a SiLK
+record.  To define a new attribute, the B<register_field()> method
+should be called as shown:
+
+B<register_field(>I<field_name>B<,>
+B<column_width=>I<column_width_value>B<,>
+B<rec_to_text=>I<rec_to_text_func>B<,>
+[B<description=>I<description_string>B<,>]
+[B<initialize=>I<initialize_func>]B<)>
+
+=over 4
+
+=item I<field_name>
+
+Names the field being defined, a string.  If you attempt to add a
+field that already exists, you will get an an error message.  To
+display the field, include I<field_name> in the argument to the
+B<--fields> switch.
+
+=item I<column_width_value>
+
+Specifies the length of the longest printable representation.
+B<rwcut> will use it as the width for the I<field_name> column when
+columnar output is selected.
+
+=item I<rec_to_text_func>
+
+I<string>B< = rec_to_text_func(>I<silk.RWRec>B<)>.
+Names a callback function that takes a B<silk.RWRec> object as its
+sole argument and produces a printable representation of the field
+being defined.  The length of the returned text should not be greater
+than I<column_width_value>.  If the value returned from this function
+is not a string, the returned value is converted to a string by the
+Python B<str()> function.
+
+=item I<description_string>
+
+Provides a string giving a brief description of the field, suitable
+for printing in B<--help-fields> output.  This argument is optional.
+
+=item I<initialize_func>
+
+B<initialize_func()>.
+Names a callback function that will be invoked after the application
+has completed its argument processing, and just before it opens the
+first input file.  This function is only called when B<--fields>
+includes I<field_name>.  The function takes no arguments and its
+return value is ignored.  This argument is optional.
+
+=back
+
+If the B<rec_to_text> argument is not present,
+the B<register_field()> function will do nothing when called from
+B<rwcut>.  If the B<column_width> argument is missing, B<rwcut> will
+complain that the textual width of the plug-in field is 0.
+
+=head2 rwgroup and rwsort usage
+
+The B<rwsort(1)> tool sorts SiLK records by their attributes or
+attributes derived from them.  B<rwgroup(1)> reads sorted SiLK records
+and writes a common value into the next hop IP field of all records
+that have common attributes.  The output from both of these tools is a
+stream of SiLK records (the output typically includes every record
+that was read as input).  A plug-in used by these tools must return a
+value that the application can use internally to compare records.  To
+define a new field that may be included in the B<--id-fields> switch
+to B<rwgroup> or the B<--fields> switch to B<rwsort>, the
+B<register_field()> method should be invoked as follows:
+
+B<register_field(>I<field_name>B<,>
+B<bin_bytes=>I<bin_bytes_value>B<,>
+B<rec_to_bin=>I<rec_to_bin_func>B<,>
+[B<description=>I<description_string>B<,>]
+[B<initialize=>I<initialize_func>]B<)>
+
+=over 4
+
+=item I<field_name>
+
+Names the field being defined, a string.  If you attempt to add a
+field that already exists, you will get an an error message.  To have
+B<rwgroup> or B<rwsort> use this field, include I<field_name> in the
+argument to B<--id-fields> or B<--fields>.
+
+=item I<bin_bytes_value>
+
+Specifies a positive integer giving the length, in bytes, of the byte
+sequence that the B<rec_to_bin_func()> function produces; the byte
+sequence must be exactly this length.
+
+=item I<rec_to_bin_func>
+
+I<byte-sequence>B< = rec_to_bin_func(>I<silk.RWRec>B<)>.
+Names a callback function that takes a B<silk.RWRec> object and
+returns a byte sequence that represents the field being defined.  The
+returned value should be exactly I<bin_bytes_value> bytes long.  For
+proper grouping or sorting, the byte sequence should be returned in
+network byte order (i.e., big endian).
+
+=item I<description_string>
+
+Provides a string giving a brief description of the field, suitable
+for printing in B<--help-fields> output.  This argument is optional.
+
+=item I<initialize_func>
+
+B<initialize_func()>.
+Names a callback function that will be invoked after the application
+has completed its argument processing, and just before it opens the
+first input file.  This function is only called when I<field_name> is
+included in the list of fields.  The function takes no arguments and
+its return value is ignored.  This argument is optional.
+
+=back
+
+If the B<rec_to_bin> argument is not present, the
+B<register_field()> function will do nothing when called from
+B<rwgroup> or B<rwsort>.  If the B<bin_bytes> argument is missing,
+B<rwgroup> or B<rwsort> will complain that the binary width of the
+plug-in field is 0.
+
+=head2 rwstats and rwuniq usage
+
+B<rwstats(1)> and B<rwuniq(1)> group SiLK records into bins based on
+key fields.  Once a record is matched to a bin, the record is used to
+update the I<aggregate values> (e.g., the sum of bytes) that are being
+computed, and the record is discarded.  Once all records have been
+processed, the key fields and the aggregate values are printed.
+
+B<Key Field>
+
+A plug-in used by B<rwstats> or B<rwuniq> for creating a new key field
+must return a value that the application can use internally to compare
+records, and there must be a function that converts that value to a
+printable representation.  The following invocation of
+B<register_field()> will produce a key field that can be used in the
+B<--fields> switch of B<rwstats> or B<rwuniq>:
+
+B<register_field(>I<field_name>B<,>
+B<bin_bytes=>I<bin_bytes_value>B<,>
+B<bin_to_text=>I<bin_to_text_func>B<,>
+B<column_width=>I<column_width_value>B<,>
+B<rec_to_bin=>I<rec_to_bin_func>B<,>
+[B<description=>I<description_string>B<,>]
+[B<initialize=>I<initialize_func>]B<)>
+
+The arguments are:
+
+=over 4
+
+=item I<field_name>
+
+Contains the name of the field being defined, a string.  If you
+attempt to add a field that already exists, you will get an an error
+message.  The field will only be active when I<field_name> is
+specified as an argument to B<--fields>.
+
+=item I<bin_bytes_value>
+
+Contains a positive integer giving the length, in bytes, of the byte
+sequence that the B<rec_to_bin_func()> function produces and that the
+B<bin_to_text_func()> function accepts.  The byte sequences must be
+exactly this length.
+
+=item I<bin_to_text_func>
+
+I<string>B< = bin_to_text_func(>I<byte-sequence>B<)>.
+Names a callback function that takes a byte sequence, of length
+I<bin_bytes_value>, as produced by the B<rec_to_bin_func()> function
+and returns a printable representation of the byte sequence.  The
+length of the text should be no longer than the value specified by
+B<column_width>.  If the value returned from this function is not a
+string, the returned value is converted to a string by the Python
+B<str()> function.
+
+=item I<column_width_value>
+
+Contains a positive integer specifying the length of the longest
+textual field that the B<bin_to_text_func()> callback function
+returns.  This length will used as the column width when columnar
+output is requested.
+
+=item I<rec_to_bin_func>
+
+I<byte-sequence>B< = rec_to_bin_func(>I<silk.RWRec>B<)>.
+Names a callback function that takes a B<silk.RWRec> object and
+returns a byte sequence that represents the field being defined.  The
+returned value should be exactly I<bin_bytes_value> bytes long.  For
+proper sorting, the byte sequence should be returned in network byte
+order (i.e., big endian).
+
+=item I<description_string>
+
+Provides a string giving a brief description of the field, suitable
+for printing in B<--help-fields> output.  This argument is optional.
+
+=item I<initialize_func>
+
+B<initialize_func()>.
+Names a callback function that is called after the command line
+arguments have been processed, and before opening the first file.
+This function is only called when B<--fields> includes I<field_name>.
+The function takes no arguments and its return value is ignored.  This
+argument is optional.
+
+=back
+
+B<Aggregate Value>
+
+A plug-in used by B<rwstats> or B<rwuniq> for creating a new aggregate
+value must be able to use a SiLK record to update an aggregate value,
+take two aggregate values and merge them to a new value, and convert
+that aggregate value to a printable representation.  To use an
+aggregate value for ordering the bins in B<rwstats>, the plug-in must
+also define a function to compare two aggregate values.  The aggregate
+values are represented as byte sequences.
+
+To define a new aggregate value in B<rwstats>, the user calls:
+
+B<register_field(>I<agg_value_name>B<,>
+B<add_rec_to_bin=>I<add_rec_to_bin_func>B<,>
+B<bin_bytes=>I<bin_bytes_value>B<,>
+B<bin_merge=>I<bin_merge_func>B<,>
+B<bin_to_text=>I<bin_to_text_func>B<,>
+B<column_width=>I<column_width_value>B<,>
+[B<bin_compare=>I<bin_compare_func>B<,>]
+[B<description=>I<description_string>B<,>]
+[B<initial_value=>I<initial_value>B<,>]
+[B<initialize=>I<initialize_func>]B<)>
+
+The call to define a new aggregate value in B<rwuniq> is nearly
+identical:
+
+B<register_field(>I<agg_value_name>B<,>
+B<add_rec_to_bin=>I<add_rec_to_bin_func>B<,>
+B<bin_bytes=>I<bin_bytes_value>B<,>
+B<bin_merge=>I<bin_merge_func>B<,>
+B<bin_to_text=>I<bin_to_text_func>B<,>
+B<column_width=>I<column_width_value>B<,>
+[B<description=>I<description_string>B<,>]
+[B<initial_value=>I<initial_value>B<,>]
+[B<initialize=>I<initialize_func>]B<)>
+
+The arguments are:
+
+=over 4
+
+=item I<agg_value_name>
+
+Contains the name of the aggregate value field being defined, a
+string.  The name of value must be unique among all aggregate values,
+but an aggregate value field and key field can have the same name.
+The value will only be active when I<agg_value_name> is specified as
+an argument to B<--values>.
+
+=item I<add_rec_to_bin_func>
+
+I<byte-sequence>B< = add_rec_to_bin_func(>I<silk.RWRec>B<, >I<byte-sequence>B<)>.
+Names a callback function whose two arguments are a B<silk.RWRec>
+object and an aggregate value.  The function updates the aggregate
+value with data from the record and returns a new aggregate value.
+Both aggregate values are represented as byte sequences of exactly
+I<bin_bytes_value> bytes.
+
+=item I<bin_bytes_value>
+
+Contains a positive integer representing the length, in bytes, of the
+binary aggregate value used by the various callback functions.  Every
+byte sequence for this field must be exactly this length, and it also
+governs the length of the byte sequence specified by B<initial_value>.
+
+=item I<bin_merge_func>
+
+I<byte-sequence>B< = bin_merge_func(>I<byte-sequence>B<, >I<byte-sequence>B<)>.
+Names a callback function which returns the result of merging two
+binary aggregate values into a new binary aggregate value.  This merge
+function will often be addition; however, if the aggregate value is a
+bitmap, the result of merge function could be the union of the
+bitmaps.  The function should take two byte sequence arguments and
+return a byte sequence, where all byte sequences are exactly
+I<bin_bytes_value> bytes in length.  If merging the aggregate values
+is not possible, the function should throw an exception.  This
+function is used when the data structure used by B<rwstats> or
+B<rwuniq> runs out memory.  When that happens, the application writes
+its current state to a temporary file, empties its buffers, and
+continues reading records.  Once all records have been processed, the
+application needs to merge the temporary files to produce the final
+output.  The B<bin_merge_func()> function is used when merging these
+binary aggregate values.
+
+=item I<bin_to_text_func>
+
+I<string>B< = bin_to_text_func(>I<byte-sequence>B<)>.
+Names a callback function that takes a byte sequence representing an
+aggregate value as an argument and returns a printable representation
+of that aggregate value.  The byte sequence input to
+B<bin_to_text_func()> will be exactly I<bin_bytes_value> bytes long.
+The length of the text should be no longer than the value specified by
+B<column_width>.  If the value returned from this function is not a
+string, the returned value is converted to a string by the Python
+B<str()> function.
+
+=item I<column_width_value>
+
+Contains a positive integer specifying the length of the longest
+textual field that the B<bin_to_text_func()> callback function
+returns.  This length will used as the column width when columnar
+output is requested.
+
+=item I<bin_compare_func>
+
+I<int>B< = bin_compare_func(>I<byte-sequence>B<, >I<byte-sequence>B<)>.
+Names a callback function that is called with two aggregate values,
+each represented as a byte sequence of exactly I<bin_bytes_value>
+bytes.  The function returns (1)S< >an integer less than 0 if the first
+argument is less than the second, (2)S< >an integer greater than 0 if the
+first is greater than the second, or (3)S< >0 if the two values are
+equal.  This function is used by B<rwstats> to sort the bins into
+top-N order.
+
+=item I<description_string>
+
+Provides a string giving a brief description of the aggregate value,
+suitable for printing in B<--help-fields> output.  This argument is
+optional.
+
+=item I<initial_value>
+
+Specifies a byte sequence representing the initial state of the binary
+aggregate value.  This byte sequence must be of length
+I<bin_bytes_value> bytes.  If this argument is not specified, the
+aggregate value is set to a byte sequence containing
+I<bin_bytes_value> null bytes.
+
+=item I<initialize_func>
+
+B<initialize_func()>.
+Names a callback function that is called after the command line
+arguments have been processed, and before opening the first file.
+This function is only called when B<--values> includes
+I<agg_value_name>.  The function takes no arguments and its return
+value is ignored.  This argument is optional.
+
+=back
+
+=head2 Byte sequences
+
+The B<rwgroup>, B<rwsort>, B<rwstats>, and B<rwuniq> programs make
+extensive use of "byte sequences" (a.k.a., "array of bytes", "byte
+strings", or "binary values") in their plug-in functions.  The byte
+sequences are used in both key fields and aggregate values.
+
+When used as key fields, the values can represent uniqueness or
+indicate sort order.  Two records with the same byte sequence for a
+field will be considered identical with respect to that field.  When
+sorting, the byte sequences are compared in network byte order.  That
+is, the most significant byte is compared first, followed by the
+next-most-significant byte, etc.  This equates to string comparison
+starting with the left-hand side of the string.
+
+When used as an aggregate field, the byte sequences are expected to
+behave more like numbers, with the ability to take binary record and
+add a value to it, or to merge (e.g., add) two byte sequences outside
+the context of a SiLK record.
+
+Every byte sequence has an associated length, which is passed into the
+B<register_field()> function in the B<bin_bytes> argument.  The length
+determines how many values the byte sequence can represent.  A byte
+sequence with a length of 1 can represent up to 256 unique values
+(from 0 to 255 inclusive).  A byte sequence with a length of 2 can
+represent up to 65536 unique values (0 to 65535).  To generalize, a
+byte sequence with a length of I<n> can represent up to 2^(8I<n>)
+unique values (0 to 2^(8I<n>)-1).
+
+How byte sequences are represented in Python depends on the version of
+Python.  Python represents a sequence of characters using either the
+B<bytes> type (introduced in 2.6) or the B<unicode> type.  The
+B<bytes> type can encode byte sequences while the B<unicode> type
+cannot.  In Python 2, the B<str> (string) type was an alias for
+B<bytes>, so that any Python 2 string is in effect a byte sequence.
+In Python 3, B<str> is an alias for B<unicode>, thus Python 3 strings
+are unicode objects and cannot represent byte sequences.
+
+Python does not make conversions between integers and byte sequences
+particularly natural.  As a result, here are some pointers on how to
+do these conversions:
+
+B<Use the bytes() and ord() methods>
+
+If you converting a single integer value that is less than 256, the
+easiest way to convert it to a byte sequence is to use the B<bytes()>
+function; to convert it back, use the B<ord()> function.
+
+ seq = bytes([num])
+ num = ord(seq)
+
+The B<bytes()> function takes a list of integers between 0 and 255
+inclusive, and returns a bytes sequence of the length of that list.
+To convert a single byte, use a list of a single element.  The
+B<ord()> function takes a byte sequence of a single byte and returns
+an integer between 0 and 255.
+
+B<Note:> In versions of Python earlier than 2.6, use the B<chr()>
+function instead of the B<bytes()> function.  It takes a single number
+as its argument.  B<chr()> will work in Python 2.6 and 2.7 as well,
+but there are compatibility problems in Python 3.x.
+
+B<Use the struct module>
+
+When the value you are converting to a byte sequence is 255 or
+greater, you have to go with another option.  One of the simpler
+options is to use Python's built-in B<struct> module.  With this
+module, you can encode a number or a set of numbers into a byte
+sequence and convert the result back using a B<struct.Struct> object.
+Encoding the numbers to a byte sequence uses the object's B<pack()>
+method.  To convert that byte sequence back to the number or set of
+numbers, use the object's B<unpack()> method.  The length of the
+resulting byte sequences can be found in the B<size> attribute of the
+B<struct.Struct()> object.  A formatting string is used to indicate
+how the numbers are encoded into binary.  For example:
+
+ import struct
+
+ # Set up the format for two 64-bit numbers
+ two64 = struct.Struct("!QQ)
+ # Encode two 64-bit numbers as a byte sequence
+ seq = two64.pack(num1, num2)
+ #Unpack a byte sequence back into two 64-bit numbers
+ (num1, num2) = two64.unpack(seq)
+ #Length of the encoded byte sequence
+ bin_bytes = two64.size
+
+In the above, C<Q> represents a single unsigned 64-bit number (an
+unsigned long long or quad).  The C<!> at the beginning of the string
+forces network byte order.  (For sort comparison purposes, always pack
+in network byte order.)
+
+Here is another example, which encodes a signed 16-bit integer and a
+floating point number:
+
+ import struct
+
+ # Set up the format for a 16-bit signed integer and a float
+ obj = struct.Struct("!hf")
+ #Encode a 16-bit signed integer and a float as a byte sequence
+ seq = obj.pack(intval, floatval)
+ #Unpack a byte sequence back into a 16-bit signed integer and a float
+ (intval, floatval) = obj.unpack(seq)
+ #Length of the encoded byte sequence
+ bin_bytes = obj.size
+
+Note that B<unpack()> returns a sequence.  When unpacking a single
+value, assign the result of B<unpack> to B<(>I<variable_name>B<,)>, as
+shown:
+
+ import struct
+
+ u32 = struct.Struct("!I")
+ #Encode an unsigned 32-bit integer as a byte sequence
+ seq = u32.pack(num1)
+ #Unpack a byte sequence back into a unsigned 32-bit integer
+ (num1,) = struct.unpack(seq)
+ #Length of the encoded byte sequence
+ bin_bytes = u32.size
+
+The full list of codes can be found in the Python library
+documentation for the B<struct> module,
+L<http://docs.python.org/library/struct.html>.
+
+B<Note:> Python versions prior to 2.5 do not include support for the
+B<struct.Struct> object.  For older versions of Python, you have to
+use B<struct>'s functional interface.  For example:
+
+ import struct
+
+ #Encode a 16-bit signed integer and a float as a byte sequence
+ seq = struct.pack("!hf", intval, floatval)
+ #Unpack a byte sequence back into a 16-bit signed integer and a float
+ (intval, floatval) = struct.unpack("!hf", seq)
+ #Length of the encoded byte sequence
+ bin_bytes = struct.calcsize("!hf")
+
+This method works in Python 2.5 and above as well, but is inherently
+slower, as it requires re-evaluation of the format string for each
+packing and unpacking operation.  Only use this if there is a need to
+inter-operate with older versions of Python.
+
+B<Use the array module>
+
+The Python B<array> module provides another way to create byte
+sequences.  Beware that the B<array> module does not provide an
+automatic way to encode the values in network byte order.
+
+=head1 OPTIONS
+
+The following options are available when the SiLK Python plug-in is
+used from B<rwfilter>.
+
+=over 4
+
+=item B<--python-file>=I<FILENAME>
+
+Load the Python file I<FILENAME>.  The Python code may call
+B<register_filter()> multiple times to define new partitioning
+functions that takes a B<silk.RWRec> object as an argument.  The
+return value of the function determines whether the record passes the
+filter.  For backwards compatibility, if B<register_filter()> is not
+called and a function named B<rwfilter()> exists, that function is
+automatically registered as the filtering function.  Multiple
+B<--python-file> switches may be used to load multiple plug-ins.
+
+=item B<--python-expr>=I<PYTHON_EXPRESSION>
+
+Pass the SiLK Flow record if the result of the processing the record
+with the specified I<PYTHON_EXPRESSION> is true.  The expression is
+evaluated in the following context:
+
+=over 4
+
+=item *
+
+The record is represented by the variable named B<rec>, which is a
+B<silk.RWRec> object.
+
+=item *
+
+There is an implicit B<from silk import *> in effect.
+
+=back
+
+=back
+
+The following options are available when the SiLK Python plug-in is
+used from B<rwcut>, B<rwgroup>, B<rwsort>, B<rwstats>, or B<rwuniq>:
+
+=over 4
+
+=item B<--python-file>=I<FILENAME>
+
+Load the Python file I<FILENAME>.  The Python code may call
+B<register_field()> multiple times to define new fields for use by the
+application.  When used with B<rwstats> or B<rwuniq>, the Python code
+may call B<register_field()> multiple times to create new aggregate
+fields.  Multiple B<--python-file> switches may be used to load
+multiple plug-ins.
+
+=back
+
+=head1 EXAMPLES
+
+In the following examples, the dollar sign (C<$>) represents the shell
+prompt.  The text after the dollar sign represents the command line.
+Lines have been wrapped for improved readability, and the back slash
+(C<\>) is used to indicate a wrapped line.
+
+=head2 rwfilter --python-expr
+
+Suppose you want to find traffic destined to a particular host,
+10.0.0.23, that is either ICMP or coming from 1434/udp.  If you
+attempt to use:
+
+ $ rwfilter --daddr=10.0.0.23 --proto=1,17 --sport=1434         \
+        --pass=outfile.rw  flowrec.rw
+
+the B<--sport> option will not match any of the ICMP traffic, and your
+result will not contain ICMP records.  To avoid having to use two
+invocations of B<rwfilter>, you can use the SiLK Python plugin to do
+the check in a single pass:
+
+ $ rwfilter --daddr=10.0.0.23 --proto=1,17                      \
+        --python-expr 'rec.protocol==1 or rec.sport==1434'      \
+        --pass=outfile.rw  flowrec.rw
+
+Since the Python code is slower than the C code used internally by
+B<rwfilter>, we want to limit the number of records processed in
+Python as much as possible.  We use the B<rwfilter> switches to do the
+address check and protocol check, and in Python we only need to check
+whether the record is ICMP or if the source port is 1434 (if the
+record is not ICMP we know it is UDP because of the B<--proto>
+switch).
+
+=head2 rwfilter --python-file
+
+To see all records whose protocol is different from the preceding
+record, use the following Python code.  The code also prints a message
+to the standard output on completion.
+
+ import sys
+
+ def filter(rec):
+     global lastproto
+     if rec.protocol != lastproto:
+         lastproto = rec.protocol
+         return True
+     return False
+
+ def initialize():
+     global lastproto
+     lastproto = None
+
+ def finalize():
+     sys.stdout.write("Finished processing records.\n")
+
+ register_filter(filter, initialize = initialize, finalize = finalize)
+
+The preceding file, if called F<lastproto.py>, can be used like this:
+
+ $ rwfilter --python-file lastproto.py --pass=outfile.rw flowrec.rw
+
+B<Note:> Be careful when using a Python plug-in to write to the
+standard output, since the Python output could get intermingled with
+the output from B<--pass=stdout> and corrupt the SiLK output file.  In
+general, printing to the standard error is safer.
+
+
+=head2 Command line switch
+
+The following code registers the command line switch
+C<count-protocols>.  This switch is similar to the standard
+B<--protocol> switch on B<rwfilter>, in that it passes records whose
+protocol matches a value specified in a list.  In addition, when
+B<rwfilter> exits, the plug-in prints a count of the number of records
+that matched each specified protocol.
+
+ import sys
+ from silk.plugin import *
+
+ pro_count = {}
+
+ def proto_count(rec):
+     global pro_count
+     if rec.protocol in pro_count.keys():
+         pro_count[rec.protocol] += 1
+         return True
+     return False
+
+ def print_counts():
+     for p,c in pro_count.iteritems():
+         sys.stderr.write("%3d|%10d|\n" % (p, c))
+
+ def parse_protocols(protocols):
+     global pro_count
+     for p in protocols.split(","):
+         pro_count[int(p)] = 0
+     register_filter(proto_count, finalize = print_counts)
+
+ register_switch("count-protocols", handler=parse_protocols,
+                 help="Like --proto, but prints count of flow records")
+
+When this code is saved to the file F<count-proto.py>, it can be used
+with B<rwfilter> as shown to get a count of TCP and UDP flow records:
+
+ $ rwfilter --start-date=2008/08/08 --type=out                  \
+        --python-file=count-proto.py --count-proto=6,17         \
+        --print-statistics=/dev/null
+
+B<rwfilter> does not know that the plug-in will be generating output,
+and B<rwfilter> will complain unless an output switch is given, such
+as B<--pass> or B<--print-statistics>.  Since our plug-in is printing
+the data we want, we send the output to F</dev/null>.
+
+
+=head2 Create integer key field with simple API
+
+This example creates a field that contains the sum of the source and
+destination port.  While this value may not be interesting to display
+in B<rwcut>, it provides a way to sort fields so traffic between two
+low ports will usually be sorted before traffic between a low port and
+a high port.
+
+ def port_sum(rec):
+     return rec.sport + rec.dport
+
+ register_int_field("port-sum", port_sum)
+
+If the above code is saved in a file named F<portsum.py>, it can be
+used to sort traffic prior to printing it (low-port to low-port will
+appear first):
+
+ $ rwfilter --start-date=2008/08/08 --type=out,outweb       \
+        --proto=6,17 --pass=stdout                          \
+   | rwsort --python-file=portsum.py --fields=port-sum      \
+   | rwcut
+
+To see high-port to high-port traffic first, reverse the sort:
+
+ $ rwfilter --start-date=2008/08/08 --type=out,outweb       \
+        --proto=6,17 --pass=stdout                          \
+   | rwsort --python-file=portsum.py --fields=port-sum      \
+        --reverse                                           \
+   | rwcut
+
+
+=head2 Create IP key field with simple API
+
+SiLK stores uni-directional flows.  For network conversations that
+cross the network border, the source and destination hosts are swapped
+depending on the direction of the flow.  For analysis, you often want
+to know the internal and external hosts.
+
+The following Python plug-in file defines two new fields:
+C<internal-ip> will display the destination IP for an incoming flow,
+and the source IP for an outgoing flow, and C<external-ip> field shows
+the reverse.
+
+ import silk
+
+ # for convenience, create lists of the types
+ in_types = ['in', 'inweb', 'innull', 'inicmp']
+ out_types = ['out', 'outweb', 'outnull', 'outicmp']
+
+ def internal(rec):
+     "Returns the IP Address of the internal side of the connection"
+     if rec.typename in out_types:
+         return rec.sip
+     else:
+         return rec.dip
+
+ def external(rec):
+     "Returns the IP Address of the external side of the connection"
+     if rec.typename in in_types:
+         return rec.sip
+     else:
+         return rec.dip
+
+ register_ip_field("internal-ip", internal)
+ register_ip_field("external-ip", external)
+
+If the above code is saved in a file named F<direction.py>, it can be
+used to show the internal and external IP addresses and flow direction
+for all traffic on 1434/udp from Aug 8, 2008.
+
+ $ rwfilter --start-date=2008/08/08 --type=all              \
+        --proto=17 --aport=1434 --pass=stdout               \
+   | rwcut --python-file direction.py                       \
+        --fields internal-ip,external-ip,3-12
+
+
+=head2 Create enumerated key field with simple API
+
+This example expands the previous example.  Suppose instead of
+printing the internal and external IP address, you wanted to group by
+the label associated with the internal and external addresses in a
+prefix map file.  The B<pmapfilter(3)> manual page specifies how to
+print labels for source and destination IP addresses, but it does not
+support internal and external IPs.
+
+Here we take the previous example, add a command line switch to
+specify the path to a prefix map file, and have the internal and
+external functions return the label.
+
+ import silk
+
+ # for convenience, create lists of the types
+ in_types = ['in', 'inweb', 'innull', 'inicmp']
+ out_types = ['out', 'outweb', 'outnull', 'outicmp']
+
+ # handler for the --int-ext-pmap command line switch
+ def set_pmap(arg):
+     global pmap
+     pmap = silk.PrefixMap(arg)
+     labels = pmap.values()
+     width = max(len(x) for x in labels)
+     register_enum_field("internal-label", internal, width, labels)
+     register_enum_field("external-label", external, width, labels)
+
+ def internal(rec):
+     "Returns the label for the internal side of the connection"
+     global pmap
+     if rec.typename in out_types:
+         return pmap[rec.sip]
+     else:
+         return pmap[rec.dip]
+
+ def external(rec):
+     "Returns the label for the external side of the connection"
+     global pmap
+     if rec.typename in in_types:
+         return pmap[rec.sip]
+     else:
+         return pmap[rec.dip]
+
+ register_switch("int-ext-pmap", handler=set_pmap,
+                 help="Prefix map file for internal-label, external-label")
+
+Assuming the above is saved in the file F<int-ext-pmap.py>, the
+following will group the flows by the internal and external labels
+contained in the file F<ip-map.pmap>.
+
+ $ rwfilter --start-date=2008/08/08 --type=all              \
+        --proto=17 --aport=1434 --pass=stdout               \
+   | rwuniq --python-file int-ext-pmap.py                   \
+        --int-ext-pmap ip-map.pmap                          \
+        --fields internal-label,external-label
+
+
+=head2 Create minimum/maximum integer value field with simple API
+
+The following example will create new aggregate fields to print the
+minimum and maximum byte values:
+
+ register_int_min_aggregator("min-bytes", lambda rec: rec.bytes,
+                             (1 << 32) - 1)
+ register_int_max_aggregator("max-bytes", lambda rec: rec.bytes,
+                             (1 << 32) - 1)
+
+The B<lambda> expression allows one to create an anonymous function.
+In this code, we need to return the number of bytes for the given
+record, and we can easily do that with the anonymous function.  Since
+the SiLK bytes field is 32 bits, the maximum 32-bit number is passed
+the registration functions.
+
+Assuming the code is stored in a file F<bytes.py>, it can be used with
+B<rwuniq> to see the minimum and maximum byte counts for each source
+IP address:
+
+ $ rwuniq --python-file=bytes.py --fields=sip               \
+        --values=records,bytes,min-bytes,max-bytes
+
+
+=head2 Create IP key for rwcut with advanced API
+
+This example is similar to the simple IP example above, but it uses
+the advanced API.  It also creates another field to indicate the
+direction of the flow, and it does not print the IPs when the traffic
+does not cross the border.  Note that this code has to determine the
+column width itself.
+
+ import silk, os
+
+ # for convenience, create lists of the types
+ in_types = ['in', 'inweb', 'innull', 'inicmp']
+ out_types = ['out', 'outweb', 'outnull', 'outicmp']
+ internal_only = ['int2int']
+ external_only = ['ext2ext']
+
+ # determine the width of the IP field depending on whether SiLK
+ # was compiled with IPv6 support, and allow the IP_WIDTH environment
+ # variable to override that width.
+ ip_len = 15
+ if silk.ipv6_enabled():
+     ip_len = 39
+ ip_len = int(os.getenv("IP_WIDTH", ip_len))
+
+ def cut_internal(rec):
+     "Returns the IP Address of the internal side of the connection"
+     if rec.typename in in_types:
+         return rec.dip
+     if rec.typename in out_types:
+         return rec.sip
+     if rec.typename in internal_only:
+         return "both"
+     if rec.typename in external_only:
+         return "neither"
+     return "unknown"
+
+ def cut_external(rec):
+     "Returns the IP Address of the external side of the connection"
+     if rec.typename in in_types:
+         return rec.sip
+     if rec.typename in out_types:
+         return rec.dip
+     if rec.typename in internal_only:
+         return "neither"
+     if rec.typename in external_only:
+         return "both"
+     return "unknown"
+
+ def internal_external_direction(rec):
+     """Generates a string pointing from the sip to the dip, assuming
+     internal is on the left, and external is on the right."""
+     if rec.typename in in_types:
+         return "<---"
+     if rec.typename in out_types:
+         return "--->"
+     if rec.typename in internal_only:
+         return "-><-"
+     if rec.typename in external_only:
+         return "<-->"
+     return "????"
+
+ register_field("internal-ip", column_width = ip_len,
+                rec_to_text = cut_internal)
+ register_field("external-ip", column_width = ip_len,
+                rec_to_text = cut_external)
+ register_field("int_to_ext", column_width = 4,
+                rec_to_text = internal_external_direction)
+
+The B<cut_internal()> and B<cut_external()> functions may return an
+B<IPAddr> object instead of a string.  For those cases, the Python
+B<str()> function is invoked automatically to convert the B<IPAddr> to
+a string.
+
+If the above code is saved in a file named F<direction.py>, it can be
+used to show the internal and external IP addresses and flow direction
+for all traffic on 1434/udp from Aug 8, 2008.
+
+ $ rwfilter --start-date=2008/08/08 --type=all              \
+        --proto=17 --aport=1434 --pass=stdout               \
+   | rwcut --python-file direction.py                       \
+        --fields internal-ip,int_to_ext,external-ip,3-12
+
+
+=head2 Create integer key field for rwsort with the advanced API
+
+The following example Python plug-in creates one new field,
+C<lowest_port>, for use in B<rwsort>.  Using this field will sort
+records based on the lesser of the source port or destination port;
+for example, flows where either the source or destination port is 22
+will occur before flows where either port is 25.  This example shows
+using the Python B<struct> module with multiple record attributes.
+
+ import struct
+
+ portpair = struct.Struct("!HH")
+
+ def lowest_port(rec):
+     if rec.sport < rec.dport:
+         return portpair.pack(rec.sport, rec.dport)
+     else:
+         return portpair.pack(rec.dport, rec.sport)
+
+ register_field("lowest_port", bin_bytes = portpair.size,
+                rec_to_bin = lowest_port)
+
+To use this example to sort the records in F<flowrec.rw>, one saves
+the code to the file F<sort.py> and uses it as shown:
+
+ $ rwsort --python-file=sort.py --fields=lowest_port        \
+        flowrec.rw > outfile.rw
+
+
+=head2 Create integer key for rwstats and rwuniq with advanced API
+
+The following example defines two key fields for use by B<rwstats> or
+B<rwuniq>: C<prefixed-sip> and C<prefixed-dip>.  Using these fields,
+the user can count flow records based on the source and/or destination
+IPv4 address blocks (CIDR blocks).  The default CIDR prefix is 16, but
+it can be changed by specifying the B<--prefix> switch that the
+example creates.  This example uses the Python B<struct> module to
+convert between the IP address and a binary string.
+
+ import os, struct
+ from silk import *
+
+ default_prefix = 16
+
+ u32 = struct.Struct("!L")
+
+ def set_mask(prefix):
+     global mask
+     mask = 0xFFFFFFFF
+     # the value we are handed is a string
+     prefix = int(prefix)
+     if 0 < prefix < 32:
+         mask = mask ^ (mask >> prefix)
+
+ # Convert from an IPv4Addr to a byte sequence
+ def cidr_to_bin(ip):
+     if ip.is_ipv6():
+         raise ValueError, "Does not support IPv6"
+     return u32.pack(int(ip) & mask)
+
+ # Convert from a byte sequence to an IPv4Addr
+ def cidr_bin_to_text(string):
+     (num,) = u32.unpack(string)
+     return IPv4Addr(num)
+
+ register_field("prefixed-sip", column_width = 15,
+                rec_to_bin = lambda rec: cidr_to_bin(rec.sip),
+                bin_to_text = cidr_bin_to_text,
+                bin_bytes = u32.size)
+
+ register_field("prefixed-dip", column_width = 15,
+                rec_to_bin = lambda rec: cidr_to_bin(rec.dip),
+                bin_to_text = cidr_bin_to_text,
+                bin_bytes = u32.size)
+
+ register_switch("prefix", handler=set_mask,
+                 help="Set prefix for prefixed-sip/prefixed-dip fields")
+
+ set_mask(default_prefix)
+
+The B<lambda> expression allows one to create an anonymous function.
+In this code, the B<lambda> function is used to pass the appropriate
+IP address into the B<cidr_to_bin()> function.  To write the code
+without the B<lambda> would require separate functions for the source
+and destination IP addresses:
+
+ def sip_cidr_to_bin(rec):
+     return cidr_to_bin(rec.sip)
+
+ def dip_cidr_to_bin(rec):
+     return cidr_to_bin(rec.dip)
+
+The B<lambda> expression helps to simplify the code.
+
+If the code is saved in the file F<mask.py>, it can be used as follows
+to count the number of flow records seen in the /8 of each source IP
+address.  The flow records are read from F<flowrec.rw>.  The
+B<--ipv6-policy=ignore> switch is used to restrict processing to IPv4
+addresses.
+
+ $ rwuniq --ipv6-policy=ignore --python-file mask.py        \
+        --prefix 8 --fields prefixed-sip flowrec.rw
+
+
+=head2 Create new average bytes value field for rwstats and rwuniq
+
+The following example creates a new aggregate value that can be used
+by B<rwstats> and B<rwuniq>.  The value is C<avg-bytes>, a value that
+calculates the average number of bytes seen across all flows that
+match the key.  It does this by maintaining running totals of the byte
+count and number of flows.
+
+ import struct
+
+ fmt = struct.Struct("QQ")
+ initial = fmt.pack(0, 0)
+ textsize = 15
+ textformat = "%%%d.2f" % textsize
+
+ # add byte and flow count from 'rec' to 'current'
+ def avg_bytes(rec, current):
+     (total, count) = fmt.unpack(current)
+     return fmt.pack(total + rec.bytes, count + 1)
+
+ # return printable representation
+ def avg_to_text(bin):
+     (total, count) = fmt.unpack(bin)
+     return textformat % (float(total) / count)
+
+ # merge two encoded values.
+ def avg_merge(rec1, rec2):
+     (total1, count1) = fmt.unpack(rec1)
+     (total2, count2) = fmt.unpack(rec2)
+     return fmt.pack(total1 + total2, count1 + count2)
+
+ # compare two encoded values
+ def avg_compare(rec1, rec2):
+     (total1, count1) = fmt.unpack(rec1)
+     (total2, count2) = fmt.unpack(rec2)
+     return cmp((float(total1) / count1), (float(total2) / count2))
+
+ register_field("avg-bytes",
+                column_width    = textsize,
+                bin_bytes       = fmt.size,
+                add_rec_to_bin  = avg_bytes,
+                bin_to_text     = avg_to_text,
+                bin_merge       = avg_merge,
+                bin_compare     = avg_compare,
+                initial_value   = initial)
+
+To use this code, save it as F<avg-bytes.py>, specify the name of the
+Python file in the B<--python-file> switch, and list the field in the
+B<--values> switch:
+
+ $ rwuniq --python-file=avg-bytes.py --fields=sip           \
+        --values=avg-bytes infile.rw
+
+This particular example will compute the average number of bytes per
+flow for each distinct source IP address in the file F<infile.rw>.
+
+
+=head2 Create integer key field for all tools that use fields
+
+The following example Python plug-in file defines two fields,
+C<sport-service> and C<dport-service>.  These fields convert the
+source port and destination port to the name of the "service" as
+defined in the file F</etc/services>; for example, port 80 is
+converted to "http".  This plug-in can be used by any of B<rwcut>,
+B<rwgroup>, B<rwsort>, B<rwstats>, or B<rwuniq>.
+
+ import os,socket,struct
+
+ u16 = struct.Struct("!H")
+
+ # utility function to convert number to a service name,
+ # or to a string if no service is defined
+ def num_to_service(num):
+     try:
+         serv = socket.getservbyport(num)
+     except socket.error:
+         serv = "%d" % num
+     return serv
+
+ # convert the encoded port to a service name
+ def bin_to_service(bin):
+     (port,) = u16.unpack(bin)
+     return num_to_service(port)
+
+ # width of service columns can be specified with the
+ # SERVICE_WIDTH environment variable; default is 12
+ col_width = int(os.getenv("SERVICE_WIDTH", 12))
+
+ register_field("sport-service", bin_bytes = u16.size,
+                column_width = col_width,
+                rec_to_text = lambda rec: num_to_service(rec.sport),
+                rec_to_bin = lambda rec: u16.pack(rec.sport),
+                bin_to_text = bin_to_service)
+
+ register_field("dport-service", bin_bytes = u16.size,
+                column_width = col_width,
+                rec_to_text = lambda rec: num_to_service(rec.dport),
+                rec_to_bin = lambda rec: u16.pack(rec.dport),
+                bin_to_text = bin_to_service)
+
+
+If this file is named F<service.py>, it can be used by B<rwcut> to
+print the source port and its service:
+
+ $ rwcut --python-file service.py                           \
+        --fields sport,sport-service flowrec.rw
+
+Although the plug-in can be used with B<rwsort>, the records will be
+sorted in the same order as the numerical source port or destination
+port.
+
+ $ rwsort --python-file service.py                          \
+        --fields sport-service flowrec.rw > outfile.rw
+
+When used with B<rwuniq>, it can count flows, bytes, and packets
+indexed by the service of the destination port:
+
+ $ rwuniq --python-file service.py --fields dport-service   \
+        --values=flows,bytes,packets flowrec.rw
+
+
+=head2 Create human-readable fields for all tools that use fields
+
+The following example adds two fields, C<hu-bytes> and C<hu-packets>,
+which can be used as either key fields or aggregate value fields.  The
+example uses the formatting capabilities of netsa-python
+(L<http://tools.netsa.cert.org/netsa-python/index.html>) to present
+the bytes and packets fields in a more human-friendly manner.
+
+When used as a key, the C<hu-bytes> field presents the value I<1234567>
+as I<1205.6Ki> or as I<1234.6k> when the HUMAN_USE_BINARY environment
+variable is set to C<False>.
+
+When used as a key, the C<hu-packets> field adds a comma (or the
+character specified by the HUMAN_THOUSANDS_SEP environment variable)
+to the display of the packets field.  The value  I<1234567> becomes
+I<1,234,567>.
+
+The C<hu-bytes> and C<hu-packets> fields can also be used as aggregate
+value fields, in which case they compute the sum of the bytes and
+packets, respectively, and display it as for the key field.
+
+The code for the plug-in is shown here, and an example of using the
+plug-in follows the code.
+
+ import silk, silk.plugin
+ import os, struct
+ from netsa.data.format import num_prefix, num_fixed
+ 
+ # Whether the use Base-2 (True) or Base-10 (False) values for
+ # Kibi/Mebi/Gibi/Tebi/... vs Kilo/Mega/Giga/Tera/...
+ use_binary = True
+ if (os.getenv("HUMAN_USE_BINARY")):
+     if (os.getenv("HUMAN_USE_BINARY").lower() == "false"
+         or os.getenv("HUMAN_USE_BINARY") == "0"):
+         use_binary = False
+     else:
+         use_binary = True
+ 
+ # Character to use for Thousands separator
+ thousands_sep = ','
+ if (os.getenv("HUMAN_THOUSANDS_SEP")):
+     thousands_sep = os.getenv("HUMAN_THOUSANDS_SEP")
+ 
+ # Number of significant digits
+ sig_fig=5
+ 
+ # Use a 64-bit number for packing the bytes or packets data
+ fmt = struct.Struct("Q")
+ initial = fmt.pack(0)
+ 
+ ### Bytes functions
+ # add_rec_to_bin
+ def hu_ar2b_bytes(rec, current):
+     global fmt
+     (cur,) = fmt.unpack(current)
+     return fmt.pack(cur + rec.bytes)
+ 
+ # rec_to_binary
+ def hu_r2b_bytes(rec):
+     global fmt
+     return fmt.pack(rec.bytes)
+ 
+ # bin_to_text
+ def hu_b2t_bytes(current):
+     global use_binary, sig_fig, fmt
+     (cur,) = fmt.unpack(current)
+     return num_prefix(cur, use_binary=use_binary, sig_fig=sig_fig)
+ 
+ # rec_to_text
+ def hu_r2t_bytes(rec):
+     global use_binary, sig_fig
+     return num_prefix(rec.bytes, use_binary=use_binary, sig_fig=sig_fig)
+ 
+ ### Packets functions
+ # add_rec_to_bin
+ def hu_ar2b_packets(rec, current):
+     global fmt
+     (cur,) = fmt.unpack(current)
+     return fmt.pack(cur + rec.packets)
+ 
+ # rec_to_binary
+ def hu_r2b_packets(rec):
+     global fmt
+     return fmt.pack(rec.packets)
+ 
+ # bin_to_text
+ def hu_b2t_packets(current):
+     global thousands_sep, fmt
+     (cur,) = fmt.unpack(current)
+     return num_fixed(cur, dec_fig=0, thousands_sep=thousands_sep)
+ 
+ # rec_to_text
+ def hu_r2t_packets(rec):
+     global thousands_sep
+     return num_fixed(rec.packets, dec_fig=0, thousands_sep=thousands_sep)
+ 
+ ### Non-specific functions
+ # bin_compare
+ def hu_bin_compare(cur1, cur2):
+     if (cur1 < cur2):
+         return -1
+     return (cur1 > cur2)
+ 
+ # bin_merge
+ def hu_bin_merge(current1, current2):
+     global fmt
+     (cur1,) = fmt.unpack(current1)
+     (cur2,) = fmt.unpack(current2)
+     return fmt.pack(cur1 + cur2)
+ 
+ ### Register the fields
+ register_field("hu-bytes", column_width=10, bin_bytes=fmt.size,
+                rec_to_text=hu_r2t_bytes, rec_to_bin=hu_r2b_bytes,
+                bin_to_text=hu_b2t_bytes, add_rec_to_bin=hu_ar2b_bytes,
+                bin_merge=hu_bin_merge, bin_compare=hu_bin_compare,
+                initial_value=initial)
+ 
+ register_field("hu-packets", column_width=10, bin_bytes=fmt.size,
+                rec_to_text=hu_r2t_packets, rec_to_bin=hu_r2b_packets,
+                bin_to_text=hu_b2t_packets, add_rec_to_bin=hu_ar2b_packets,
+                bin_merge=hu_bin_merge, bin_compare=hu_bin_compare,
+                initial_value=initial)
+
+This shows an example of the plug-in's invocation and output when the
+code below is stored in the file F<human.py>.
+
+ $ rwstats --count=5 --no-percent --python-file=human.py    \
+        --fields=proto,hu-bytes,hu-packets                  \
+        --values=records,hu-bytes,hu-packets data.rw
+ INPUT: 501876 Records for 305417 Bins and 501876 Total Records
+ OUTPUT: Top 5 Bins by Records
+ pro|  hu-bytes|hu-packets|   Records|  hu-bytes|hu-packets|
+  17|       328|         1|     15922|    4.98Mi|    15,922|
+  17|      76.0|         1|     15482|    1.12Mi|    15,482|
+   1|       840|        10|      5895|    4.72Mi|    58,950|
+  17|      68.0|         1|      4249|     282Ki|     4,249|
+  17|      67.0|         1|      4203|     275Ki|     4,203|
+
+=head1 UPGRADING LEGACY PLUGINS
+
+Some functions were marked as deprecated in SiLK 2.0, and have been
+removed in SiLK 3.0.
+
+Prior to SiLK 2.0, the B<register_field()> function was called
+B<register_plugin_field()>, and it had the following signature:
+
+B<register_plugin_field(>I<field_name>B<,>
+[B<bin_len=>I<bin_bytes_value>B<,>]
+[B<bin_to_text=>I<bin_to_text_func>B<,>]
+[B<text_len=>I<column_width_value>B<,>]
+[B<rec_to_bin=>I<rec_to_bin_func>B<,>]
+[B<rec_to_text=>I<rec_to_text_func>]B<)>
+
+To convert from B<register_plugin_field> to B<register_field>, change
+B<text_len> to B<column_width>, and change B<bin_len> to B<bin_bytes>.
+(Even older code may use B<field_len>; this should be changed to
+B<column_width> as well.)
+
+The B<register_filter()> function was introduced in SiLK 2.0.  In
+versions of SiLK prior to SiLK 3.0, when B<rwfilter> was invoked with
+B<--python-file> and the named Python file did not call
+B<register_filter()>, B<rwfilter> would search the Python input for
+functions named B<rwfilter()> and B<finalize()>.  If it found the
+B<rwfilter()> function, B<rwfilter> would act as if the file
+contained:
+
+ register_filter(rwfilter, finalize=finalize)
+
+To update your pre-SiLK 2.0 B<rwfilter> plug-ins, simply add the above
+line to your Python file.
+
+
+=head1 ENVIRONMENT
+
+=over 4
+
+=item PYTHONPATH
+
+The Python module that the SiLK Python plug-in uses (F<pysilk_nl.so>)
+is installed under SiLK's installation tree.  It may be necessary to
+set or modify the PYTHONPATH environment variable so Python can find
+this module.  For information on using SiLK from Python, see
+B<pysilk(3)>.
+
+=item PYTHONVERBOSE
+
+If the SiLK Python extension or plug-in fails to load, setting this
+environment variable to a non-empty string may help you debug the
+issue.
+
+=item SILK_PYTHON_TRACEBACK
+
+When set, Python plug-ins will output trace back information regarding
+Python errors to the standard error.
+
+=item SILK_PATH
+
+This environment variable gives the root of the install tree.  When
+searching for F<silkpython.so>, a SiLK application may use this
+environment variable.  See the L</FILES> section for details.
+
+=item SILK_PLUGIN_DEBUG
+
+When set to 1, the SiLK applications print status messages to the
+standard error to assist you in finding problems loading plug-in files
+and registering fields.  The application prints messages as it
+attempts to find and open the F<silkpython.so> plug-in.  In addition,
+when an attempt to register a field fails, the application prints a
+message specifying the additional function(s) that must be defined to
+register the field in the application.  Be aware that the output can
+be rather verbose.  A typical invocation using this variable is
+
+ env SILK_PLUGIN_DEBUG=1 rwcut --python-file=fields.py --version
+
+=back
+
+=head1 FILES
+
+=over 4
+
+=item F<${SILK_PATH}/lib64/silk/silkpython.so>
+
+=item F<${SILK_PATH}/lib64/silkpython.so>
+
+=item F<${SILK_PATH}/lib/silk/silkpython.so>
+
+=item F<${SILK_PATH}/lib/silkpython.so>
+
+=item F<@prefix@/lib64/silk/silkpython.so>
+
+=item F<@prefix@/lib64/silkpython.so>
+
+=item F<@prefix@/lib/silk/silkpython.so>
+
+=item F<@prefix@/lib/silkpython.so>
+
+Possible locations for the plug-in.
+
+=back
+
+=head1 SEE ALSO
+
+B<pysilk(3)>, B<rwfilter(1)>, B<rwcut(1)>, B<rwgroup(1)>,
+B<rwsort(1)>, B<rwstats(1)>, B<rwuniq(1)>, B<pmapfilter(3)>,
+B<silk(7)>, B<python(1)>, L<http://docs.python.org/>
+
+=cut
+
+$SiLK: silkpython.pod 477e54df24bf 2014-07-08 18:02:17Z mthomas $
+
+Local Variables:
+mode:text
+indent-tabs-mode:nil
+End:

@@ -1,0 +1,802 @@
+#! @PERL@
+#
+#######################################################################
+# Copyright (C) 2004-2014 by Carnegie Mellon University.
+#
+# @OPENSOURCE_HEADER_START@
+#
+# Use of the SILK system and related source code is subject to the terms
+# of the following licenses:
+#
+# GNU Public License (GPL) Rights pursuant to Version 2, June 1991
+# Government Purpose License Rights (GPLR) pursuant to DFARS 252.227.7013
+#
+# NO WARRANTY
+#
+# ANY INFORMATION, MATERIALS, SERVICES, INTELLECTUAL PROPERTY OR OTHER
+# PROPERTY OR RIGHTS GRANTED OR PROVIDED BY CARNEGIE MELLON UNIVERSITY
+# PURSUANT TO THIS LICENSE (HEREINAFTER THE "DELIVERABLES") ARE ON AN
+# "AS-IS" BASIS. CARNEGIE MELLON UNIVERSITY MAKES NO WARRANTIES OF ANY
+# KIND, EITHER EXPRESS OR IMPLIED AS TO ANY MATTER INCLUDING, BUT NOT
+# LIMITED TO, WARRANTY OF FITNESS FOR A PARTICULAR PURPOSE,
+# MERCHANTABILITY, INFORMATIONAL CONTENT, NONINFRINGEMENT, OR ERROR-FREE
+# OPERATION. CARNEGIE MELLON UNIVERSITY SHALL NOT BE LIABLE FOR INDIRECT,
+# SPECIAL OR CONSEQUENTIAL DAMAGES, SUCH AS LOSS OF PROFITS OR INABILITY
+# TO USE SAID INTELLECTUAL PROPERTY, UNDER THIS LICENSE, REGARDLESS OF
+# WHETHER SUCH PARTY WAS AWARE OF THE POSSIBILITY OF SUCH DAMAGES.
+# LICENSEE AGREES THAT IT WILL NOT MAKE ANY WARRANTY ON BEHALF OF
+# CARNEGIE MELLON UNIVERSITY, EXPRESS OR IMPLIED, TO ANY PERSON
+# CONCERNING THE APPLICATION OF OR THE RESULTS TO BE OBTAINED WITH THE
+# DELIVERABLES UNDER THIS LICENSE.
+#
+# Licensee hereby agrees to defend, indemnify, and hold harmless Carnegie
+# Mellon University, its trustees, officers, employees, and agents from
+# all claims or demands made against them (and any related losses,
+# expenses, or attorney's fees) arising out of, or relating to Licensee's
+# and/or its sub licensees' negligent use or willful misuse of or
+# negligent conduct or willful misconduct regarding the Software,
+# facilities, or other rights or assistance granted by Carnegie Mellon
+# University under this License, including, but not limited to, any
+# claims of product liability, personal injury, death, damage to
+# property, or violation of any laws or regulations.
+#
+# Carnegie Mellon University Software Engineering Institute authored
+# documents are sponsored by the U.S. Department of Defense under
+# Contract FA8721-05-C-0003. Carnegie Mellon University retains
+# copyrights in all material produced under this contract. The U.S.
+# Government retains a non-exclusive, royalty-free license to publish or
+# reproduce these documents, or allow others to do so, for U.S.
+# Government purposes only pursuant to the copyright license under the
+# contract clause at 252.227.7013.
+#
+# @OPENSOURCE_HEADER_END@
+#######################################################################
+#
+#  rwgeoip2ccmap
+#
+#    Generate a SiLK-style prefix map (pmap) file from either an
+#    encoded GeoIP data file or a CSV GeoIP data file.
+#
+#    John McClary Prevost
+#    December 2004 / June 2005
+#
+#    Mark Thomas
+#    April 2007
+#
+#######################################################################
+#  RCSIDENT("$SiLK: rwgeoip2ccmap.in 1c87fe1a22f7 2014-01-06 15:24:30Z mthomas $")
+#######################################################################
+
+use warnings;
+use strict;
+use Getopt::Long qw(:config gnu_compat permute no_getopt_compat no_bundling);
+use Pod::Usage;
+use Math::BigInt;
+# use Math::BigInt try => 'GMP';
+
+use vars qw(@nodes $input_type $unknown_leaf $appname $CSV_V4 $ENC_V4 $CSV_V6);
+@nodes = ();
+
+# get basename of script
+$appname = $0;
+$appname =~ s{.*/}{};
+
+# types of input
+$ENC_V4 = 0;
+$CSV_V4 = 1;
+$CSV_V6 = 4;
+
+
+parse_options();
+
+if ($input_type == $ENC_V4) {
+    handle_encoded_input_v4();
+}
+elsif ($input_type == $CSV_V4) {
+    handle_csv_input_v4();
+}
+elsif ($input_type == $CSV_V6) {
+    handle_csv_input_v6();
+}
+else {
+    die "$appname: Unsupported input type '$input_type'\n";
+}
+
+verify_tree();
+
+output_tree($input_type == $CSV_V6);
+
+exit 0;
+
+
+#######################################################################
+
+
+sub verify_tree
+{
+    # verify nodes are valid
+
+    # read the nodes in tree, stopping at the first one that points
+    # beyond the number of nodes in the tree, and keeping track of the
+    # maximum key that is used.  if the maximum used is greater than
+    # the invalid key, flag the tree as corrupt.
+
+    # $first_invalid is the index of the node that points beyond the
+    # end of the tree
+    my $first_invalid = -1;
+
+    # $max_used contains the maximum key seen before we found the
+    # invalid value.
+    my $max_used = 0;
+
+  NODE:
+    for (my $i = 0; $i <= $#nodes; ++$i) {
+        for my $n (@{$nodes[$i]}) {
+            next if isleaf($n);
+            if ($n > $#nodes) {
+                $first_invalid = $i;
+                last NODE;
+            }
+            if ($n > $max_used) {
+                $max_used = $n;
+            }
+        }
+    }
+
+    # return if we found no invalid keys
+    return if -1 == $first_invalid;
+
+    if ($max_used >= $first_invalid) {
+        die "$appname: Tree is corrupt; node $first_invalid has invalid key\n";
+    }
+
+    $#nodes = $first_invalid - 1;
+}
+
+
+sub output_tree
+{
+    my ($is_v6) = @_;
+
+    # Output is binary
+    binmode STDOUT;
+
+    my ($MAGIC, $ENDIAN, $FORMAT, $FILE_VERS, $COMPR)
+        = (0xDEADBEEF, 0, 0x25, 0x10, 0);
+    my ($HDR_TYPE, $HDR_LEN) = (0, 8);
+    my $REC_SIZE = 1;
+    my $REC_VERS = ($is_v6 ? 5 : 1);
+    my $SILK_VERS = '@SILK_VERSION_INTEGER@';
+    if ($ENV{SILK_HEADER_NOVERSION} || $SILK_VERS !~ /^\d+$/) {
+        $SILK_VERS = 0;
+    }
+
+    print(pack('NCCCCNnnNN',
+               $MAGIC, $ENDIAN, $FORMAT, $FILE_VERS, $COMPR,
+               $SILK_VERS, $REC_SIZE, $REC_VERS, $HDR_TYPE, $HDR_LEN));
+
+    print(pack('V', scalar @nodes));
+    for my $i ( 0 .. $#nodes ) {
+        print(pack('VV', @{$nodes[$i]}));
+    }
+    close STDOUT
+        or die "$appname: Cannot close STDOUT: $!\n";
+}
+
+
+sub handle_encoded_input_v4
+{
+    # input is binary
+    binmode STDIN;
+
+    my %unknown_codes;
+
+    my $COUNTRY_BEGIN = 0x00FFFF00;
+    my @countries = qw(
+                       -- ap eu ad ae af ag ai al am cw ao aq ar as at
+                       au aw az ba bb bd be bf bg bh bi bj bm bn bo br
+                       bs bt bv bw by bz ca cc cd cf cg ch ci ck cl cm
+                       cn co cr cu cv cx cy cz de dj dk dm do dz ec ee
+                       eg eh er es et fi fj fk fm fo fr sx ga gb gd ge
+                       gf gh gi gl gm gn gp gq gr gs gt gu gw gy hk hm
+                       hn hr ht hu id ie il in io iq ir is it jm jo jp
+                       ke kg kh ki km kn kp kr kw ky kz la lb lc li lk
+                       lr ls lt lu lv ly ma mc md mg mh mk ml mm mn mo
+                       mp mq mr ms mt mu mv mw mx my mz na nc ne nf ng
+                       ni nl no np nr nu nz om pa pe pf pg ph pk pl pm
+                       pn pr ps pt pw py qa re ro ru rw sa sb sc sd se
+                       sg sh si sj sk sl sm sn so sr st sv sy sz tc td
+                       tf tg th tj tk tm tn to tl tr tt tv tw tz ua ug
+                       um us uy uz va vc ve vg vi vn vu wf ws ye yt rs
+                       za zm me zw a1 a2 o1 ax gg im je bl mf bq );
+
+    my $in;
+    while ( read(STDIN, $in, 6) == 6 ) {
+        my ($l0, $l1, $l2, $r0, $r1, $r2) = unpack 'C6', $in;
+        if ( (defined $l0) && (defined $l1) && (defined $l2) ||
+             (defined $r0) && (defined $r1) && (defined $r2) )
+        {
+            my $left = ($l2 << 16) + ($l1 << 8) + $l0;
+            my $right = ($r2 << 16) + ($r1 << 8) + $r0;
+            if ( $left >= $COUNTRY_BEGIN ) {
+                $left -= $COUNTRY_BEGIN;
+                if (!defined $countries[$left]) {
+                    ++$unknown_codes{$left};
+                    $left = leaf($countries[0]);
+                }
+                else {
+                    $left = leaf($countries[$left]);
+                }
+            }
+            if ( $right >= $COUNTRY_BEGIN ) {
+                $right -= $COUNTRY_BEGIN;
+                if (!defined $countries[$right]) {
+                    ++$unknown_codes{$right};
+                    $right = leaf($countries[0]);
+                }
+                else {
+                    $right = leaf($countries[$right]);
+                }
+            }
+            push @nodes, [$left, $right];
+        }
+    }
+
+    if (keys %unknown_codes) {
+        warn("$appname: Found the following unrecognized country keys: ",
+             join(" ", sort keys %unknown_codes), "\n");
+    }
+}
+
+
+sub handle_csv_input_v4
+{
+    $unknown_leaf = leaf('--');
+
+    $nodes[0] = [$unknown_leaf, $unknown_leaf];
+
+# Note that this can be done with linear allocation in an array:
+# Allocated nodes are never destroyed, only modified and walked.
+# It is possible for some nodes to be orphaned during the creation
+# process, but only if the input data is poorly formed (overlapping
+# regions.)
+
+    my $error_count = 0;
+
+    while (<STDIN>) {
+        chomp;
+        # Remove '"' characters surrounding values
+        s/\"//g;
+        # Split on comma (and any space after the comma) (As of
+        # Oct-2012, the IPv6 file includes a space after the comma.)
+        my ($low_ip, $high_ip, $low_num, $high_num, $c_code, $c_name)
+            = split /,\s*/, $_, 6;
+        unless (defined($low_num) && defined($high_num)) {
+            ++$error_count;
+            if ($error_count > 5) {
+                die "$appname: Input does not appear to be a CSV file\n";
+            }
+            next;
+        }
+        if ($low_ip =~ /:/) {
+            die("$appname: Found unexpected ':' in IP address.",
+                " Use --v6-csv-input to process IPv6 input.\n");
+        }
+        my $low_bits = unpack('B*', (pack 'N', $low_num));
+        my $high_bits = unpack('B*', (pack 'N', $high_num));
+        add_to_tree($low_bits, $high_bits, 31, lc $c_code, 0, 0, '');
+    }
+}
+
+
+sub big_int_to_bitstring
+{
+    my ($big_int, $is_v4) = @_;
+
+    my $bits = Math::BigInt->new($big_int)->as_bin;
+    $bits =~ s/^0b//;
+    $bits = ('0' x (128-length($bits))) . $bits;
+    if ($is_v4) {
+        substr($bits, 80, 16) = '1' x 16;
+    }
+    return $bits;
+}
+
+
+sub handle_csv_input_v6
+{
+    $unknown_leaf = leaf('--');
+
+    $nodes[0] = [$unknown_leaf, $unknown_leaf];
+
+    my $error_count = 0;
+
+    while (<STDIN>) {
+        chomp;
+        # Remove '"' characters surrounding values
+        s/\"//g;
+        # Split on comma (and any space after the comma) (As of
+        # Oct-2012, the IPv6 file includes a space after the comma.)
+        my ($low_ip, $high_ip, $low_num, $high_num, $c_code, $c_name)
+            = split /,\s*/, $_, 6;
+        unless (defined($low_num) && defined($high_num)) {
+            ++$error_count;
+            if ($error_count > 5) {
+                die "$appname: Input does not appear to be a CSV file\n";
+            }
+            next;
+        }
+        # Check for IPv4 addresses
+        my $is_v4 = ($low_ip =~ /^\d+\.\d+\.\d+\.\d+$/);
+        my $low_bits = big_int_to_bitstring($low_num, $is_v4);
+        my $high_bits = big_int_to_bitstring($high_num, $is_v4);
+        add_to_tree($low_bits, $high_bits, 127, lc $c_code, 0, 0, '');
+    }
+}
+
+
+sub add_to_tree
+{
+    # In order for us to be here:
+    #   This node's range must overlap with the range of [$low_bits,$high_bits]
+    #   This node's range must *not* be contained within [$low_bits,$high_bits]
+    my ($low_bits, $high_bits, $max_bit, $c_code, $node, $bit, $bits) = @_;
+
+    # This is true when we have this level is halfway processed; that
+    # is, have we processed the left side but not the right?
+    my $half = 0;
+
+    my @stack = [$low_bits, $high_bits, $node, $bit, $bits, $half];
+
+    while (@stack) {
+        ($low_bits, $high_bits, $node, $bit, $bits, $half) = @{pop @stack};
+
+        # Does the left subtree overlap [$low_bits,$high_bits]?  (Skip
+        # this test if have already finished this side)
+        if ( !$half && substr($low_bits, $bit, 1) eq '0' ) {
+
+            # Is the left subtree completely contained in
+            # [$low_bits,$high_bits]?
+            #
+            #   (Is the low end the low end of the left subtree?  And,
+            #   is the high end either the high end of the left
+            #   subtree or somewhere in the right subtree?)
+            if ( ( substr($low_bits, $bit+1, $max_bit-$bit)
+                   eq ('0' x ($max_bit-$bit)) )
+                 && ( (substr($high_bits, $bit, 1) eq '1')
+                      || ( substr($high_bits, $bit+1, $max_bit-$bit)
+                           eq ('1' x ($max_bit-$bit)) ) ) )
+            {
+                # Left subtree is completely contained, set left
+                # subtree to country
+
+                # Check first to warn of overlap:
+                if ( $nodes[$node][0] ne $unknown_leaf ) {
+                    warn("$appname: Overlapping range:",
+                         " [$low_bits, $high_bits] x $bits\n");
+                }
+
+                # We're done--the left side is mapped entirely to this value
+                $nodes[$node][0] = leaf($c_code);
+
+            } else {
+                # Left subtree overlaps but is not completely contained
+
+                # We need to recurse, but first push the current state
+                # onto '@stack' so we can come back to the right hand
+                # side
+                push @stack, [$low_bits, $high_bits, $node, $bit, $bits, 1];
+
+                # Is the left subtree a leaf?
+                if ( isleaf($nodes[$node][0]) ) {
+                    # It is: create a new node.  Initialize that node
+                    # with both branches pointing at the old leaf
+                    # value.
+
+                    # Note: This should be $unknown_leaf with
+                    # well-formed data.
+                    if ( $nodes[$node][0] ne $unknown_leaf ) {
+                        warn("$appname: Overlapping range:",
+                             " [$low_bits, $high_bits] x ${bits}0\n");
+                    }
+                    push @nodes, [$nodes[$node][0], $nodes[$node][0]];
+                    $nodes[$node][0] = $#nodes;
+                }
+
+                # Either way, there's a node there now, recurse down
+                # it.  If $high_bits is outside the left tree, chop it
+                # to be at the right edge
+                if ( substr($high_bits, $bit, 1) eq '1' ) {
+                    my $chopped = $low_bits;
+                    substr($chopped, $bit+1, $max_bit-$bit,
+                           '1' x ($max_bit-$bit));
+                    push @stack, [$low_bits, $chopped, $nodes[$node][0],
+                                  $bit+1, $bits."0"];
+                } else {
+                    push @stack, [$low_bits, $high_bits, $nodes[$node][0],
+                                  $bit+1, $bits."0"];
+                }
+                next;
+            }
+        }
+
+        # Mirror image on right side, really
+
+        # Does the right subtree overlap [$low_bits,$high_bits]
+        if ( substr($high_bits, $bit, 1) eq '1' ) {
+
+            # Is the right subtree completely contained in
+            # [$low_bits,$high_bits]?
+            #
+            #   (Is the high end the high end of the right subtree?  And, is
+            #   the low end either the low end of the right subtree or
+            #   somewhere in the left subtree?)
+            if ( ( substr($high_bits, $bit+1, $max_bit-$bit)
+                   eq ('1' x ($max_bit-$bit)) )
+                 && ( (substr($low_bits, $bit, 1) eq '0')
+                      || ( substr($low_bits, $bit+1, $max_bit-$bit)
+                           eq ('0' x ($max_bit-$bit)) ) ) )
+            {
+                # Right subtree is completely contained, set right subtree
+                # to country.
+
+                # Check first to warn of overlap
+                if ( $nodes[$node][1] ne $unknown_leaf ) {
+                    warn("$appname: Overlapping range:",
+                         " [$low_bits, $high_bits] x $bits\n");
+                }
+
+                # We're done--the right side is mapped entirely to this value
+                $nodes[$node][1] = leaf($c_code);
+
+            } else {
+                # Right subtree overlaps but is not completely contained
+
+                # Is the right subtree a leaf?
+                if ( isleaf($nodes[$node][1]) ) {
+                    # It is: create a new node.  Initialize that node with both
+                    # branches pointing at the old leaf value.
+                    # Note: this should be $unknown_leaf with well-formed data.
+                    if ( $nodes[$node][1] ne $unknown_leaf ) {
+                        warn("$appname: Overlapping range:",
+                             " [$low_bits, $high_bits] x ${bits}1\n");
+                    }
+                    push @nodes, [$nodes[$node][1], $nodes[$node][1]];
+                    $nodes[$node][1] = $#nodes;
+                }
+
+                # Either way, there's a node there now, recurse down it.
+                # If $low_bits is outside the right tree, chop it to be at
+                # the left edge
+                if ( substr($low_bits, $bit, 1) eq '0' ) {
+                    my $chopped = $high_bits;
+                    substr($chopped, $bit+1, $max_bit-$bit,
+                           '0' x ($max_bit-$bit));
+                    push @stack, [$chopped, $high_bits,
+                                  $nodes[$node][1], $bit+1, $bits."1"];
+                } else {
+                    push @stack, [$low_bits, $high_bits,
+                                  $nodes[$node][1], $bit+1, $bits."1"];
+                }
+            }
+        }
+    }
+}
+
+
+sub leaf
+{
+    my $cc = shift;
+    return 0x80000000 + ord(substr($cc,0,1)) * 256 + ord(substr($cc,1,1));
+}
+
+
+sub isleaf
+{
+    my $val = shift;
+    return $val & 0x80000000;
+}
+
+
+sub parse_options
+{
+    # local vars
+    my ($help, $man, $version);
+
+    # process options.  see "man Getopt::Long"
+    GetOptions('help|?' => \$help,
+               'man' => \$man,
+               'version' => \$version,
+
+               'csv-input'     => sub { $input_type = $CSV_V4 },
+               'encoded-input' => sub { $input_type = $ENC_V4; },
+               'v6-csv-input'  => sub { $input_type = $CSV_V6 },
+               )
+        or pod2usage(2);
+
+    # help?
+    if ($help) {
+        pod2usage(-exitval => 0);
+    }
+    if ($man) {
+        pod2usage(-exitval => 0, -verbose => 2);
+    }
+
+    if ($version) {
+        dump_version();
+        exit 0;
+    }
+
+    unless (defined $input_type) {
+        die "$appname: Must specify the type of input:",
+            " --csv-input, --encoded-input, --v6-csv-input\n";
+    }
+
+    # check for arguments and verify redirection
+    if (@ARGV) {
+        die "$appname: No arguments may be specified\n";
+    }
+    if (-t STDOUT) {
+        die "$appname: stdout may not be connected to a terminal\n";
+    }
+    if (-t STDIN) {
+        if ($input_type == $ENC_V4) {
+            die("$appname: stdin may not be connected to a terminal",
+                " when reading binary data\n");
+        }
+        warn "$appname: reading CSV data from the terminal...\n";
+    }
+}
+# parse_options
+
+
+sub dump_version
+{
+    my $pkg = '@PACKAGE_STRING@' || 'SiLK';
+    my $bugs = '@PACKAGE_BUGREPORT@' || 'UNKNOWN';
+
+    print <<EOF;
+$appname: Part of $pkg
+Copyright (C) 2001-2014 by Carnegie Mellon University
+GNU Public License (GPL) Rights pursuant to Version 2, June 1991.
+Government Purpose License Rights (GPLR) pursuant to DFARS 252.227.7013.
+Send bug reports, feature requests, and comments to $bugs.
+EOF
+}
+
+
+1;
+__END__
+
+=pod
+
+=head1 NAME
+
+B<rwgeoip2ccmap> - Create a country code prefix map from a GeoIP data file
+
+=head1 SYNOPSIS
+
+  unzip -p GeoIPCountryCSV.zip | \
+      rwgeoip2ccmap --csv-input > country_codes.pmap
+
+  gzip -d -c GeoIPv6.csv.gz | \
+      rwgeoip2ccmap --v6-csv-input > country_codes.pmap
+
+  (gzip -d -c GeoIPv6.csv.gz ; unzip -p GeoIPCountryCSV.zip ) | \
+      rwgeoip2ccmap --v6-csv-input > country_codes.pmap
+
+  rwgeoip2ccmap --help
+
+  rwgeoip2ccmap --man
+
+  rwgeoip2ccmap --version
+
+=head1 DESCRIPTION
+
+Prefix maps provide a way to map field values to string labels
+based on a user-defined map file.  The country code prefix map,
+typically named F<country_codes.pmap>, is a special prefix map that
+maps an IP address to a two-letter country code.  It uses the country
+codes defined by the Internet Assigned Numbers Authority
+(L<http://www.iana.org/root-whois/index.html>).
+
+The country code prefix map file is used by B<ccfilter(3)> to map IP
+addresses to country codes in various SiLK tools.  The B<ccfilter>
+feature allows you to
+
+=over 4
+
+=item *
+
+partition by country codes in B<rwfilter(1)>
+
+=item *
+
+display the country codes in B<rwcut(1)>
+
+=item *
+
+sort by the country codes in B<rwsort(1)>
+
+=item *
+
+bin by the country codes in B<rwstats(1)>, B<rwuniq(1)>, and B<rwgroup(1)>.
+
+=back
+
+The B<rwpmaplookup(1)> command can use the country code mapping file
+to display the country code for textual IP addresses.
+
+The country code prefix map is based on the GeoIP Country(R) or free
+GeoLite database created by MaxMind(R) and available from
+L<http://www.maxmind.com/>.  The GeoLite database is a free evaluation
+copy that is C<98% accurate> which is updated monthly.  MaxMind sells
+the GeoIP Country database which has over C<99% accuracy> and is
+updated weekly.
+
+The database is available in multiple formats:
+
+=over 4
+
+=item GeoIPCountryCSV.zip
+
+a compressed (B<zip(1)>) textual file containing an IPv4 range, country
+name, and county code in a comma separated value (CSV) format.  If you
+download this format, specify B<--csv-input> on the B<rwgeoip2ccmap>
+command line.  This is the recommended format for IPv4 support.
+
+=item GeoIP.dat.gz
+
+a compressed (B<gzip(1)>) binary file containing an encoded form of
+the IPv4 address range and country code.  If you download this format,
+specify B<--encoded-input> on the B<rwgeoip2ccmap> command line.  This
+format is not recommended, as B<rwgeoip2ccmap> may not know about all
+the country codes that the binary file contains.
+
+=item GeoIPv6.csv.gz
+
+a compressed (B<gzip>) textual file containing an IPv6 range,
+country name, and county code in a CSV format.  If you download this
+format, specify B<--v6-csv-input> on the B<rwgeoip2ccmap> command
+line.  This file only contains IPv6 data.  If you use this file to
+create your country code prefix map, any IPv4 addresses will have the
+unknown value C<-->.
+
+=item GeoIPv6.dat.gz
+
+a compressed (B<gzip>) binary file containing an encoded form of the
+IPv6 address range and country code.  B<rwgeoip2ccmap> does not
+support this input file.
+
+=back
+
+=head1 OPTIONS
+
+Option names may be abbreviated if the abbreviation is unique or is an
+exact match for an option.  A parameter to an option may be specified
+as B<--arg>=I<param> or B<--arg> I<param>, though the first form is
+required for options that take optional parameters.
+
+One of the following switches is required:
+
+=over 4
+
+=item B<--csv-input>
+
+Treat the standard input as a textual stream containing the CSV (comma
+separated value) GeoIP country code data for IPv4.
+
+=item B<--encoded-input>
+
+Treat the standard input as a binary stream containing the encoded
+GeoIP country code data for IPv4.
+
+=item B<--v6-csv-input>
+
+Treat the standard input as a textual stream containing the CSV GeoIP
+country code data for IPv6.
+
+=back
+
+The following switches display information about B<rwgeoip2ccmap>:
+
+=over 4
+
+=item B<--help>
+
+Print the available options and exit.
+
+=item B<--version>
+
+Print the version number and exit the application.
+
+=item B<--man>
+
+Print the formatted manual page to the $PAGER or to the standard
+output, and exit.
+
+=back
+
+=head1 EXAMPLES
+
+The following examples show how to create the country code prefix map
+file, F<country_codes.pmap>, from various forms of input.
+Once you have created the F<country_codes.pmap> file, you should copy
+it to F<@prefix@/share/silk/country_codes.pmap> so that the
+B<ccfilter(3)> plug-in can find it.  Alternatively, you can set the
+SILK_COUNTRY_CODES environment variable to the location of the
+F<country_codes.pmap> file.
+
+In these examples, the dollar sign (B<$>) represents the shell
+prompt.  Some input lines are split over multiple lines in order to
+improve readability, and a backslash (B<\>) is used to indicate such
+lines.
+
+=head2 IPv4 Comma Separated Values File
+
+Download CSV version of the MaxMind GeoIP Country database for IPv4,
+F<GeoIPCountryCSV.zip>.  To expand this file, use the B<unzip(1)>
+utility; by using the B<-p> option to B<unzip>, you can pass the
+output of B<unzip> directly to B<rwgeoip2ccmap>:
+
+ $ unzip -p GeoIPCountryCSV.zip | \
+       rwgeoip2ccmap --csv-input > country_codes.pmap
+
+=head2 IPv4 Binary Encoded File
+
+Obtain the binary version of the MaxMind GeoIP Country database for
+IPv4, F<GeoIP.dat.gz>.  Use the B<-d> switch of the B<gzip(1)> tool to
+uncompress the file, and the B<-c> switch causes B<gzip> to write the
+result to the standard output.  To create the F<country_codes.pmap>
+data file, run:
+
+ $ gzip -d -c GeoIP.dat.gz | \
+       rwgeoip2ccmap --encoded-input > country_codes.pmap
+
+=head2 IPv6 Comma Separated Values File
+
+If you download the IPv6 version of the MaxMind GeoIP Country
+database, use the following command to create the
+F<country_codes.pmap> file:
+
+ $ gzip -d -c GeoIPv6.csv.gz | \
+       rwgeoip2ccmap --v6-csv-input > country_codes.pmap
+
+Since the F<GeoIPv6.csv.gz> file only contains IPv6 addresses, the
+resulting F<country_codes.pmap> file will display the unknown value
+(C<-->) for any IPv4 address.  See the next example for a solution.
+
+=head2 IPv6 and IPv4 Comma Separated Values Files
+
+To create a F<country_codes.pmap> mapping file that supports both IPv4
+and IPv6 addresses, first download both of the CSV files
+(F<GeoIPv6.csv.gz> and F<GeoIPCountryCSV.zip>) from MaxMind.
+
+You need to uncompress both files and feed the result as a single
+stream to the standard input of B<rwgeoip2ccmap>.  This can be done in
+a few commands:
+
+ $ gzip -d GeoIPv6.csv.gz
+ $ unzip GeoIPCountryCSV.zip
+ $ cat GeoIPv6.csv GeoIPCountryWhois.csv | \
+       rwgeoip2ccmap --v6-csv-input > country_codes.pmap
+
+Alternatively, if your shell supports it, you may be able to use a
+subshell to avoid having to store the uncompressed data:
+
+ $ ( gzip -d -c GeoIPv6.csv.gz ; unzip -p GeoIPCountryCSV.zip ) | \
+       rwgeoip2ccmap --v6-csv-input > country_codes.pmap
+
+
+=head1 SEE ALSO
+
+B<ccfilter(3)>, B<rwpmaplookup(1)>, B<rwfilter(1)>, B<rwcut(1)>,
+B<rwsort(1)>, B<rwstats(1)>, B<rwuniq(1)>, B<rwgroup(1)>,
+B<rwpmapbuild(1>), B<silk(7)>, B<gzip(1)>, B<zip(1)>, B<unzip(1)>
+
+=cut
+
+# Local Variables:
+# mode: perl
+# indent-tabs-mode:nil
+# End:

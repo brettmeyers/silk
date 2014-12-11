@@ -1,0 +1,185 @@
+/*
+** Copyright (C) 2001-2014 by Carnegie Mellon University.
+**
+** @OPENSOURCE_HEADER_START@
+**
+** Use of the SILK system and related source code is subject to the terms
+** of the following licenses:
+**
+** GNU Public License (GPL) Rights pursuant to Version 2, June 1991
+** Government Purpose License Rights (GPLR) pursuant to DFARS 252.227.7013
+**
+** NO WARRANTY
+**
+** ANY INFORMATION, MATERIALS, SERVICES, INTELLECTUAL PROPERTY OR OTHER
+** PROPERTY OR RIGHTS GRANTED OR PROVIDED BY CARNEGIE MELLON UNIVERSITY
+** PURSUANT TO THIS LICENSE (HEREINAFTER THE "DELIVERABLES") ARE ON AN
+** "AS-IS" BASIS. CARNEGIE MELLON UNIVERSITY MAKES NO WARRANTIES OF ANY
+** KIND, EITHER EXPRESS OR IMPLIED AS TO ANY MATTER INCLUDING, BUT NOT
+** LIMITED TO, WARRANTY OF FITNESS FOR A PARTICULAR PURPOSE,
+** MERCHANTABILITY, INFORMATIONAL CONTENT, NONINFRINGEMENT, OR ERROR-FREE
+** OPERATION. CARNEGIE MELLON UNIVERSITY SHALL NOT BE LIABLE FOR INDIRECT,
+** SPECIAL OR CONSEQUENTIAL DAMAGES, SUCH AS LOSS OF PROFITS OR INABILITY
+** TO USE SAID INTELLECTUAL PROPERTY, UNDER THIS LICENSE, REGARDLESS OF
+** WHETHER SUCH PARTY WAS AWARE OF THE POSSIBILITY OF SUCH DAMAGES.
+** LICENSEE AGREES THAT IT WILL NOT MAKE ANY WARRANTY ON BEHALF OF
+** CARNEGIE MELLON UNIVERSITY, EXPRESS OR IMPLIED, TO ANY PERSON
+** CONCERNING THE APPLICATION OF OR THE RESULTS TO BE OBTAINED WITH THE
+** DELIVERABLES UNDER THIS LICENSE.
+**
+** Licensee hereby agrees to defend, indemnify, and hold harmless Carnegie
+** Mellon University, its trustees, officers, employees, and agents from
+** all claims or demands made against them (and any related losses,
+** expenses, or attorney's fees) arising out of, or relating to Licensee's
+** and/or its sub licensees' negligent use or willful misuse of or
+** negligent conduct or willful misconduct regarding the Software,
+** facilities, or other rights or assistance granted by Carnegie Mellon
+** University under this License, including, but not limited to, any
+** claims of product liability, personal injury, death, damage to
+** property, or violation of any laws or regulations.
+**
+** Carnegie Mellon University Software Engineering Institute authored
+** documents are sponsored by the U.S. Department of Defense under
+** Contract FA8721-05-C-0003. Carnegie Mellon University retains
+** copyrights in all material produced under this contract. The U.S.
+** Government retains a non-exclusive, royalty-free license to publish or
+** reproduce these documents, or allow others to do so, for U.S.
+** Government purposes only pursuant to the copyright license under the
+** contract clause at 252.227.7013.
+**
+** @OPENSOURCE_HEADER_END@
+*/
+#if defined(_SILK_CONFIG_H) || !defined(_SILK_H)
+#error "Never include silk_config.h directly, include silk.h instead."
+#endif
+#define _SILK_CONFIG_H
+
+/*
+ *    The silk_config2.h file is the second of two header files
+ *    generated when you run configure.  The first is silk_config.h,
+ *    which will #include this file.
+ *
+ *    The template file silk_config1.h.in is created by autoheader.
+ *    When you run configure, a silk_config1.h file is created, and
+ *    then all values in that file are prefixed by "SK_" and the
+ *    result is written to silk_config.h.  The silk_config1.h file is
+ *    only used to create silk_config.h.
+ *
+ *    The template file silk_config2.h.in is maintained manually.
+ *    silk_config2.h contains values that the system headers
+ *    use/require, and as such they should NOT be prefixed with "SK_"
+ */
+
+/* Define if building universal (internal helper macro) */
+#undef AC_APPLE_UNIVERSAL_BUILD
+
+/* Number of bits in a file offset, on hosts where this is settable. */
+#undef _FILE_OFFSET_BITS
+
+/* Define to 1 to make fseeko visible on some hosts (e.g. glibc 2.2). */
+#undef _LARGEFILE_SOURCE
+
+/* Define for large files, on AIX-style hosts. */
+#undef _LARGE_FILES
+
+/* Whether gmtime_r() requires _REENTRANT */
+#undef _REENTRANT
+
+/* Define for Solaris 2.5.1 so the uint32_t typedef from <sys/synch.h>,
+   <pthread.h>, or <semaphore.h> is not used. If the typedef were allowed, the
+   #define below would cause a syntax error. */
+#undef _UINT32_T
+
+/* Define for Solaris 2.5.1 so the uint64_t typedef from <sys/synch.h>,
+   <pthread.h>, or <semaphore.h> is not used. If the typedef were allowed, the
+   #define below would cause a syntax error. */
+#undef _UINT64_T
+
+/* Define for Solaris 2.5.1 so the uint8_t typedef from <sys/synch.h>,
+   <pthread.h>, or <semaphore.h> is not used. If the typedef were allowed, the
+   #define below would cause a syntax error. */
+#undef _UINT8_T
+
+/* Define to empty if `const' does not conform to ANSI C. */
+#undef const
+
+/* Define to `__inline__' or `__inline' if that's what the C compiler
+   calls it, or to nothing if 'inline' is not supported under any name.  */
+#ifndef __cplusplus
+#undef inline
+#endif
+
+/* Define to the type of a signed integer type of width exactly 16 bits if
+   such a type exists and the standard includes do not define it. */
+#undef int16_t
+
+/* Define to the type of a signed integer type of width exactly 32 bits if
+   such a type exists and the standard includes do not define it. */
+#undef int32_t
+
+/* Define to the type of a signed integer type of width exactly 64 bits if
+   such a type exists and the standard includes do not define it. */
+#undef int64_t
+
+/* Define to the type of a signed integer type of width exactly 8 bits if such
+   a type exists and the standard includes do not define it. */
+#undef int8_t
+
+/* Define to the widest signed integer type if <stdint.h> and <inttypes.h> do
+   not define. */
+#undef intmax_t
+
+/* Define to the type of a signed integer type wide enough to hold a pointer,
+   if such a type exists, and if the system does not define it. */
+#undef intptr_t
+
+/* Define to `int' if <sys/types.h> does not define. */
+#undef mode_t
+
+/* Define to `long int' if <sys/types.h> does not define. */
+#undef off_t
+
+/* Define to `int' if <sys/types.h> does not define. */
+#undef pid_t
+
+/* Define to `unsigned int' if <sys/types.h> does not define. */
+#undef size_t
+
+/* Define to `int' if <sys/types.h> does not define. */
+#undef ssize_t
+
+/* Define to the type of an unsigned integer type of width exactly 16 bits if
+   such a type exists and the standard includes do not define it. */
+#undef uint16_t
+
+/* Define to the type of an unsigned integer type of width exactly 32 bits if
+   such a type exists and the standard includes do not define it. */
+#undef uint32_t
+
+/* Define to the type of an unsigned integer type of width exactly 64 bits if
+   such a type exists and the standard includes do not define it. */
+#undef uint64_t
+
+/* Define to the type of an unsigned integer type of width exactly 8 bits if
+   such a type exists and the standard includes do not define it. */
+#undef uint8_t
+
+/* Define to the widest unsigned integer type if <stdint.h> and <inttypes.h>
+   do not define. */
+#undef uintmax_t
+
+/* Define to the type of an unsigned integer type wide enough to hold a
+   pointer, if such a type exists, and if the system does not define it. */
+#undef uintptr_t
+
+/* Define to empty if the keyword `volatile' does not work. Warning: valid
+   code using `volatile' can become incorrect without. Disable with care. */
+#undef volatile
+
+/*
+** Local Variables:
+** mode:c
+** indent-tabs-mode:nil
+** c-basic-offset:4
+** End:
+*/

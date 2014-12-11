@@ -1,0 +1,113 @@
+=pod
+
+=head1 NAME
+
+B<silk_config> - Print SiLK compiling and linking information
+
+=head1 SYNOPSIS
+
+  silk_config [--silk-version] [--compiler] [--cflags] [--include]
+         [--libs] [--libsilk-libs] [--libsilk-thrd-libs]
+         [--libflowsource-libs] [--data-rootdir] [--python-site-dir]
+
+  silk_config --help
+
+  silk_config --version
+
+=head1 DESCRIPTION
+
+B<silk_config> prints configuration information used to compile and
+link other files and programs against the SiLK header files and
+libraries.  B<silk_config> will print the output value(s) selected by
+the user, or all configuration information if no switches are
+provided.
+
+This command has nothing to do with the SiLK Configuration file.  See
+the B<silk.conf(5)> manual page for information on that file.
+
+=head1 OPTIONS
+
+Option names may be abbreviated if the abbreviation is unique or is an
+exact match for an option.
+
+=over 4
+
+=item B<--silk-version>
+
+Print the version of SiLK as a simple string.  This output from this
+switch is only the version number; the output does not include the
+additional configuration information that the B<--version> switch
+normally prints.
+
+=item B<--compiler>
+
+Print the compiler used to build SiLK.
+
+=item B<--cflags>
+
+Print the include paths (that is, the B<-I> switches) and any
+additional compiler flags to use when compiling a file against the
+SiLK header files.  To only print the include paths, use B<--include>.
+
+=item B<--include>
+
+Print the include paths to use when compiling a file against the SiLK
+header files.  See also B<--cflags>.
+
+=item B<--libs>
+
+This switch is an alias for B<--libsilk-libs>.
+
+=item B<--libsilk-libs>
+
+Print the linker flags (that is, the B<-L> and B<-l> switches) to use
+when linking a program against F<libsilk.so>.
+
+=item B<--libsilk-thrd-libs>
+
+Print the linker flags to use when linking a program against
+F<libsilk-thrd.so>.  Few external programs will need to use this
+library.
+
+=item B<--libflowsource-libs>
+
+Print the linker flags to use when linking a program against
+B<libflowsource.so>.  It is highly unlikely that an external program
+will need to use this library.
+
+=item B<--data-rootdir>
+
+Print the compiled-in value of the default location of the SiLK data
+repository, ignoring any environment variable settings.
+
+=item B<--python-site-dir>
+
+Print the name of the directory containing the F<silk> subdirectory
+where the PySiLK module files were installed.  The user may need to
+set the PYTHONPATH environment variable to this location to be able to
+use PySiLK.  The value will be empty if PySiLK support is not
+available in this build of SiLK.
+
+=item B<--help>
+
+Print the available options and exit.
+
+=item B<--version>
+
+Print the version number and information about how SiLK was
+configured, then exit the application.
+
+=back
+
+=head1 SEE ALSO
+
+B<silk.conf(5)>, B<silk(7)>
+
+=cut
+
+$SiLK: silk_config.pod 9b1a7208f21f 2013-12-09 18:20:36Z mthomas $
+
+Local Variables:
+mode:text
+indent-tabs-mode:nil
+End:

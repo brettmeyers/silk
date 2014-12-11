@@ -1,0 +1,359 @@
+=pod
+
+=head1 NAME
+
+B<rwpollexec> - Monitor a directory for files and execute a command on them
+
+=head1 SYNOPSIS
+
+  rwpollexec --incoming-directory=DIR_PATH --command=COMMAND
+        --error-directory=DIR_PATH [--archive-directory=DIR_PATH]
+        [--flat-archive] [--simultaneous=NUM]
+        [--timeout=SIGNAL,SECS [--timeout=SIGNAL,SECS ...]]
+        [--polling-interval=NUM]
+        { --log-destination=DESTINATION
+          | --log-pathname=FILE_PATH
+          | --log-directory=DIR_PATH [--log-basename=LOG_BASENAME]
+            [--log-post-rotate=COMMAND] }
+        [--log-level=LEVEL] [--log-sysfacility=NUMBER]
+        [--pidfile=FILE_PATH] [--no-chdir] [--no-daemon]
+
+  rwpollexec --help
+
+  rwpollexec --version
+
+=head1 DESCRIPTION
+
+B<rwpollexec> is a daemon that monitors a directory for incoming
+files, and then runs a given command on each file.  If the command
+runs successfully on a file, the file is either moved to an archive
+directory or deleted.  If the command runs unsuccessfully or is
+terminated by a signal, the file is moved to an error directory.
+
+B<rwpollexec> allows a single command to be specified.  If you need
+to run multiple commands on a file, create a script to run these
+commands and have B<rwpollexec> run the script.
+
+The B<--simultaneous> switch specifies the maximum number of
+invocations of I<COMMAND> that B<rwpollexec> will run concurrently.
+The default is one, which causes B<rwpollexec> to process the files
+one at a time.
+
+If there is a possibility that the command will "hang" and cause
+B<rwpollexec> to stop processing files, you may wish to specify that
+B<rwpollexec> send a signal to the command after it has been running
+for some number of seconds by using the B<--timeout> switch.  This
+switch may be repeated to send different signals after various times.
+
+When B<rwpollexec> is signaled to exit, it waits for all running
+commands to terminate before exiting.  If a command has "hung",
+B<rwpollexec> will not exit until that command is killed, or
+B<rwpollexec> itself is sent a SIGKILL.
+
+=head1 OPTIONS
+
+Option names may be abbreviated if the abbreviation is unique or is an
+exact match for an option.  A parameter to an option may be specified
+as B<--arg>=I<param> or B<--arg> I<param>, though the first form is
+required for options that take optional parameters.
+
+=over 4
+
+=item B<--incoming-directory>=I<DIR_PATH>
+
+Monitor this directory for new files to handle.  I<DIR_PATH> must be a
+complete directory path.  For each new file in this directory,
+B<rwpollexec> will run the command specified by the B<--command>
+switch.  B<rwpollexec> ignores any files in this directory that are
+empty or whose names begin with a dot (C<.>).  In addition, new files
+will only be considered when their size is constant for one
+polling-interval after they are first noticed.  This switch is
+required.
+
+=item B<--command>=I<COMMAND>
+
+Run I<COMMAND> on each file noticed in the directory specified by
+B<--incoming-directory>.  Each occurrence of the string C<%s> in
+I<COMMAND> will be replaced with the full path to the file, and
+each occurrence of C<%%> will be replaced with C<%>.  If any other
+character follows C<%>, B<rwpollexec> exits with an error.  If the
+exit status of I<COMMAND> is zero, B<rwpollexec> will delete the file
+unless the B<--archive-directory> switch is specified, in which case
+B<rwpollexec> moves the file to that directory.  If the command exits
+with a non-zero status or is terminated by a signal, B<rwpollexec>
+moves the file to the directory specified by B<--error-directory>.
+This switch is required.
+
+I<COMMAND> is interpreted by the shell used by B<rwpollexec>.  When
+the C<SILK_RWPOLLEXEC_SHELL> environment variable is set, its value
+will be used as the shell.  Otherwise, B<rwpollexec> determines the
+shell as described in the L</FILES> section.  Any output on C<stdout>
+or C<stderr> from I<COMMAND> will appear in the log when the log
+messages are being written to a local log file.
+
+=item B<--error-directory>=I<DIR_PATH>
+
+Move to this directory files where I<COMMAND> either runs
+unsuccessfully (i.e., has a non-zero exit status) or terminates by a
+signal.  I<DIR_PATH> must be a complete directory path.  This switch
+is required.
+
+=item B<--archive-directory>=I<DIR_PATH>
+
+Move to this directory the files where I<COMMAND> runs successfully
+(i.e., has an exit status of zero).  I<DIR_PATH> must be a complete
+directory path.  If this switch is not supplied, B<rwpollexec> will
+delete these files instead.  When the B<--flat-archive> switch is also
+provided, incoming files are moved into the top of I<DIR_PATH>; when
+B<--flat-archive> is not given, each file is moved to a subdirectory
+based on the current local time:
+I<DIR_PATH>/I<YEAR>/I<MONTH>/I<DAY>/I<HOUR>/.  Removing files from the
+archive-directory is not the job of B<rwpollexec>; the system
+administrator should implement a separate process to clean this
+directory.
+
+=item B<--flat-archive>
+
+When archiving input files via the B<--archive-directory> switch, move
+the files into the top of the archive-directory, not into
+subdirectories of the archive-directory.  This switch has no effect if
+B<--archive-directory> is not also specified.  This switch can be used
+to allow another process to watch for new files appearing in the
+archive-directory.
+
+=item B<--simultaneous>=I<NUM>
+
+Allow a maximum of I<NUM> commands to be executed simultaneously.  The
+default is one, which allows only one command to be run at a time.
+The maximum value allowed for this switch is 50.
+
+=item B<--timeout>=I<SIGNAL>,I<SECS>
+
+Send I<SIGNAL> to the running command if it has been executing for
+I<SECS> seconds.  I<SIGNAL> can be a signal name, with or without a
+C<SIG> prefix, or a signal number.  A list of signals can be
+determined by running the command C<kill -l>.  This switch may be
+repeated to send different signals after various amounts of time.
+
+=item B<--polling-interval>=I<NUM>
+
+Configure B<rwpollexec> to check the incoming directory for new
+files every I<NUM> seconds.  The default polling interval is 15
+seconds.
+
+=back
+
+One of the following logging switches is required:
+
+=over 4
+
+=item B<--log-destination>=I<DESTINATION>
+
+Specify the destination where logging messages are written.  When
+I<DESTINATION> begins with a slash C</>, it is treated as a file
+system path and all log messages are written to that file; there is no
+log rotation.  When I<DESTINATION> does not begin with C</>, it must
+be one of the following strings:
+
+=over 4
+
+=item C<none>
+
+Messages are not written anywhere.
+
+=item C<stdout>
+
+Messages are written to the standard output.
+
+=item C<stderr>
+
+Messages are written to the standard error.
+
+=item C<syslog>
+
+Messages are written using the B<syslog(3)> facility.
+
+=item C<both>
+
+Messages are written to the syslog facility and to the standard error
+(this option is not available on all platforms).
+
+=back
+
+=item B<--log-directory>=I<DIR_PATH>
+
+Use I<DIR_PATH> as the directory where the log files are written.
+I<DIR_PATH> must be a complete directory path.  The log files have the
+form
+
+ DIR_PATH/LOG_BASENAME-YYYYMMDD.log
+
+where I<YYYYMMDD> is the current date and I<LOG_BASENAME> is the
+application name or the value passed to the B<--log-basename> switch
+when provided.  The log files are rotated: At midnight local time, a
+new log is opened, the previous file is closed, and the command
+specified by B<--log-post-rotate> is invoked on the previous day's log
+file.  (Old log files are not removed by B<rwpollexec>; the
+administrator should use another tool to remove them.)  When this
+switch is provided, a process-ID file (PID) is also written in this
+directory unless the B<--pidfile> switch is provided.
+
+=item B<--log-pathname>=I<FILE_PATH>
+
+Use I<FILE_PATH> as the complete path to the log file.  The log file
+is not rotated.
+
+=back
+
+The following set of switches is optional:
+
+=over 4
+
+=item B<--log-level>=I<LEVEL>
+
+Set the severity of messages that will be logged.  The levels from
+most severe to least are: C<emerg>, C<alert>, C<crit>, C<err>,
+C<warning>, C<notice>, C<info>, C<debug>.  The default is C<info>.
+
+=item B<--log-sysfacility>=I<NUMBER>
+
+Set the facility that B<syslog(3)> uses for logging messages.  This
+switch takes a number as an argument.  The default is a value that
+corresponds to C<LOG_USER> on the system where B<rwpollexec> is
+running.  This switch produces an error unless
+B<--log-destination>=syslog is specified.
+
+=item B<--log-basename>=I<LOG_BASENAME>
+
+Use I<LOG_BASENAME> in place of the application name in the name of
+I<log> files in the log directory.  See the description of the
+B<--log-directory> switch.  This switch does B<not> affect the name of
+the process-ID file.
+
+=item B<--log-post-rotate>=I<COMMAND>
+
+Run I<COMMAND> on the previous day's log file after log rotation.
+When this switch is not specified, the previous day's log file is
+compressed with B<gzip(1)>.  When the switch is specified and
+I<COMMAND> is the empty string, no action is taken on the log file.
+Each occurrence of the string C<%s> in I<COMMAND> will be replaced
+with the full path to the log file, and each occurrence of C<%%> will
+be replaced with C<%>.  If any other character follows C<%>,
+B<rwpollexec> exits with an error.  Specifying this switch without
+also using B<--log-directory> is an error.
+
+=item B<--pidfile>=I<FILE_PATH>
+
+Set the complete path to the file in which B<rwpollexec> writes its
+process ID (PID) when it is running as a daemon.  No PID file is
+written when B<--no-daemon> is given.  When this switch is not
+present, no PID file is written unless the B<--log-directory> switch
+is specified, in which case the PID is written to
+F<I<LOGPATH>/rwpollexec.pid>.
+
+=item B<--no-chdir>
+
+Do not change directory to the root directory.  When B<rwpollexec>
+becomes a daemon process, it changes its current directory to the root
+directory so as to avoid potentially running on a mounted file system.
+Specifying B<--no-chdir> prevents this behavior, which may be useful
+during debugging.  The application does not change its directory when
+B<--no-daemon> is given.
+
+=item B<--no-daemon>
+
+Force B<rwpollexec> to run in the foreground---it does not become a
+daemon process.  This may be useful during debugging.
+
+=item B<--help>
+
+Print the available options and exit.
+
+=item B<--version>
+
+Print the version number and information about how SiLK was
+configured, then exit the application.
+
+=back
+
+=head1 ENVIRONMENT
+
+=over 4
+
+=item SILK_RWPOLLEXEC_SHELL
+
+The shell to use for executing commands.  If this variable is not set,
+B<rwpollexec> tests the list of shells specified in L</FILES> to find
+a shell that uses a member of the B<execl(3)> family of functions to
+run the command.  More details are available in the L</BUGS> section.
+
+=back
+
+=head1 FILES
+
+=over 4
+
+=item F<${SILK_RWPOLLEXEC_SHELL}>
+
+=item F</bin/sh>
+
+=item F</bin/bash>
+
+=item F</bin/ksh>
+
+=item F</usr/bin/sh>
+
+=item F</usr/bin/bash>
+
+=item F</usr/bin/ksh>
+
+Shells that B<rwpollexec> may use to invoke the command specified by
+B<--command>.  The shell specified in SILK_RWPOLLEXEC_SHELL is always
+used when that variable is set.  Otherwise, B<rwpollexec> checks the
+list of shells to find one that uses B<execl(3)> to invoke the
+command.  When a suitable shell is not found, B<rwpollexec> uses
+B</bin/sh>.  See L</BUGS> for additional information.
+
+=back
+
+=head1 BUGS
+
+B<rwpollexec> uses a subshell to execute the command specified as the
+argument to B<--command>.  How the subshell invokes the command is
+important when the B<--timeout> switch is specified.  Many shells use
+a member of B<execl(3)> family of functions to invoke the command,
+which causes the command's process to replace the shell process.  For
+these shells, signals sent by B<rwpollexec> are received by the
+command process directly.  However, some shells use a combination of
+B<fork(2)> and B<wait(2)> to invoke the command.  In these shells, the
+signal is received by the subshell instead of the command, and this
+can lead to undesirable or unreliable behavior.  When the
+SILK_RWPOLLEXEC_SHELL environment variable is set, B<rwpollexec> uses
+that shell regardless of how it invokes its command, though if the
+specified shell uses B<fork(2)>, B<rwpollexec> will emit a warning to
+the standard error and to the log.  When SILK_RWPOLLEXEC_SHELL is not
+set, B<rwpollexec> attempts to find a shell that uses B<execl(3)>.  If
+B<rwpollexec> fails to find a suitable shell, it uses F</bin/sh> and
+emits and error to standard error and to the log.  The list of shells
+B<rwpollexec> checks are specified in the L</FILES> section.
+
+B<rwpollexec> is unable to tell the difference between a command
+returning a non-zero exit status and a command that fails because the
+command does not exist or is malformed.  Both appear as a failed
+command with a non-zero exit status.  The shell may emit messages that
+explain why a command has failed.  In these instances, these messages
+will appear in the log.
+
+=head1 SEE ALSO
+
+B<silk(7)>, B<kill(1)>, B<gzip(1)>, B<syslog(3)>, B<fork(2)>,
+B<wait(2)>, B<execl(3)>
+
+=cut
+
+$SiLK: rwpollexec.pod 09300f005c43 2013-03-13 18:50:55Z mthomas $
+
+Local Variables:
+mode:text
+indent-tabs-mode:nil
+End:

@@ -1,0 +1,550 @@
+#! @PYTHON@
+
+#
+# Copyright (C) 2005-2014 by Carnegie Mellon University.
+#
+# @OPENSOURCE_HEADER_START@
+#
+# Use of the SILK system and related source code is subject to the terms
+# of the following licenses:
+#
+# GNU Public License (GPL) Rights pursuant to Version 2, June 1991
+# Government Purpose License Rights (GPLR) pursuant to DFARS 252.227.7013
+#
+# NO WARRANTY
+#
+# ANY INFORMATION, MATERIALS, SERVICES, INTELLECTUAL PROPERTY OR OTHER
+# PROPERTY OR RIGHTS GRANTED OR PROVIDED BY CARNEGIE MELLON UNIVERSITY
+# PURSUANT TO THIS LICENSE (HEREINAFTER THE "DELIVERABLES") ARE ON AN
+# "AS-IS" BASIS. CARNEGIE MELLON UNIVERSITY MAKES NO WARRANTIES OF ANY
+# KIND, EITHER EXPRESS OR IMPLIED AS TO ANY MATTER INCLUDING, BUT NOT
+# LIMITED TO, WARRANTY OF FITNESS FOR A PARTICULAR PURPOSE,
+# MERCHANTABILITY, INFORMATIONAL CONTENT, NONINFRINGEMENT, OR ERROR-FREE
+# OPERATION. CARNEGIE MELLON UNIVERSITY SHALL NOT BE LIABLE FOR INDIRECT,
+# SPECIAL OR CONSEQUENTIAL DAMAGES, SUCH AS LOSS OF PROFITS OR INABILITY
+# TO USE SAID INTELLECTUAL PROPERTY, UNDER THIS LICENSE, REGARDLESS OF
+# WHETHER SUCH PARTY WAS AWARE OF THE POSSIBILITY OF SUCH DAMAGES.
+# LICENSEE AGREES THAT IT WILL NOT MAKE ANY WARRANTY ON BEHALF OF
+# CARNEGIE MELLON UNIVERSITY, EXPRESS OR IMPLIED, TO ANY PERSON
+# CONCERNING THE APPLICATION OF OR THE RESULTS TO BE OBTAINED WITH THE
+# DELIVERABLES UNDER THIS LICENSE.
+#
+# Licensee hereby agrees to defend, indemnify, and hold harmless Carnegie
+# Mellon University, its trustees, officers, employees, and agents from
+# all claims or demands made against them (and any related losses,
+# expenses, or attorney's fees) arising out of, or relating to Licensee's
+# and/or its sub licensees' negligent use or willful misuse of or
+# negligent conduct or willful misconduct regarding the Software,
+# facilities, or other rights or assistance granted by Carnegie Mellon
+# University under this License, including, but not limited to, any
+# claims of product liability, personal injury, death, damage to
+# property, or violation of any laws or regulations.
+#
+# Carnegie Mellon University Software Engineering Institute authored
+# documents are sponsored by the U.S. Department of Defense under
+# Contract FA8721-05-C-0003. Carnegie Mellon University retains
+# copyrights in all material produced under this contract. The U.S.
+# Government retains a non-exclusive, royalty-free license to publish or
+# reproduce these documents, or allow others to do so, for U.S.
+# Government purposes only pursuant to the copyright license under the
+# contract clause at 252.227.7013.
+#
+# @OPENSOURCE_HEADER_END@
+#
+
+#
+# rwpcut displays pcap dump files as ASCII text.  It differs from
+# tcpdump -r in that it supports standardized, delimited output for
+# easier parsing.
+#
+
+# RCSIDENT("$SiLK: rwpcut.in 144d17acb5a6 2014-05-23 21:03:00Z mthomas $");
+
+from __future__ import print_function
+
+import calendar
+import os
+import re
+import struct
+import sys
+import subprocess
+import time
+from optparse import OptionParser;
+
+#
+# Local variables
+#
+
+# Regular expression to match the main packet dump line from tcpdump
+re_tcpdump_str = """
+(?P<date>\d{4}-\d{2}-\d{2})                     #date
+[ ]                                             #space
+(?P<time>\d{2}:\d{2}:\d{2}\.\d{6})              #time
+[ ]                                             #space
+(?P<ethproto>IP|IPDF)                           #must be IP or IPDF traffic
+[ ]                                             #space
+(?P<sip>\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})     #sip
+(?:\.(?P<sport>\d{1,5}))?                       #sport (if present)
+(?:\s>\s)                                       #direction
+(?P<dip>\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})     #dip
+(?:\.(?P<dport>\d{1,5}))?                       #dport (if present)
+(?::\s)                                         #colon, space
+(?P<rest>.*$)                                   #the rest
+"""
+re_tcpdump = re.compile( re_tcpdump_str, re.X )
+
+
+#
+# Payload matching regex, so we can take the multi-line, whitespaced,
+# human brain friendly tcpdump output and turn it into a single
+# column.
+#
+re_payload_str = "^(?:\s*)(?:0x[0-9,a-f]*:  ?)((?:[0-9,a-f]{4} ){1,8})(.*)$"
+re_payload = re.compile( re_payload_str )
+
+#
+# Regex to pull the protocol out of the hex dump of the payload.
+# Lame, I know, but tcpdump is annoying about making that easy to
+# find.
+#
+# e.g.  0x0000:  4510 0034 d9d1 4000 4006 12dd c0a8 0165  <ascii here>
+#                                      ^^ protocol, big endian
+#
+re_proto_str = "^\s*0x0000:\s\s(?:[\d,a-f,\s]{22})([\d,a-f]{2})"
+re_proto = re.compile( re_proto_str )
+
+#
+# Equally ugly is pulling the TCP flags out of the output.  It is far
+# easier to interpret the hex value than tcpdump's format, though.
+#
+# e.g.  0x0020:  8010 80ad 9af8 0000 0101 080a 155b 295a
+#                  ^^ flags, big endian
+#
+re_flags_str = "^\s*0x0020:\s\s(?:[\d,a-f]{2})([\d,a-f]{2})"
+re_flags = re.compile( re_flags_str )
+
+
+#
+# Local functions
+#
+
+def tool_version_exit():
+    print("""%s: Part of @PACKAGE_STRING@
+Copyright (C) 2001-2014 by Carnegie Mellon University
+GNU Public License (GPL) Rights pursuant to Version 2, June 1991
+Government Purpose License Rights (GPLR) pursuant to DFARS 252.227.7013
+Send bug reports, feature requests, and comments to @PACKAGE_BUGREPORT@""" % (appname))
+    sys.exit(0)
+
+
+"""
+Utility function to (optionally print an error message) and exit.
+Never returns.
+"""
+def fatal( msg ):
+    if msg:
+        sys.stderr.write( appname + ": " + msg + "\n" )
+    sys.exit( 1 )
+
+
+"""
+For a given column of output, returns the default character width of
+that column when printed as ASCII text.
+
+If the column is not found, causes the application to terminate.
+"""
+def get_field_width( key, opt ):
+    if key == "time":
+        if opt["epoch_time"]:
+            return 17
+        else:
+            return 26
+    elif key == "sip" or key == "dip":
+        if opt["integer_ips"]:
+            return 10
+        else:
+            return 15
+    elif key == "sport" or key == "dport":
+        return 5
+    elif key == "proto":
+        return 5
+    elif key == "flags":
+        return 8
+    elif key == "payhex" or key == "payascii":
+        return 0
+    else:
+        fatal( "unknown key '%s'" % key )
+
+
+"""
+Prints the column headers.  'key_list' is a list of columns to be
+printed.  'delimiter' is the character delimiter to print in between
+columns.  'columns' is a flag to indicate whether the headers should
+be padded to full column width with whitespace or not.
+
+If the output pipe is broken, the application will terminate silently.
+"""
+def print_header( options ):
+    try:
+        for key in options["fields"]:
+            if options["columns"]:
+                key_str = key.rjust( get_field_width( key, options ) )
+            else:
+                key_str = key
+
+            sys.stdout.write( key_str + options["delimiter"] )
+        sys.stdout.write( "\n" )
+    except IOError as e:
+        # if pipe is broken, exit silently
+        if e.errno == 32:
+            sys.exit( 0 )
+
+    return
+
+
+"""
+Prints the packet data.  'key_list' is a list of columns to be
+printed.  'pkt_dict' is a dictionary of data supplying the data to be
+printed.  'delimiter' is the character delimiter to print in between
+columns.  'columns' is a flag to indicate whether the headers should
+be padded to full column width with whitespace or not.
+
+If 'pkt_dict' does not contain all of the columns in 'key_list',
+print_packet will cause the application to terminate.
+
+If the output pipe is broken, the application will terminate silently.
+"""
+def print_packet( pkt_dict, options ):
+    try:
+        for key in options["fields"]:
+            if key not in pkt_dict:
+                fatal( "Column '%s' not found" % key )
+            if pkt_dict[key] == None:
+                pkt_dict[key] = ""
+
+            key_value = pkt_dict[key]
+            if options["zero_pad_ips"] and ( key == "sip" or key == "dip" ):
+                key_value = dotted_quad_zero_pad( pkt_dict[key] )
+
+            if options["integer_ips"] and ( key == "sip" or key == "dip" ):
+                key_value = dotted_quad_to_num( pkt_dict[key] )
+
+            if options["epoch_time"] and key == "time":
+                key_value = date_to_epoch( pkt_dict[key] )
+
+
+
+            if options["columns"]:
+                key_str = key_value.rjust( get_field_width( key, options ) )
+            else:
+                key_str = key_value
+
+            sys.stdout.write( key_str + options["delimiter"] )
+        sys.stdout.write( "\n" )
+    except IOError as xxx_todo_changeme1:
+        # if pipe is broken, exit silently
+        ( errno, strerror ) = xxx_todo_changeme1.args
+        # if pipe is broken, exit silently
+        if errno == 32:
+            sys.exit( 0 )
+
+    return
+
+
+
+"""
+Parse the command line options and report any errors.  Modifies the
+options dictionary with the results of the options.
+"""
+def parse_options( options ):
+    # get command line args
+    parser = OptionParser(usage="""%prog [options] <infile>""")
+    parser.add_option(
+        "--version",
+        action = "store_true", dest = "version", default = False,
+        help = "print version and exit")
+
+    parser.add_option(
+        "-c", "--columnar",
+        action = "store_true", dest = "columns", default = False,
+        help = "Display in nicely whitespaced columns" )
+
+    parser.set_defaults( delimiter = '|' )
+    parser.add_option(
+        "-d", "--delimiter",
+        action = "store", dest = "delimiter",
+        help = "Set delimiter (Default: |)" )
+
+    parser.add_option(
+        "", "--epoch-time",
+        action = "store_true", dest = "epoch_time", default = False,
+        help = "Display timestamp as epoch time" )
+
+
+    # callback to turn comma delimited list of fields into an actual
+    # list of string field names.
+    default_fields = "time,sip,dip,sport,dport,proto,payhex"
+    parse_fields = lambda option, opt_str, value, parser: \
+                   setattr( parser.values, option.dest,
+                            [ i.strip() for i in value.split( "," ) ] )
+    parser.set_defaults( fields = default_fields.split( "," ) )
+    parser.add_option(
+        "-f", "--fields",
+        action = "callback", callback = parse_fields,
+        dest = "fields", type = "string",
+        help = "Comma separated list of fields to print.  Available " +\
+        "fields:  time, sip, dip, sport, dport, proto, flags, payhex, " +\
+        "payascii.  Default: " + default_fields)
+
+    parser.add_option(
+        "", "--integer-ips",
+        action="store_true", dest = "integer_ips", default = False,
+        help = "Display IP addresses as integers; default dotted quad." )
+
+    parser.add_option(
+        "", "--zero-pad-ips",
+        action = "store_true", dest = "zero_pad_ips", default = False,
+        help = "Pad dotted quad IP addresses with zeroes." )
+
+    ( opt, args ) = parser.parse_args()
+
+    if opt.version:
+        tool_version_exit()
+
+    options.update( opt.__dict__ )
+
+    if len( args ) == 0:
+        fatal( "No input file(s) found" )
+    options["files"] = args
+
+    # check for unknown fields
+    for key in options["fields"]:
+        get_field_width( key, options )
+
+    # Parse --epoch-time
+    #    options["epoch_time"] = opt.epoch_time
+
+    print(options)
+    return
+
+
+
+"""
+Convert the decimal representation of TCP flags into a string
+representation.
+
+"""
+def parse_flags( iflags ):
+
+    flags = {}
+    if ( iflags >> 0 ) & 0x1:
+        flags["F"] = "F"
+    else:
+        flags["F"] = " "
+
+    if ( iflags >> 1 ) & 0x1:
+        flags["S"] = "S"
+    else:
+        flags["S"] = " "
+
+    if ( iflags >> 2 ) & 0x1:
+        flags["R"] = "R"
+    else:
+        flags["R"] = " "
+
+    if ( iflags >> 3 ) & 0x1:
+        flags["P"] = "P"
+    else:
+        flags["P"] = " "
+
+    if ( iflags >> 4 ) & 0x1:
+        flags["A"] = "A"
+    else:
+        flags["A"] = " "
+
+    if ( iflags >> 5 ) & 0x1:
+        flags["U"] = "U"
+    else:
+        flags["U"] = " "
+
+    if ( iflags >> 6 ) & 0x1:
+        flags["E"] = "E"
+    else:
+        flags["E"] = " "
+
+    if ( iflags >> 7 ) & 0x1:
+        flags["C"] = "C"
+    else:
+        flags["C"] = " "
+
+    return "%(F)s%(S)s%(R)s%(P)s%(A)s%(U)s%(E)s%(C)s" % flags
+
+
+def dotted_quad_to_num( ip ):
+    "convert decimal dotted quad string to long integer string"
+    hexn = ''.join( [ "%02X" % int( i ) for i in ip.split( '.' ) ] )
+    return str( int( hexn, 16 ) )
+
+
+def dotted_quad_zero_pad( ip ):
+    "zero-pad a dotted quad IP address"
+    return '.'.join( [ "%03d" % int( i ) for i in ip.split( '.' ) ] )
+
+
+def date_to_epoch( date ):
+    "convert string formatted date into epoch timestamp"
+    try:
+        ts, msec = date.split( '.' )
+        epoch_str = calendar.timegm( time.strptime( ts, "%Y-%m-%d %H:%M:%S" ) )
+        return ".".join( [ str( epoch_str ), msec ] )
+    except ValueError:
+        pass
+
+
+def main():
+    global appname
+    appname = os.path.basename(sys.argv[0])
+    opt = {}
+    parse_options( opt )
+
+    header_printed = False
+
+    command_line = ["tcpdump", "-tttt", "-nn"]
+
+    if "payhex" in opt["fields"] \
+       or "payascii" in opt["fields"] \
+       or "proto" in opt["fields"] \
+       or "flags" in opt["fields"]:
+        command_line.append("-X")
+
+
+    for f in opt["files"]:
+        cmd = command_line + ["-r", f]
+        proc = subprocess.Popen(cmd, close_fds=True, bufsize=1,
+                                stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                                stderr=subprocess.PIPE)
+        proc.stdin.close()
+
+        # read and print tcpdump stderr message.  if it is a tcpdump
+        # error, stop processing
+        errbuf = proc.stderr.readline()
+        if isinstance(errbuf, bytes):
+            errbuf = errbuf.decode()
+        if errbuf[:8] == "tcpdump:":
+            errbuf2 = proc.stderr.read()
+            if isinstance(errbuf2, bytes):
+                errbuf = errbuf + errbuf2.decode()
+            else:
+                errbuf = errbuf + errbuf2
+            print(errbuf)
+            fatal( None )
+        else:
+            print(errbuf)
+
+        # Print the header (delimited column names) if they haven't
+        # been printed yet.
+        if not header_printed:
+            print_header( opt )
+            header_printed = True
+
+        # store packet information
+        first_packet = True
+        pkt_dict = {}
+
+        # variables to store payload information
+        hex_list = []
+        ascii_list = []
+        flags = None
+        proto = None
+
+        for line in proc.stdout:
+            if isinstance(line, bytes):
+                line = line.decode()
+            match_obj = re_tcpdump.match( line )
+
+            # if we don't match, it is a payload line.  if we do
+            # match, it is a packet output line.
+            if match_obj == None:
+                payload_obj = re_payload.match( line )
+                if payload_obj != None:
+                    hex_list.extend( payload_obj.groups()[0].split( " " ) )
+                    ascii_list.extend( payload_obj.groups()[1].split( " " ) )
+
+                proto_obj = re_proto.match( line )
+                if proto_obj != None:
+                    proto = int(proto_obj.groups()[0], 16)
+                    pkt_dict["proto"] = str( proto )
+
+                flags_obj = re_flags.match( line )
+                if flags_obj != None:
+                    flags = int(flags_obj.groups()[0], 16)
+                    if pkt_dict["proto"] == "6":
+                        pkt_dict["flags"] = parse_flags( flags )
+            else:
+
+                #
+                # we found a new packet, so output the old one before
+                # we clobber the dictionary.  (obviously, don't try to
+                # output the initial empty dictionary, and make sure
+                # to output the last packet (since this block of code
+                # won't trigger.)
+                #
+                if not first_packet:
+                    # collate payload
+                    pkt_dict["payhex"] = "".join( hex_list )
+                    pkt_dict["payascii"] = "".join( ascii_list )
+                    hex_list = []
+                    ascii_list = []
+
+                    if "flags" not in pkt_dict:
+                        pkt_dict["flags"] = ""
+
+                    print_packet( pkt_dict, opt )
+                    pkt_dict = {}
+
+                first_packet = False
+
+                #
+                # overwrite the packet information dictionary with the
+                # data for the new packet
+                #
+                pkt_dict = match_obj.groupdict()
+
+                # munge timestamp
+                pkt_dict["time"] = pkt_dict["date"] + " " +\
+                                   pkt_dict["time"]
+
+            # end if loop
+        # end for loop
+
+        if not first_packet:
+            #
+            # print the last packet
+            #
+
+            # collate payload
+            pkt_dict["payhex"] = "".join( hex_list )
+            pkt_dict["payascii"] = "".join( ascii_list )
+            hex_list = []
+            ascii_list = []
+
+            if "flags" not in pkt_dict:
+                pkt_dict["flags"] = ""
+
+            print_packet( pkt_dict, opt )
+            pkt_dict = {}
+
+    return
+
+
+
+# call main
+if __name__ == "__main__":
+    main()
+    sys.exit( 0 )
+
+
+# Local Variables:
+# mode:python
+# indent-tabs-mode:nil
+# End:

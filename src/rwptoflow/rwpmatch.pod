@@ -1,0 +1,131 @@
+=pod
+
+=head1 NAME
+
+B<rwpmatch> - Filter a tcpdump file using a SiLK Flow file
+
+=head1 SYNOPSIS
+
+  rwpmatch --flow-file=FLOW_FILE [--msec-compare] [--ports-compare]
+        TCPDUMP_INPUT > TCPDUMP_OUTPUT
+
+  rwpmatch --help
+
+  rwpmatch --version
+
+=head1 DESCRIPTION
+
+B<rwpmatch> reads each packet from the B<pcap(3)> (B<tcpdump(1)>)
+capture file I<TCPDUMP_INPUT> and writes the packet to the standard
+output if the specified I<FLOW_FILE> contains a matching SiLK Flow
+record.  It is designed to reverse the input from B<rwptoflow(1)>.
+
+B<rwpmatch> will read the pcap capture data from its standard input if
+I<TCPDUMP_INPUT> is specified as C<stdin>.  The application will fail
+when attempting to read or write binary data from or to a terminal.
+
+The SiLK Flow records in I<FLOW_FILE> should appear in time sorted
+order.
+
+
+=head1 OPTIONS
+
+Option names may be abbreviated if the abbreviation is unique or is an
+exact match for an option.  A parameter to an option may be specified
+as B<--arg>=I<param> or B<--arg> I<param>, though the first form is
+required for options that take optional parameters.
+
+=over 4
+
+=item B<--flow-file>=I<FLOW_FILE>
+
+I<FLOW_FILE> refers to a file, named pipe, or the string C<stdin>.
+The flow file determines which packet records should be output to the
+new packet file.  This switch is required.
+
+=item B<--msec-compare>
+
+Compare times down to the millisecond (rather than the default of
+second).
+
+=item B<--ports-compare>
+
+For TCP and UDP data, compare the source and destination ports when
+matching.
+
+=item B<--help>
+
+Print the available options and exit.
+
+=item B<--version>
+
+Print the version number and information about how SiLK was
+configured, then exit the application.
+
+=back
+
+
+=head1 EXAMPLES
+
+In the following examples, the dollar sign (C<$>) represents the shell
+prompt.  The text after the dollar sign represents the command line.
+
+=for comment
+Lines have been wrapped for improved readability, and the back slash
+(C<\>) is used to indicate a wrapped line.
+
+Given the B<pcap> capture file F<data.pcap>, convert it to a SiLK flow
+file:
+
+ $ rwptoflow data.pcap --packet-pass=good.pcap --flow-out=data.rw
+
+Filter the SiLK flows---passing those records whose source IPs are
+found in the IPset file F<sip.set>:
+
+ $ rwfilter --sipset=sip.set --pass=filtered.rw  data.rw
+
+Match the original B<pcap> file against the filtered SiLK file, in
+effect generating a B<pcap> file which has been filtered by
+F<sip.set>:
+
+ $ rwpmatch --flow-file=filtered.rw good.pcap > filtered.pcap
+
+
+=head1 NOTES
+
+For best results, the B<tcpdump> input to B<rwpmatch> should be the
+output from B<--packet-pass-output> switch on B<rwptoflow>.  This
+ensures that only well-behaved packets are given to B<rwpmatch>.
+
+The flow file input to B<rwpmatch> should contain single-packet flows
+originally derived from a B<tcpdump> file using B<rwptoflow>.  If a
+flow record is found which does not represent a corresponding
+B<tcpdump> record, B<rwpmatch> will return an error.
+
+Both the B<tcpdump> and the SiLK file inputs must be time-ordered.
+
+B<rwpmatch> is an expensive I/O application since it reads the entire
+B<tcpdump> capture file and the entire SiLK Flow file.  It may be
+worthwhile to optimize an analysis process to avoid using B<rwpmatch>
+until payload filtering is necessary.  Saving the output from
+B<rwpmatch> as a partial-results file, and matching against that in
+the future (rather than the original B<tcpdump> file) can also provide
+significant performance gains.
+
+SiLK supports millisecond timestamps.  When reading packets whose
+timestamps have finer precision, the times are truncated at the
+millisecond position.
+
+
+=head1 SEE ALSO
+
+B<rwptoflow(1)>, B<rwfilter(1)>, B<silk(7)>, B<tcpdump(1)>, B<pcap(3)>
+
+=cut
+
+$SiLK: rwpmatch.pod cd09f0a5fcc6 2014-06-14 15:43:33Z mthomas $
+
+Local Variables:
+mode:text
+indent-tabs-mode:nil
+End:

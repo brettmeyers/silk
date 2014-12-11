@@ -1,0 +1,1289 @@
+=pod
+
+=head1 NAME
+
+B<rwuniq> - Bin SiLK Flow records by a key and print each bin's volume
+
+=head1 SYNOPSIS
+
+  rwuniq --fields=KEY [--values=VALUES]
+        [--all-counts] [{--bytes | --bytes=MIN | --bytes=MIN-MAX}]
+        [{--packets | --packets=MIN | --packets=MIN-MAX}]
+        [{--flows | --flows=MIN | --flows=MIN-MAX}]
+        [--stime] [--etime]
+        [{--sip-distinct | --sip-distinct=MIN | --sip-distinct=MIN-MAX}]
+        [{--dip-distinct | --dip-distinct=MIN | --dip-distinct=MIN-MAX}]
+        [--presorted-input] [--sort-output]
+        [{--bin-time | --bin-time=SECONDS}]
+        [--timestamp-format=FORMAT] [--epoch-time]
+        [--ip-format=FORMAT] [--integer-ips] [--zero-pad-ips]
+        [--integer-sensors] [--integer-tcp-flags]
+        [--no-titles] [--no-columns] [--column-separator=CHAR]
+        [--no-final-delimiter] [{--delimited | --delimited=CHAR}]
+        [--print-filenames] [--copy-input=PATH] [--output-path=PATH]
+        [--pager=PAGER_PROG] [--temp-directory=DIR_PATH]
+        [{--legacy-timestamps | --legacy-timestamps={1,0}}]
+        [--ipv6-policy={ignore,asv4,mix,force,only}]
+        [--site-config-file=FILENAME]
+        [--plugin=PLUGIN [--plugin=PLUGIN ...]]
+        [--python-file=PATH [--python-file=PATH ...]]
+        [--pmap-file=MAPNAME:PATH [--pmap-file=MAPNAME:PATH ...]]
+        [--pmap-column-width=NUM]
+        {[--xargs] | [--xargs=FILENAME] | [FILE [FILE ...]]}
+
+  rwuniq [--pmap-file=MAPNAME:PATH [--pmap-file=MAPNAME:PATH ...]]
+        [--plugin=PLUGIN ...] [--python-file=PATH ...] --help
+
+  rwuniq [--pmap-file=MAPNAME:PATH [--pmap-file=MAPNAME:PATH ...]]
+        [--plugin=PLUGIN ...] [--python-file=PATH ...] --help-fields
+
+  rwuniq --version
+
+=head1 DESCRIPTION
+
+B<rwuniq> reads SiLK Flow records and groups them by a key composed of
+user-specified attributes of the flows.  For each group (or bin), a
+collection of user-specified I<aggregate values> is computed; these
+values are typically related to the volume of the bin, such as the sum
+of the bytes fields for all records that match the key.  Once all the
+SiLK Flow records are read, the key fields and the aggregate values
+are printed.  For some of the built-in aggregate values, it is
+possible to limit the output to the bins where the aggregate value
+meets a user-specified minimum and/or maximum.
+
+There is no need to sort the input to B<rwuniq> since B<rwuniq>
+normally rearranges the records as they are read.  To have B<rwuniq>
+sort its output, use the B<--sort-output> switch.
+
+B<rwuniq> reads SiLK Flow records from the files named on the command
+line or from the standard input when no file names are specified and
+B<--xargs> is not present.  To read the standard input in addition to
+the named files, use C<-> or C<stdin> as a file name.  If an input
+file name ends in C<.gz>, the file will be uncompressed as it is read.
+When the B<--xargs> switch is provided, B<rwuniq> will read the names
+of the files to process from the named text file, or from the standard
+input if no file name argument is provided to the switch.  The input
+to B<--xargs> must contain one file name per line.
+
+The user must provide the B<--fields> switch to select the flow
+attribute(s) (or field(s)) that comprise the key for each bin.  The
+available fields are similar to those supported by B<rwcut(1)>; see
+the description of the B<--fields> switch in the L</OPTIONS> section
+below for the details.  The list of fields can be extended by loading
+PySiLK files (see B<silkpython(3)>) or plug-ins (B<silk-plugin(3)>).
+The fields will be printed in the order in which they occur in the
+B<--fields> switch.  The size of the key is limited to 256 octets.  A
+larger key will more quickly use the available the memory leading to
+slower performance.
+
+The aggregate value(s) to compute for each bin are also chosen by the
+user.  As with the key fields, the user can extend the list of
+aggregate fields by using PySiLK or plug-ins.  The preferred way to
+specify the aggregate fields is to use the B<--values> switch; the
+aggregate fields will be printed in the order they occur in the
+B<--values> switch.  The thresholding switches (e.g., B<--bytes>) can
+also be used to specify the aggregate values to compute.  Aggregate
+values that are only specified with thresholding switches will be
+printed after those that appear in B<--values>, in the following order
+for backward compatibility: bytes, packets, flows, stime, etime,
+sip-distinct, dip-distinct.  If the user does not select any aggregate
+value(s), B<rwuniq> defaults to computing the number of flow records
+for each bin and printing all bins.  As with the key fields,
+requesting more aggregate values slows performance.
+
+The B<--presorted-input> switch may allow B<rwuniq> to process data
+more efficiently by causing B<rwuniq> to assume the input has been
+previously sorted with the B<rwsort(1)> command.  With this switch,
+B<rwuniq> does not need large amounts of memory because it does not
+bin each flow; instead, it keeps a running summation and outputs the
+bin whenever the key changes.  For the output to be meaningful,
+B<rwsort> and B<rwuniq> I<must> be invoked with the same B<--fields>
+value.  When multiple input files are specified and
+B<--presorted-input> is given, B<rwuniq> will merge-sort the flow
+records from the input files.  B<rwuniq> will usually run faster if
+you do I<not> include the B<--presorted-input> switch when counting
+distinct IP addresses, even when reading sorted input.  Finally, you
+may get unusual results with B<--presorted-input> when the B<--fields>
+switch contains multiple time-related key fields (C<sTime>,
+C<duration>, C<eTime>), or when the time-related key is not the final
+key listed in B<--fields>; see the L</NOTES> section for details.
+
+B<rwuniq> attempts to keep all key and aggregate value data in the
+computer's memory.  If B<rwuniq> runs out of memory, the current key
+and aggregate value data is written to a temporary file.  Once all
+input has been processed, the data from the temporary files is merged
+to produce the final output.  By default, these temporary files are
+stored in the F</tmp> directory.  Because these files can be large, it
+is strongly recommended that F</tmp> I<not> be used as the temporary
+directory.  To modify the temporary directory used by B<rwuniq>,
+provide the B<--temp-directory> switch, set the SILK_TMPDIR
+environment variable, or set the TMPDIR environment variable.
+
+B<rwuniq> may run out of memory when computing distinct IP counts,
+causing the counts for some bins to be smaller than the actual number
+of distinct IPs.  When this occurs, a single warning is printed the
+standard error noting that B<rwuniq> has run out of memory, processing
+continues, and B<rwuniq> exits with status 16.
+
+=head1 OPTIONS
+
+Option names may be abbreviated if the abbreviation is unique or is an
+exact match for an option.  A parameter to an option may be specified
+as B<--arg>=I<param> or B<--arg> I<param>, though the first form is
+required for options that take optional parameters.
+
+The B<--fields> switch is required.  B<rwuniq> will fail when it is
+not provided.
+
+=over 4
+
+=item B<--fields>=I<KEY>
+
+I<KEY> contains the list of flow attributes (a.k.a. fields or columns)
+that make up the key into which flows are binned.  The columns will be
+displayed in the order the fields are specified.  Each field may be
+specified once only.  I<KEY> is a comma separated list of field-names,
+field-integers, and ranges of field-integers; a range is specified by
+separating the start and end of the range with a hyphen (B<->).
+Field-names are case insensitive.  Example:
+
+ --fields=stime,10,1-5
+
+There is no default value for the B<--fields> switch; the switch must
+be specified.
+
+The complete list of built-in fields that the SiLK tool suite supports
+follows, though note that not all fields are present in all SiLK file
+formats; when a field is not present, its value is 0.
+
+=over 4
+
+=item sIP,1
+
+source IP address
+
+=item dIP,2
+
+destination IP address
+
+=item sPort,3
+
+source port for TCP and UDP, or equivalent
+
+=item dPort,4
+
+destination port for TCP and UDP, or equivalent.  See note at C<iType>.
+
+=item protocol,5
+
+IP protocol
+
+=item packets,pkts,6
+
+packet count
+
+=item bytes,7
+
+byte count
+
+=item flags,8
+
+bit-wise OR of TCP flags over all packets
+
+=item sTime,9
+
+starting time of flow (seconds resolution). When the time-related
+fields C<sTime>,C<duration>,C<eTime> are all in use, B<rwuniq> will ignore
+the final time field when binning the records.
+
+=item duration,10
+
+duration of flow (seconds resolution).  See note at C<sTime,9>.
+
+=item eTime,11
+
+end time of flow (seconds resolution).  See note at C<sTime,9>.
+
+=item sensor,12
+
+name or ID of the sensor where the flow was collected
+
+=item class,20
+
+class assigned to the flow by B<rwflowpack(8)>.  Binning by C<class>
+and/or C<type> equates to binning by the integer value used internally
+to represent the class/type pair.  When B<--fields> contains C<class>
+but not C<type>, B<rwuniq>'s output will have multiple rows with the
+same value(s) for the key field(s).
+
+=item type,21
+
+type assigned to the flow by B<rwflowpack(8)>.  See note on previous
+entry.
+
+=item iType
+
+the ICMP type value for ICMP or ICMPv6 flows and empty (numerically
+zero) for non-ICMP flows.  Internally, SiLK stores the ICMP type and
+code in the C<dPort> field.  To avoid getting very odd results, either
+do not use the C<dPort> field when your key includes ICMP field(s) or
+be certain to include the C<protocol> field as part of your key.  This
+field was introduced in SiLK 3.8.1.
+
+=item iCode
+
+the ICMP code value for ICMP or ICMPv6 flows and empty for non-ICMP
+flows.  See note at C<iType>.
+
+=item icmpTypeCode,25
+
+equivalent to C<iType>,C<iCode> when used in B<--fields>.  This field
+may not be mixed with C<iType> or C<iCode>, and this field is
+deprecated as of SiLK 3.8.1.  As of SiLK 3.8.1, C<icmpTypeCode> may no
+longer be used as the argument to the C<Distinct:> value field; the
+C<dPort> field will provide an equivalent result as long as the input
+is limited to ICMP flow records.
+
+=back
+
+Many SiLK file formats do not store the following fields and their
+values will always be 0; they are listed here for completeness:
+
+=over 4
+
+=item in,13
+
+router SNMP input interface or vlanId if packing tools were
+configured to capture it (see B<sensor.conf(5)>)
+
+=item out,14
+
+router SNMP output interface or postVlanId
+
+=item nhIP,15
+
+router next hop IP
+
+=back
+
+SiLK can store flows generated by enhanced collection software that
+provides more information than NetFlow v5.  These flows may support
+some or all of these additional fields; for flows without this
+additional information, the field's value is always 0.
+
+=over 4
+
+=item initialFlags,26
+
+TCP flags on first packet in the flow
+
+=item sessionFlags,27
+
+bit-wise OR of TCP flags over all packets except the first in the flow
+
+=item attributes,28
+
+flow attributes set by the flow generator:
+
+=over 4
+
+=item C<S>
+
+all the packets in this flow record are exactly the same size
+
+=item C<F>
+
+flow generator saw additional packets in this flow following a packet
+with a FIN flag (excluding ACK packets)
+
+=item C<T>
+
+flow generator prematurely created a record for a long-running
+connection due to a timeout.  (When the flow generator B<yaf(1)> is
+run with the B<--silk> switch, it will prematurely create a flow and
+mark it with C<T> if the byte count of the flow cannot be stored in a
+32-bit value.)
+
+=item C<C>
+
+flow generator created this flow as a continuation of long-running
+connection, where the previous flow for this connection met a timeout
+(or a byte threshold in the case of B<yaf>).
+
+=back
+
+Consider a long-running ssh session that exceeds the flow generator's
+I<active> timeout.  (This is the active timeout since the flow
+generator creates a flow for a connection that still has activity).
+The flow generator will create multiple flow records for this ssh
+session, each spanning some portion of the total session.  The first
+flow record will be marked with a C<T> indicating that it hit the
+timeout.  The second through next-to-last records will be marked with
+C<TC> indicating that this flow both timed out and is a continuation
+of a flow that timed out.  The final flow will be marked with a C<C>,
+indicating that it was created as a continuation of an active flow.
+
+=item application,29
+
+guess as to the content of the flow.  Some software that generates flow
+records from packet data, such as B<yaf>, will inspect the contents of
+the packets that make up a flow and use traffic signatures to label
+the content of the flow.  SiLK calls this label the I<application>;
+B<yaf> refers to it as the I<appLabel>.  The application is the port
+number that is traditionally used for that type of traffic (see the
+F</etc/services> file on most UNIX systems).  For example, traffic
+that the flow generator recognizes as FTP will have a value of 21,
+even if that traffic is being routed through the standard HTTP/web
+S<port (80)>.
+
+=back
+
+The following fields provide a way to label the IPs or ports on a
+record.  These fields require external files to provide the mapping
+from the IP or port to the label:
+
+=over 4
+
+=item sType,16
+
+for the source IP address, the value 0 if the address is non-routable,
+1 if it is internal, or 2 if it is routable and external.  Uses the
+mapping file specified by the SILK_ADDRESS_TYPES environment variable,
+or the F<address_types.pmap> mapping file, as described in
+B<addrtype(3)>.
+
+=item dType,17
+
+as B<sType> for the destination IP address
+
+=item scc,18
+
+for the source IP address, a two-letter country code abbreviation
+denoting the country where that IP address is located.  Uses the
+mapping file specified by the SILK_COUNTRY_CODES environment variable,
+or the F<country_codes.pmap> mapping file, as described in
+B<ccfilter(3)>.  The abbreviations are those used by the Root-Zone
+Whois Index (see for example
+L<http://www.iana.org/cctld/cctld-whois.htm>) or the following special
+codes: B<--> N/A (e.g. private and experimental reserved addresses);
+B<a1> anonymous proxy; B<a2> satellite provider; B<o1> other
+
+=item dcc,19
+
+as B<scc> for the destination IP
+
+=item src-I<MAPNAME>
+
+label determined by passing the source IP or the protocol/source-port
+to the user-defined mapping defined in the prefix map associated with
+I<MAPNAME>.  See the description of the B<--pmap-file> switch below
+and the B<pmapfilter(3)> manual page.
+
+=item dst-I<MAPNAME>
+
+as B<src-I<MAPNAME>> for the destination IP or
+protocol/destination-port.
+
+=item sval
+
+=item dval
+
+These are deprecated field names created by B<pmapfilter> that
+correspond to B<src-I<MAPNAME>> and B<dst-I<MAPNAME>>, respectively.
+These fields are available when a prefix map is used that is
+not associated with a I<MAPNAME>.
+
+=back
+
+Finally, the list of built-in fields may be augmented by the run-time
+loading of PySiLK code or plug-ins written in C (also called shared
+object files or dynamic libraries), as described by the
+B<--python-file> and B<--plugin> switches.
+
+=for comment
+##########################################################################
+# Whew!  We've finally reached the end of the --fields help
+
+=item B<--values>=I<VALUES>
+
+Specify the aggregate values to compute for each bin as a comma
+separated list of names.  Names are case insensitive.  When a
+thresholding switch specifies an aggregate value field that does
+appear in I<VALUES>, that field is added to end of I<VALUES>.  When
+neither the B<--values> switch nor any thresholding switch is
+specified, B<rwuniq> counts the number of flow records for each bin.
+The aggregate fields are printed in the order they occur in I<VALUES>.
+The names of the built-in value fields follow.  This list can be
+augmented through the use of PySiLK and plug-ins.
+
+=over 4
+
+=item Records
+
+Count the number of flow records that mapped to each bin.
+
+=item Packets
+
+Sum the number of packets across all records that mapped to each bin.
+
+=item Bytes
+
+Sum the number of bytes across all records that mapped to each bin.
+
+=item sTime-Earliest
+
+=item eTime-Latest
+
+=item sIP-Distinct
+
+Count the number of distinct source IP addresses that were seen for
+each bin.
+
+=item dIP-Distinct
+
+Count the number of distinct destination IP addresses that were seen
+for each bin.
+
+=item Distinct:I<KEY_FIELD>
+
+Count the number of distinct values for I<KEY_FIELD>, where
+I<KEY_FIELD> is any field that can be used as an argument to
+B<--fields> except C<icmpTypeCode>.  For example, C<Distinct:sPort>
+will count the number of
+distinct source ports for each bin.  When this aggregate value field
+is used, the specified I<KEY_FIELD> cannot be present in the argument
+to B<--fields>.
+
+=back
+
+=item B<--plugin>=I<PLUGIN>
+
+Augment the list of key fields and/or aggregate value fields by using
+run-time loading of the plug-in (shared object) whose path is
+I<PLUGIN>.  The switch may be repeated to load multiple plug-ins.  The
+creation of plug-ins is described in the B<silk-plugin(3)> manual
+page.  When I<PLUGIN> does not contain a slash (C</>), B<rwuniq> will
+attempt to find a file named I<PLUGIN> in the directories listed in
+the L</FILES> section.  If B<rwuniq> finds the file, it uses that
+path.  If I<PLUGIN> contains a slash or if B<rwuniq> does not find the
+file, B<rwuniq> relies on your operating system's B<dlopen(3)> call to
+find the file.  When the SILK_PLUGIN_DEBUG environment variable is
+non-empty, B<rwuniq> prints status messages to the standard error as
+it attempts to find and open each of its plug-ins.
+
+=back
+
+The next eight options will add the appropriate aggregate field to
+B<--values> if the field is not present.  The options are processed in
+the order they appear here, regardless of the order they occur on the
+command line.  Use of these switches without a threshold value is
+deprecated.
+
+=over 4
+
+=item B<--all-counts>
+
+Enable the next five sets of options with their default thresholds;
+i.e., all possible counts (except the distinct counts) are computed
+and printed.  This switch is deprecated.
+
+=item B<--bytes>
+
+=item B<--bytes>=I<MIN>
+
+=item B<--bytes>=I<MIN>-I<MAX>
+
+Cause B<rwuniq> to total, for each unique key, the number of bytes in
+each flow record.  When I<MIN> is provided, bins are printed only when
+they had at least I<MIN> total bytes.  When I<MAX> is also provided,
+bins are printed only when they had no more than I<MAX> total bytes.
+A I<MIN> of 0 is treated as 1.  When I<MIN> is not provided, a default
+of 1 is used.
+
+=item B<--packets>
+
+=item B<--packets>=I<MIN>
+
+=item B<--packets>=I<MIN>-I<MAX>
+
+Cause B<rwuniq> to sum, for each unique key, the number of packets in
+each flow record.  When I<MIN> is provided, bins are printed only when
+they had at least I<MIN> sum of packets.  When I<MAX> is also
+provided, bins are printed only when they had no more than I<MAX> sum
+of packets.  A I<MIN> of 0 is treated as 1.  When I<MIN> is not
+provided, a default of 1 is used.
+
+=item B<--flows>
+
+=item B<--flows>=I<MIN>
+
+=item B<--flows>=I<MIN>-I<MAX>
+
+Cause B<rwuniq> to sum the number of flow records in each uniquely
+keyed bin.  When I<MIN> is provided, bins are printed only when they
+had at least I<MIN> number of flows.  When I<MAX> is also provided,
+bins are printed only when they had no more than I<MAX> flows.  A
+I<MIN> of 0 is treated as 1.  When I<MIN> is not provided, a default
+of 1 is used.
+
+=item B<--stime>
+
+Cause B<rwuniq> to keep track of the earliest time at which it saw a
+flow that matched each bin's unique key.  This option does not support
+thresholds, and it is deprecated.
+
+=item B<--etime>
+
+Cause B<rwuniq> to keep track of the latest (most recent) time at
+which it saw a flow that matched each bin's unique key.  This option
+does not support thresholds, and it is deprecated.
+
+=item B<--sip-distinct>
+
+=item B<--sip-distinct>=I<MIN>
+
+=item B<--sip-distinct>=I<MIN>-I<MAX>
+
+Cause B<rwuniq> to count the number of distinct source IP addresses
+that were seen for each uniquely keyed bin.  When I<MIN> is provided,
+bins are printed only when they had at least I<MIN> distinct sources.
+When I<MAX> is also provided, bins are printed only when they had no
+more than I<MAX> distinct sources.  A I<MIN> of 0 is treated as 1.
+When I<MIN> is not provided, a default of 1 is used.  When this switch
+is provided, the sIP field cannot be part of the key.
+
+=item B<--dip-distinct>
+
+=item B<--dip-distinct>=I<MIN>
+
+=item B<--dip-distinct>=I<MIN>-I<MAX>
+
+As B<--sip-distinct> for destination IP addresses.
+
+=back
+
+Miscellaneous options:
+
+=over 4
+
+=item B<--presorted-input>
+
+Cause B<rwuniq> to assume that it is reading sorted input; i.e., that
+B<rwuniq>'s input file(s) were generated by B<rwsort(1)> using the
+I<exact same> value for the B<--fields> switch.  This option allows
+B<rwuniq> to process an endless stream of records.  When multiple
+input files are specified, B<rwuniq> will merge-sort the flow records
+from the input files.  See the L</NOTES> section for issues that may
+occur when using B<--presorted-input>.
+
+=item B<--sort-output>
+
+Cause B<rwuniq> to present the output in sorted numerical order.  The
+key B<rwuniq> uses for sorting is the same key it uses to index each
+bin.
+
+=item B<--bin-time>
+
+=item B<--bin-time>=I<SECONDS>
+
+Adjust the key fields 'sTime' and 'eTime' to appear on
+I<SECONDS>-second boundaries (the floor of the time is used).  When no
+value is provided to the switch, 60-second time bins are used.  (When
+the start-time is the only key field and time binning is desired,
+consider using B<rwcount(1)> instead.)
+
+=item B<--timestamp-format>=I<FORMAT>
+
+Specify how timestamps will be printed.  When this switch is not
+specified, timestamps are printed in the default format, and the
+timezone is UTC unless SiLK was compiled with local timezone support.
+I<FORMAT> is a comma-separated list of a format and/or a timezone.
+The format is one of:
+
+=over 4
+
+=item default
+
+Print the timestamps as C<I<YYYY>/I<MM>/I<DD>TI<hh>:I<mm>:I<ss>>.
+
+=item iso
+
+Print the timestamps as S<C<I<YYYY>-I<MM>-I<DD> I<hh>:I<mm>:I<ss>>>.
+
+=item m/d/y
+
+Print the timestamps as S<C<I<MM>/I<DD>/I<YYYY> I<hh>:I<mm>:I<ss>>>.
+
+=item epoch
+
+Print the timestamps as the number of seconds since 00:00:00 UTC on
+1970-01-01.
+
+=back
+
+When a timezone is specified, it is used regardless of the default
+timezone support compiled into SiLK.  The timezone is one of:
+
+=over 4
+
+=item utc
+
+Use Coordinated Universal Time to print timestamps.
+
+=item local
+
+Use the TZ environment variable or the local timezone.
+
+=back
+
+=item B<--epoch-time>
+
+Print timestamps as epoch time (number of seconds since midnight GMT
+on 1970-01-01).  This switch is equivalent to
+B<--timestamp-format=epoch>, it is deprecated as of SiLK 3.0.0, and it
+will be removed in the SiLK 4.0 release.
+
+=item B<--ip-format>=I<FORMAT>
+
+Specify how IP addresses will be printed.  When this switch is not
+specified, IPs are printed in the canonical format.  The I<FORMAT> is
+one of:
+
+=over 4
+
+=item canonical
+
+Print IP addresses in their canonical form: dotted quad for IPv4
+(C<127.0.0.1>) and hexadectet for IPv6 (C<2001:db8::1>).  Note that
+IPv6 addresses in ::ffff:0:0/96 and some IPv6 addresses in ::/96 will
+be printed as a mixture of IPv6 and IPv4.
+
+=item zero-padded
+
+Print IP addresses in their canonical form, but add zeros to the
+output so it fully fills the width of column.  The addresses
+C<127.0.0.1> and C<2001:db8::1> are printed as C<127.000.000.001> and
+C<2001:0db8:0000:0000:0000:0000:0000:0001>, respectively.  When the
+B<--ipv6-policy> is C<force>, the output for C<127.0.0.1> becomes
+C<0000:0000:0000:0000:0000:ffff:7f00:0001>.
+
+=item decimal
+
+Print IP addresses as integers in decimal format.  The addresses
+C<127.0.0.1> and C<2001:db8::1> are printed as C<2130706433> and
+C<42540766411282592856903984951653826561>, respectively.
+
+=item hexadecimal
+
+Print IP addresses as integers in hexadecimal format.  The addresses
+C<127.0.0.1> and C<2001:db8::1> are printed as C<7f000001> and
+C<20010db8000000000000000000000001>, respectively.
+
+=item force-ipv6
+
+Print all IP addresses in the canonical form for IPv6 without using
+any IPv4 notation.  Any IPv4 address is mapped into the ::ffff:0:0/96
+netblock.  The addresses C<127.0.0.1> and C<2001:db8::1> are printed
+as C<::ffff:7f00:1> and C<2001:db8::1>, respectively.
+
+=back
+
+=item B<--integer-ips>
+
+Print IP addresses as integers.  This switch is equivalent to
+B<--ip-format=decimal>, it is deprecated as of SiLK 3.7.0, and it will
+be removed in the SiLK 4.0 release.
+
+=item B<--zero-pad-ips>
+
+Print IP addresses as fully-expanded, zero-padded values in their
+canonical form.  This switch is equivalent to
+B<--ip-format=zero-padded>, it is deprecated as of SiLK 3.7.0, and it
+will be removed in the SiLK 4.0 release.
+
+=item B<--integer-sensors>
+
+Print the integer ID of the sensor rather than its name.
+
+=item B<--integer-tcp-flags>
+
+Print the TCP flag fields (flags, initialFlags, sessionFlags) as an
+integer value.  Typically, the characters C<F,S,R,P,A,U,E,C> are used
+to represent the TCP flags.
+
+=item B<--no-titles>
+
+Turn off column titles.  By default, titles are printed.
+
+=item B<--no-columns>
+
+Disable fixed-width columnar output.
+
+=item B<--column-separator>=I<C>
+
+Use specified character between columns and after the final column.
+When this switch is not specified, the default of 'B<|>' is used.
+
+=item B<--no-final-delimiter>
+
+Do not print the column separator after the final column.  Normally a
+delimiter is printed.
+
+=item B<--delimited>
+
+=item B<--delimited>=I<C>
+
+Run as if B<--no-columns> B<--no-final-delimiter> B<--column-sep>=I<C>
+had been specified.  That is, disable fixed-width columnar output; if
+character I<C> is provided, it is used as the delimiter between
+columns instead of the default 'B<|>'.
+
+=item B<--print-filenames>
+
+Prints to the standard error the names of input files as they are
+opened.
+
+=item B<--copy-input>=I<PATH>
+
+Copy all binary input to the specified file or named pipe.  I<PATH>
+can be C<stdout> to print flows to the standard output as long as the
+B<--output-path> switch has been used to redirect B<rwuniq>'s ASCII
+output.
+
+=item B<--output-path>=I<PATH>
+
+Determines where the output of B<rwuniq> (ASCII text) is written.  If
+this option is not given, output is written to the standard output.
+
+=item B<--pager>=I<PAGER_PROG>
+
+When output is to a terminal, invoke the program I<PAGER_PROG> to view
+the output one screen full at a time.  This switch overrides the
+SILK_PAGER environment variable, which in turn overrides the PAGER
+variable.  If the value of the pager is determined to be the empty
+string, no paging will be performed and all output will be printed to
+the terminal.
+
+=item B<--ipv6-policy>=I<POLICY>
+
+Determine how IPv4 and IPv6 flows are handled when SiLK has been
+compiled with IPv6 support.  When the switch is not provided, the
+SILK_IPV6_POLICY environment variable is checked for a policy.  If it
+is also unset or contains an invalid policy, the I<POLICY> is
+B<mix>.  When SiLK has not been compiled with IPv6 support, IPv6
+flows are always ignored, regardless of the value passed to this
+switch or in the SILK_IPV6_POLICY variable.  The supported values for
+I<POLICY> are:
+
+=over 4
+
+=item ignore
+
+Ignore any flow record marked as IPv6, regardless of the IP addresses
+it contains.
+
+=item asv4
+
+Convert IPv6 flow records that contain addresses in the ::ffff:0:0/96
+prefix to IPv4 and ignore all other IPv6 flow records.
+
+=item mix
+
+Process the input as a mixture of IPv4 and IPv6 flow records.  When an
+IP address is used as part of the key or value, this policy is
+equivalent to B<force>.
+
+=item force
+
+Convert IPv4 flow records to IPv6, mapping the IPv4 addresses into the
+::ffff:0:0/96 prefix.
+
+=item only
+
+Process only flow records that are marked as IPv6 and ignore IPv4 flow
+records in the input.
+
+=back
+
+=item B<--temp-directory>=I<DIR_PATH>
+
+Specify the name of the directory in which to store data files
+temporarily when the memory is not large enough to store all the bins
+and their aggregate values.  This switch overrides the directory
+specified in the SILK_TMPDIR environment variable, which overrides the
+directory specified in the TMPDIR variable, which overrides the
+default, F</tmp>.
+
+=item B<--site-config-file>=I<FILENAME>
+
+Read the SiLK site configuration from the named file I<FILENAME>.
+When this switch is not provided, B<rwuniq> searches for the site
+configuration file in the locations specified in the L</FILES>
+section.
+
+=item B<--legacy-timestamps>
+
+=item B<--legacy-timestamps>=I<NUM>
+
+When I<NUM> is not specified or is 1, this switch is equivalent to
+B<--timestamp-format=m/d/y>.  Otherwise, the switch has no effect.
+This switch is deprecated as of SiLK 3.0.0, and it will be removed in
+the SiLK 4.0 release.
+
+=item B<--xargs>
+
+=item B<--xargs>=I<FILENAME>
+
+Causes B<rwuniq> to read file names from I<FILENAME> or from the
+standard input if I<FILENAME> is not provided.  The input should have
+one file name per line.  B<rwuniq> will open each file in turn and
+read records from it, as if the files had been listed on the command
+line.
+
+=item B<--help>
+
+Print the available options and exit.  Specifying switches that add
+new fields, values, or additional switches before B<--help> will allow
+the output to include descriptions of those fields or switches.
+
+=item B<--help-fields>
+
+Print the description and alias(es) of each field and value and exit.
+Specifying switches that add new fields before B<--help-fields> will
+allow the output to include descriptions of those fields.
+
+=item B<--version>
+
+Print the version number and information about how SiLK was
+configured, then exit the application.
+
+=item B<--pmap-file>=I<MAPNAME>:I<PATH>
+
+=item B<--pmap-file>=I<PATH>
+
+Instruct B<rwuniq> to load the mapping file located at I<PATH> and
+create the src-I<MAPNAME> and dst-I<MAPNAME> fields.  When I<MAPNAME>
+is provided explicitly, it will be used to refer to the fields
+specific to that prefix map.  If I<MAPNAME> is not provided, B<rwuniq>
+will check the prefix map file to see if a map-name was specified when
+the file was created.  If no map-name is available, B<rwuniq> creates
+the fields sval and dval.  Multiple B<--pmap-file> switches are
+supported as long as each uses a unique value for map-name.  The
+B<--pmap-file> switch(es) must precede the B<--fields> switch.  For
+more information, see B<pmapfilter(3)>.
+
+=item B<--pmap-column-width>=I<NUM>
+
+When printing a label associated with a prefix map, this switch gives
+the maximum number of characters to use when displaying the textual
+value of the field.
+
+=item B<--python-file>=I<PATH>
+
+When the SiLK Python plug-in is used, B<rwuniq> reads the Python code
+from the file I<PATH> to define additional fields that can be used as
+part of the key or as an aggregate value.  This file should call
+B<register_field()> for each field it wishes to define.  For details
+and examples, see the B<silkpython(3)> and B<pysilk(3)> manual pages.
+
+=back
+
+=head1 EXAMPLES
+
+In these examples, the dollar sign (C<$>) represents the shell prompt
+and a backslash (C<\>) is used to continue a line for better
+readability.  Many examples assume previous B<rwfilter(1)> commands
+have written data files named F<data.rw> and F<data-v6.rw>.
+
+Print the byte-, packet-, and record-counts for each protocol, sorting
+the results by protocol (to sort by the volume, use B<rwstats(1)>):
+
+ $ rwuniq --fields=proto --values=bytes,packets,records --sort data.rw
+ pro|         Bytes|        Packets|   Records|
+   1|       5344836|          73473|      7801|
+   6|   59945492930|       72127917|    165363|
+  17|      17553593|          77764|     77764|
+
+Print the number of records seen for each source port:
+
+ $ rwuniq --fields=sport data.rw | head
+ sPort|   Records|
+ 29485|        45|
+ 29055|        31|
+ 26373|         7|
+ 28149|        17|
+ 28171|        21|
+ 28413|        39|
+ 25836|         3|
+ 28376|         7|
+ 23847|         1|
+
+Print the number of records seen for each source port for ports having
+more than 1000 records:
+
+ $ rwuniq --fields=sport --flows=1000 data.rw
+ sPort|   Records|
+    25|     15568|
+    67|      7807|
+    80|     27044|
+    53|     62216|
+    22|     27994|
+  8080|      3946|
+   443|      7917|
+   123|      7741|
+     0|      7801|
+
+Print the source addresses that sent more than 10,000,000 bytes:
+
+ $ rwuniq --fields=sip --bytes=10000000 data-v6.rw
+                       sIP|               Bytes|
+      2001:db8:a:fd::90:bd|            14529210|
+
+For source addresses that sent more than 10,000,000 bytes, print the
+number of unique destination hosts it contacted:
+
+ $ rwuniq --fields=sip --values=bytes,distinct:dip data-v6.rw
+                       sIP|               Bytes|dIP-Distin|
+      2001:db8:a:fd::90:bd|            14529210|         2|
+
+Print the number of bytes that host shared with each destination
+(first use B<rwfilter> to limit the input to that host):
+
+ $ rwfilter --saddr=2001:db8:a:fd::90:bd --pass=- data-v6.rw        \
+   | rwuniq --fields=sip --values=bytes
+                       dIP|               Bytes|
+     2001:db8:c0:a8::fa:5d|             7097847|
+      2001:db8:c0:a8::dd:6|             7431363|
+
+Print the packet and byte counts for each source-destination IP pair,
+where the prefix length is 16 (use B<rwnetmask(1)> on the input to
+B<rwuniq>):
+
+ $ rwnetmask --4sip-prefix=16 --4dip-prefix=16 data.rw      \
+   | rwuniq --fields=sip,dip --values=packet,byte | head
+            sIP|            dIP|  Packets|        Bytes|
+     10.139.0.0|    192.168.0.0|    33490|     22950353|
+      10.40.0.0|    192.168.0.0|      258|        18544|
+     10.204.0.0|    192.168.0.0|   353233|    288736424|
+     10.106.0.0|    192.168.0.0|    13051|      3843693|
+      10.71.0.0|    192.168.0.0|     4355|      1391194|
+      10.98.0.0|    192.168.0.0|     7312|      7328359|
+     10.114.0.0|    192.168.0.0|     2538|      4137927|
+     10.168.0.0|    192.168.0.0|    92094|     86883062|
+     10.176.0.0|    192.168.0.0|   122101|    116555051|
+
+Print the source of TCP traffic with no more than 3 packets and which
+also appears at least 4 times (use B<rwfilter> on the input):
+
+ $ rwfilter --proto=6 --packets=1-3 --pass=- data.rw        \
+   | rwuniq --field=sip --flows=4 | head -5
+             sIP|   Records|
+  10.147.252.145|       256|
+   10.103.144.78|       256|
+  10.117.142.175|       256|
+   10.41.221.170|       256|
+
+The B<silkpython(3)> manual page provides examples that use PySiLK to
+create arbitrary fields to use as part of the key for B<rwuniq>.
+
+=head1 ENVIRONMENT
+
+=over 4
+
+=item SILK_IPV6_POLICY
+
+This environment variable is used as the value for the
+B<--ipv6-policy> when that switch is not provided.
+
+=item SILK_PAGER
+
+When set to a non-empty string, B<rwuniq> automatically invokes this
+program to display its output a screen at a time.  If set to an empty
+string, B<rwuniq> does not automatically page its output.
+
+=item PAGER
+
+When set and SILK_PAGER is not set, B<rwuniq> automatically invokes
+this program to display its output a screen at a time.
+
+=item SILK_TMPDIR
+
+When set and B<--temp-directory> is not specified, B<rwuniq> writes
+the temporary files it creates to this directory.  SILK_TMPDIR
+overrides the value of TMPDIR.
+
+=item TMPDIR
+
+When set and SILK_TMPDIR is not set, B<rwuniq> writes the temporary
+files it creates to this directory.
+
+=item PYTHONPATH
+
+This environment variable is used by Python to locate modules.  When
+B<--python-file> is specified, B<rwuniq> loads Python which in turn
+loads the PySiLK module which is comprised of several files
+(F<silk/pysilk_nl.so>, F<silk/__init__.py>, etc).  If this F<silk/>
+directory is located outside Python's normal search path (for example,
+in the SiLK installation tree), it may be necessary to set or modify
+the PYTHONPATH environment variable to include the parent directory of
+F<silk/> so that Python can find the PySiLK module.
+
+=item SILK_PYTHON_TRACEBACK
+
+When set, Python plug-ins will output traceback information on Python
+errors to the standard error.
+
+=item SILK_COUNTRY_CODES
+
+This environment variable allows the user to specify the country code
+mapping file that B<rwuniq> uses when computing the scc and dcc
+fields.  The value may be a complete path or a file relative to the
+SILK_PATH.  See the L</FILES> section for standard locations of this
+file.
+
+=item SILK_ADDRESS_TYPES
+
+This environment variable allows the user to specify the address type
+mapping file that B<rwuniq> uses when computing the sType and dType
+fields.  The value may be a complete path or a file relative to the
+SILK_PATH.  See the L</FILES> section for standard locations of this
+file.
+
+=item SILK_CLOBBER
+
+The SiLK tools normally refuse to overwrite existing files.  Setting
+SILK_CLOBBER to a non-empty value removes this restriction.
+
+=item SILK_CONFIG_FILE
+
+This environment variable is used as the value for the
+B<--site-config-file> when that switch is not provided.
+
+=item SILK_DATA_ROOTDIR
+
+This environment variable specifies the root directory of data
+repository.  As described in the L</FILES> section, B<rwuniq> may
+use this environment variable when searching for the SiLK site
+configuration file.
+
+=item SILK_PATH
+
+This environment variable gives the root of the install tree.  When
+searching for configuration files and plug-ins, B<rwuniq> may use this
+environment variable.  See the L</FILES> section for details.
+
+=item TZ
+
+When a SiLK installation is built to use the local timezone (to
+determine if this is the case, check the C<Timezone support> value in
+the output from B<rwuniq --version>), the value of the TZ environment
+variable determines the timezone in which B<rwuniq> displays
+timestamps.  If the TZ environment variable is not set, the default
+timezone is used.  Setting TZ to 0 or the empty string causes
+timestamps to be displayed in UTC.  The value of the TZ environment
+variable is ignored when the SiLK installation uses utc.  For system
+information on the TZ variable, see B<tzset(3)>.
+
+=item SILK_PLUGIN_DEBUG
+
+When set to 1, B<rwuniq> prints status messages to the standard error
+as it attempts to find and open each of its plug-ins.  In addition,
+when an attempt to register a field fails, B<rwuniq> prints a message
+specifying the additional function(s) that must be defined to register
+the field in B<rwuniq>.  Be aware that the output can be rather
+verbose.
+
+=item SILK_TEMPFILE_DEBUG
+
+When set to 1, B<rwuniq> prints debugging messages to the standard
+error as it creates, re-opens, and removes temporary files.
+
+=item SILK_UNIQUE_DEBUG
+
+When set to 1, the binning engine used by B<rwuniq> prints debugging
+messages to the standard error.
+
+=back
+
+=head1 FILES
+
+=over 4
+
+=item F<${SILK_ADDRESS_TYPES}>
+
+=item F<${SILK_PATH}/share/silk/address_types.pmap>
+
+=item F<${SILK_PATH}/share/address_types.pmap>
+
+=item F<@prefix@/share/silk/address_types.pmap>
+
+=item F<@prefix@/share/address_types.pmap>
+
+Possible locations for the address types mapping file required by the
+sType and dType fields.
+
+=item F<${SILK_CONFIG_FILE}>
+
+=item F<${SILK_DATA_ROOTDIR}/silk.conf>
+
+=item F<@SILK_DATA_ROOTDIR@/silk.conf>
+
+=item F<${SILK_PATH}/share/silk/silk.conf>
+
+=item F<${SILK_PATH}/share/silk.conf>
+
+=item F<@prefix@/share/silk/silk.conf>
+
+=item F<@prefix@/share/silk.conf>
+
+Possible locations for the SiLK site configuration file which are
+checked when the B<--site-config-file> switch is not provided.
+
+=item F<${SILK_COUNTRY_CODES}>
+
+=item F<${SILK_PATH}/share/silk/country_codes.pmap>
+
+=item F<${SILK_PATH}/share/country_codes.pmap>
+
+=item F<@prefix@/share/silk/country_codes.pmap>
+
+=item F<@prefix@/share/country_codes.pmap>
+
+Possible locations for the country code mapping file required by the
+scc and dcc fields.
+
+=item F<${SILK_PATH}/lib64/silk/>
+
+=item F<${SILK_PATH}/lib64/>
+
+=item F<${SILK_PATH}/lib/silk/>
+
+=item F<${SILK_PATH}/lib/>
+
+=item F<@prefix@/lib64/silk/>
+
+=item F<@prefix@/lib64/>
+
+=item F<@prefix@/lib/silk/>
+
+=item F<@prefix@/lib/>
+
+Directories that B<rwuniq> checks when attempting to load a plug-in.
+
+=item F<${SILK_TMPDIR}/>
+
+=item F<${TMPDIR}/>
+
+=item F</tmp/>
+
+Directory in which to create temporary files.
+
+=back
+
+=head1 NOTES
+
+If multiple thresholds are given (e.g., C<--bytes=80 --flows=2>), the
+values must meet all thresholds before the record is printed.  For
+example, if a given key saw a single 100-byte flow, the entry would
+not printed given the switches above.
+
+B<rwuniq> functionally replaces the combination of
+
+ rwcut | sort | uniq -c
+
+To get a list of unique IP addresses in a data set without the
+counting or threshold abilities of B<rwuniq>, consider using the IPset
+tools for improved performance:
+
+ rwset --sip-set=stdout | rwsetcat --print-ips
+
+For situations where the key and value are each a single field, the
+Bag tools usually provide better performance, especially when the key
+is one or two bytes:
+
+ rwbag --sport-bytes=stdout | rwbagcat
+
+B<rwgroup(1)> works similarly to B<rwuniq>, except the data remains in
+the form of SiLK Flow records, and the next-hop-IP field is modified
+to denote the records that form a bin.
+
+B<rwstats(1)> can do the same binning as B<rwuniq>, and then sort the
+data by an aggregate field.
+
+When the B<--bin-time> switch is given and the three time fields
+(starting-time (C<sTime>), ending-time (C<eTime>), and duration
+(C<duration>)) are present in the key, the duration field's value will be
+modified to be the difference between the ending and starting times.
+
+When the three time-related key fields (C<sTime>,C<duration>,C<eTime>) are
+all in use, B<rwuniq> will ignore the final time field when binning
+the records, but the field will appear in the output.  Due to
+truncation of the milliseconds values, B<rwuniq> will print a
+different number of rows depending on the order in which those three
+values appear in the B<--fields> switch.
+
+B<rwuniq> supports counting distinct source and/or destination IPs.
+To see the number of distinct sources for each 10 minute bin, run:
+
+ rwuniq --fields=stime --values=sip-distinct --bin-time=600 --sort-output
+
+When computing distinct counts over a field, the field may not be part
+of the key; that is, you cannot have C<--fields=sip
+--values=sip-distinct>.
+
+Using the B<--presorted-input> switch sometimes introduces more issues
+than it solves, and B<--presorted-input> is less necessary now that
+B<rwuniq> can use temporary files while processing input.
+
+When using the B<--presorted-input> switch, it is highly recommended
+that you use no more than one time-related key field (C<sTime>,
+C<duration>, C<eTime>) in the B<--fields> switch and that the time-related
+key appear last in B<--fields>.  The issue is caused by B<rwsort>
+considering the millisecond values on the times when sorting, while
+B<rwuniq> truncates the millisecond value.  The result may be unsorted
+output and multiple rows in the output that have the same values for
+the key fields:
+
+ $ rwsort --fields=stime,duration data.rw       \
+   | rwuniq --fields=stime,dur --presorted
+               sTime|durat|   Records|
+ ...
+ 2009/02/12T00:00:57|    0|         2|
+ 2009/02/12T00:00:57|   29|         2|
+ 2009/02/12T00:00:57|    0|         2|
+ 2009/02/12T00:00:57|   13|         2|
+ ...
+
+When computing distinct IP counts, B<rwuniq> will typically run faster
+if you do I<not> use the B<--presorted-input> switch, even if the data
+was previously sorted.
+
+B<rwuniq> may run out of memory when computing distinct IP counts,
+causing the counts for some bins to be smaller than the actual number
+of distinct IPs.  When this occurs, a single warning is printed the
+standard error noting that B<rwuniq> has run out of memory, processing
+continues, and B<rwuniq> exits with status 16.
+
+B<rwuniq>'s strength is its ability to build arbitrary keys and
+aggregate fields.  For a key of a single IP address, see
+B<rwaddrcount(1)> and B<rwbag(1)>; for a key made up of a single CIDR
+block (/8, /16, /24 only), a single port, or a single protocol, use
+B<rwtotal(1)> or B<rwbag(1)>.
+
+=head1 SEE ALSO
+
+B<rwfilter(1)>, B<rwbag(1)>, B<rwcut(1)>, B<rwset(1)>, B<rwsetcat(1)>,
+B<rwaddrcount(1)>, B<rwgroup(1)>, B<rwstats(1)>, B<rwnetmask(1)>,
+B<rwsort(1)>, B<rwtotal(1)>, B<rwcount(1)>, B<addrtype(3)>,
+B<ccfilter(3)>, B<pmapfilter(3)>, B<pysilk(3)>, B<silkpython(3)>,
+B<silk-plugin(3)>, B<sensor.conf(5)>, B<rwflowpack(8)>, B<silk(7)>,
+B<yaf(1)>, B<dlopen(3)>
+
+=cut
+
+$SiLK: rwuniq.pod 477e54df24bf 2014-07-08 18:02:17Z mthomas $
+
+Local Variables:
+mode:text
+indent-tabs-mode:nil
+End:

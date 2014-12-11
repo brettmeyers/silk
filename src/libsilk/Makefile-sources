@@ -1,0 +1,35 @@
+# -*- makefile -*-
+# RCSIDENT("$SiLK: Makefile-sources 696fd479073b 2014-01-28 19:15:22Z mthomas $");
+
+# sources for libsilk
+SOURCES_LIBSILK = addrtype.c flowcapio.c hashlib.c \
+	 iptree.c pmapfilter.c rwascii.c \
+	 rwaugmentedio.c rwaugroutingio.c rwaugsnmpoutio.c rwaugwebio.c \
+	 rwfilterio.c rwgenericio.c rwipv6io.c rwipv6routingio.c \
+	 rwnotroutedio.c rwpack.c rwrec.c rwroutedio.c rwsplitio.c rwwwwio.c \
+	 skbag.c skbitmap.c skcountry.c skdaemon.c skdllist.c \
+	 skheader.c skheader-legacy.c skheap.c skiobuf.c skiobuf.h \
+	 sklog.c skmempool.c skoptionsctx.c skoptions-notes.c \
+	 skplugin-simple.c skplugin.c skprefixmap.c skprintnets.c skqsort.c \
+	 sksite.c sksiteconfig.h sksiteconfig_lex.l sksiteconfig_parse.y \
+	 skstream.c skstream-err.c skstream_priv.h skstringmap.c \
+	 sktempfile.c \
+	 sku-app.c sku-bigsockbuf.c sku-compat.c sku-filesys.c sku-ips.c \
+	 sku-options.c sku-string.c sku-times.c sku-wrapgetopt.c \
+	 skunique.c skvector.c \
+	 redblack/redblack.c
+
+if HAVE_CYGWIN
+SOURCES_LIBSILK += skcygwin.c skcygwin.h
+endif
+
+if SK_ENABLE_SILK3_IPSETS
+SOURCES_LIBSILK += skipset.c
+else
+SOURCES_LIBSILK += skipset-v2.c
+endif
+
+
+# sources for libsilk-thrd
+SOURCES_LIBSILK_THRD = skdeque.c sklog-thrd.c \
+	skpolldir.c skthread.c sktimer.c

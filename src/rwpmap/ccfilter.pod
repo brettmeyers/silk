@@ -1,0 +1,176 @@
+=pod
+
+=head1 NAME
+
+B<ccfilter> - Mapping IPv4 addresses to country codes
+
+=head1 SYNOPSIS
+
+  rwfilter [--scc=COUNTRY_CODES] [--dcc=COUNTRY_CODES] ...
+
+  rwcut --fields=scc,dcc ...
+
+  rwgroup --id-fields=scc,dcc ...
+
+  rwsort --fields=scc,dcc ...
+
+  rwstats --fields=scc,dcc ...
+
+  rwuniq --fields=scc,dcc ...
+
+  rwpmaplookup --country-codes ...
+
+=head1 DESCRIPTION
+
+The I<country code> mapping file provides a mapping from an IPv4
+address to two-letter, lowercase abbreviation of the country where
+that IP address is located.  The mapping file allows the country code
+value of IP addresses on a SiLK Flow record to be partitioned
+(B<rwfilter(1)>), displayed (B<rwcut(1)>), sorted (B<rwsort(1)>),
+grouped (B<rwgroup(1)>), and counted (B<rwstats(1)> and B<rwuniq(1)>).
+
+The B<rwpmaplookup(1)> tool, when invoked with the B<--country-codes>
+switch, accepts textual input and prints the country code for the IPs,
+which provide a way to print country codes for the IPs in SiLK IPsets
+or bags.
+
+The abbreviations used by the country code utility are those used by
+the Root-Zone Whois Index (see for example
+L<http://www.iana.org/cctld/cctld-whois.htm>) or one of the following
+special codes:
+
+=over 4
+
+=item --
+
+N/A (e.g. private and experimental reserved addresses)
+
+=item a1
+
+anonymous proxy
+
+=item a2
+
+satellite provider
+
+=item o1
+
+other
+
+=back
+
+The SiLK tools look for the country code mapping file in a standard
+location as detailed in the L</FILES> section below.  To provide an
+alternate location, specify that location in the SILK_COUNTRY_CODES
+environment variable.
+
+Creating the Prefix Map (pmap) file that maps an IP to its country
+code requires the GeoIP Country(R) or free GeoLite database created by
+MaxMind, available from L<http://www.maxmind.com>, as described in the
+L</MAPPING FILE> section below.
+
+=head1 OPTIONS
+
+Country code support makes available two additional keys to the
+B<--fields> switch in the B<rwcut(1)>, B<rwgroup(1)>, B<rwsort(1)>,
+B<rwstats(1)>, and B<rwuniq(1)> tools:
+
+=over 4
+
+=item scc,18
+
+Print, sort, and/or count the flow records by the country code
+designation of the source IP address
+
+=item dcc,19
+
+As B<scc> for the destination address
+
+=back
+
+In B<rwfilter(1)>, the following switches are supported:
+
+=over 4
+
+=item B<--scc>=I<COUNTRY_CODE_LIST>
+
+Pass the record if the country code of its source IP address is in the
+specified I<COUNTRY_CODE_LIST>.
+
+=item B<--dcc>=I<COUNTRY_CODE_LIST>
+
+As B<--scc> for the destination IP address.
+
+=back
+
+=head1 MAPPING FILE
+
+To map from IP addresses to country codes you will need to create the
+F<country_codes.pmap> data file and install it in the appropriate
+location (see the L</FILES> section below), or specify the path to the
+file in the SILK_COUNTRY_CODES environment variable.
+
+The prefix map data file is based on the GeoIP Country(R) or free
+GeoLite database created by MaxMind and available from
+L<http://www.maxmind.com/>.  We do not distribute the database nor the
+data file, but we provide Perl scripts that will convert the GeoIP
+database to the format that F<ccfilter.so> expects.
+
+MaxMind distributes multiple versions of their GeoIP Country database;
+one is a free evaluation copy that is C<97% accurate>.  In addition,
+they sell versions with higher accuracy, and they offer various
+subscription services.
+
+The B<rwgeoip2ccmap(1)> program converts the MaxMind GeoIP file to the
+form that the SiLK tools require.
+
+=head1 ENVIRONMENT
+
+=over 4
+
+=item SILK_COUNTRY_CODES
+
+This environment variable allows the user to specify the country code
+mapping file that the SiLK tools use.  The value may be a complete
+path or a file relative to SILK_PATH.  If the variable is not
+specified, the code looks for a file named F<country_codes.pmap> as
+specified in the L</FILES> section below.
+
+=item SILK_PATH
+
+This environment variable gives the root of the install tree.  The
+SiLK applications check the directories F<$SILK_PATH/share/silk> and
+F<$SILK_PATH/share> for the country code mapping file,
+F<country_codes.pmap>.
+
+=back
+
+=head1 FILES
+
+The tools will look for the data file that maps IPs to country codes
+in the following locations.  ($SILK_COUNTRY_CODES is the value
+of the SILK_COUNTRY_CODES environment variable, if it is set.
+$SILK_PATH is value of the SILK_PATH environment variable, if it is
+set.  The use of F<@prefix@/> assumes the application is installed in
+the F<@prefix@/bin/> directory.)
+
+  $SILK_COUNTRY_CODES
+  $SILK_PATH/share/silk/country_codes.pmap
+  $SILK_PATH/share/country_codes.pmap
+  @prefix@/share/silk/country_codes.pmap
+  @prefix@/share/country_codes.pmap
+
+=head1 SEE ALSO
+
+B<rwcut(1)>, B<rwfilter(1)>, B<rwgroup(1)>, B<rwsort(1)>,
+B<rwstats(1)>, B<rwuniq(1)>, B<rwgeoip2ccmap(1)>, B<rwpmaplookup(1)>,
+B<silk(7)>
+
+=cut
+
+$SiLK: ccfilter.pod 9e71f5672f24 2013-03-05 23:37:50Z mthomas $
+
+Local Variables:
+mode:text
+indent-tabs-mode:nil
+End:

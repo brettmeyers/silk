@@ -1,0 +1,563 @@
+/* src/libsilk/silk_config1.h.in.  Generated from configure.ac by autoheader.  */
+
+/*
+ *    The silk_config.h file is the first of two header files
+ *    generated when you run configure.  The second is
+ *    silk_config2.h, which this file #includes.
+ *
+ *    The template file silk_config1.h.in is created by autoheader.
+ *    When you run configure, a silk_config1.h file is created, and
+ *    then all values in that file are prefixed by "SK_" and the
+ *    result is written to silk_config.h.  The silk_config1.h file is
+ *    only used to create silk_config.h.
+ *
+ *    The template file silk_config2.h.in is maintained manually.
+ *    silk_config2.h contains values that the system headers
+ *    use/require, and as such they should NOT be prefixed with "SK_"
+ *
+ *    If you manually uncomment any of the "#undef" lines in this
+ *    file, you must add an "SK_" prefix to the name of the macro.
+ */
+#include <silk/silk_config2.h>
+
+
+/* Define if building universal (internal helper macro) */
+#undef AC_APPLE_UNIVERSAL_BUILD
+
+/* Define to 1 if your processor stores words with the most significant byte
+   first (like Motorola and SPARC, unlike Intel). Define to 0 otherwise. See
+   also SK_LITTLE_ENDIAN. */
+#undef BIG_ENDIAN
+
+/* Define to 1 build with support for GnuTLS. Define to 0 otherwise. Requires
+   the GnuTLS library and the <gnutls/gnutls.h> header file. */
+#undef ENABLE_GNUTLS
+
+/* Define to 1 to build with listening-on/connecting-to IPv6 network sockets.
+   Requires getaddrinfo() function. */
+#undef ENABLE_INET6_NETWORKING
+
+/* Define to 1 to build with support for IPA. Define to 0 otherwise. Requires
+   the libipa library and the <ipa/ipa.h> header file. */
+#undef ENABLE_IPA
+
+/* Define to 1 to build with support for IPFIX. Define to 0 otherwise.
+   Requires libfixbuf-1.3 or later support and the <fixbuf/public.h> header
+   file. */
+#undef ENABLE_IPFIX
+
+/* Define to 1 to build with support for sFlow. Define to 0 otherwise.
+   Requires libfixbuf-1.6 support and the <fixbuf/public.h> header file. */
+#undef ENABLE_IPFIX_SFLOW
+
+/* Define to 1 to build with support for capturing, storing, and querying flow
+   records containing IPV6 addresses. */
+#undef ENABLE_IPV6
+
+/* Define to 1 to use the local timezone for command input and printing
+   records. Define to 0 to use UTC. */
+#undef ENABLE_LOCALTIME
+
+/* Define to 1 to build with support for LZO compression. Define to 0
+   otherwise. Requires the liblzo or liblzo2 library and the <lzo1x.h> header
+   file. */
+#undef ENABLE_LZO
+
+/* Define to the compression method to use by default for binary SiLK output
+   files (see silk_files.h for valid methods). */
+#undef ENABLE_OUTPUT_COMPRESSION
+
+/* Define to 1 use the IPset library from SiLK-3.x. Define to 0 to use the
+   IPset library code as it existed in SiLK-2.x. */
+#undef ENABLE_SILK3_IPSETS
+
+/* Define to 1 build with support for zlib compression. Define to 0 otherwise.
+   Requires the libz library and the <zlib.h> header file. */
+#undef ENABLE_ZLIB
+
+/* Define to 1 include support for ADNS (asynchronous DNS). Requires the ADNS
+   library and the <adns.h> header file. */
+#undef HAVE_ADNS_H
+
+/* Define if pointers to integers require aligned access */
+#undef HAVE_ALIGNED_ACCESS_REQUIRED
+
+/* Define to 1 if you have the <arpa/inet.h> header file. */
+#undef HAVE_ARPA_INET_H
+
+/* Define to 1 if you have the <assert.h> header file. */
+#undef HAVE_ASSERT_H
+
+/* Define to 1 if your compiler understands __func__. */
+#undef HAVE_C99___FUNC__
+
+/* Define to 1 include support for C-ARES (asynchronous DNS). Requires the
+   CARES library and the <ares.h> header file. */
+#undef HAVE_CARES_H
+
+/* Define to 1 if your zlib library provides compressBound(). */
+#undef HAVE_COMPRESSBOUND
+
+/* Define to 1 if your compiler allows __attribute__((format(printf, ...))) to
+   be applied to printf-style function-pointer typedefs. */
+#undef HAVE_COMP_ATTRIBUTE_PRINTF_TYPEDEF
+
+/* Define to 1 if your compiler understands __attribute__((__used__)). */
+#undef HAVE_COMP_ATTRIBUTE_USED
+
+/* Define to 1 if you have the <ctype.h> header file. */
+#undef HAVE_CTYPE_H
+
+/* Define to 1 if you have the declaration of `FB_ENABLE_SCTP', and to 0 if
+   you don't. */
+#undef HAVE_DECL_FB_ENABLE_SCTP
+
+/* Define to 1 if you have the declaration of `GNUTLS_CERT_EXPIRED', and to 0
+   if you don't. */
+#undef HAVE_DECL_GNUTLS_CERT_EXPIRED
+
+/* Define to 1 if you have the declaration of `HAVE_OPENSSL', and to 0 if you
+   don't. */
+#undef HAVE_DECL_HAVE_OPENSSL
+
+/* Define to 1 if you have the declaration of `HAVE_SPREAD', and to 0 if you
+   don't. */
+#undef HAVE_DECL_HAVE_SPREAD
+
+/* Define to 1 if you have the <dirent.h> header file, and it defines `DIR'.
+   */
+#undef HAVE_DIRENT_H
+
+/* Define to 1 if you have the <dlfcn.h> header file. */
+#undef HAVE_DLFCN_H
+
+/* Define to 1 if you have the <errno.h> header file. */
+#undef HAVE_ERRNO_H
+
+/* Define to 1 if you have the `fbCollectorSetSFlowTranslator' function. */
+#undef HAVE_FBCOLLECTORSETSFLOWTRANSLATOR
+
+/* Define to 1 if you have the `fbTemplateGetContext' function. */
+#undef HAVE_FBTEMPLATEGETCONTEXT
+
+/* Define to 1 if you have the <fcntl.h> header file. */
+#undef HAVE_FCNTL_H
+
+/* Define to 1 if you have the <float.h> header file. */
+#undef HAVE_FLOAT_H
+
+/* Define to 1 if fseeko (and presumably ftello) exists and is declared. */
+#undef HAVE_FSEEKO
+
+/* Define to 1 if you have the `getaddrinfo' function. */
+#undef HAVE_GETADDRINFO
+
+/* Define to 1 if you have the `getnameinfo' function. */
+#undef HAVE_GETNAMEINFO
+
+/* Define to 1 if you have the `getopt_long_only' function. */
+#undef HAVE_GETOPT_LONG_ONLY
+
+/* Define to 1 if you have the <glob.h> header file. */
+#undef HAVE_GLOB_H
+
+/* Define to 1 if you have the `gnutls_transport_set_lowat' function. */
+#undef HAVE_GNUTLS_TRANSPORT_SET_LOWAT
+
+/* Define to 1 if you have the `imaxdiv' function. */
+#undef HAVE_IMAXDIV
+
+/* Define to 1 if the system has the type `imaxdiv_t'. */
+#undef HAVE_IMAXDIV_T
+
+/* Define to 1 if you have the `inet_ntop' function. */
+#undef HAVE_INET_NTOP
+
+/* Define to 1 if you have the `inet_pton' function. */
+#undef HAVE_INET_PTON
+
+/* Define to 1 if the system has the type `intmax_t'. */
+#undef HAVE_INTMAX_T
+
+/* Define to 1 if the system has the type `intptr_t'. */
+#undef HAVE_INTPTR_T
+
+/* Define to 1 if you have the <inttypes.h> header file. */
+#undef HAVE_INTTYPES_H
+
+/* Define to 1 if you have the <limits.h> header file. */
+#undef HAVE_LIMITS_H
+
+/* Define to 1 if you have the <locale.h> header file. */
+#undef HAVE_LOCALE_H
+
+/* Define to 1 if the system has the type `long long int'. */
+#undef HAVE_LONG_LONG_INT
+
+/* Define to 1 if you have the `lzo1x_decompress_asm_fast_safe' function. */
+#undef HAVE_LZO1X_DECOMPRESS_ASM_FAST_SAFE
+
+/* Define to 1 if you have the <malloc.h> header file. */
+#undef HAVE_MALLOC_H
+
+/* Define to 1 if you have the <math.h> header file. */
+#undef HAVE_MATH_H
+
+/* Define to 1 if you have the `memccpy' function. */
+#undef HAVE_MEMCCPY
+
+/* Define to 1 if you have the <memory.h> header file. */
+#undef HAVE_MEMORY_H
+
+/* Define to 1 if you have the <ndir.h> header file, and it defines `DIR'. */
+#undef HAVE_NDIR_H
+
+/* Define to 1 if you have the <netdb.h> header file. */
+#undef HAVE_NETDB_H
+
+/* Define to 1 if you have the <netinet/in.h> header file. */
+#undef HAVE_NETINET_IN_H
+
+/* Define to 1 if you have the <netinet/tcp.h> header file. */
+#undef HAVE_NETINET_TCP_H
+
+/* Define to 1 if you have the <pcap.h> header file. */
+#undef HAVE_PCAP_H
+
+/* Define to 1 if you have the <pcap/pcap.h> header file. */
+#undef HAVE_PCAP_PCAP_H
+
+/* Define to 1 if printf supports the "z" modifier */
+#undef HAVE_PRINTF_Z_FORMAT
+
+/* Define to 1 if you have the <pthread.h> header file. */
+#undef HAVE_PTHREAD_H
+
+/* Define to 1 if your system has working pthread read/write locks */
+#undef HAVE_PTHREAD_RWLOCK
+
+/* Define to 1 if you have the <regex.h> header file. */
+#undef HAVE_REGEX_H
+
+/* Define to 1 if you have the `setenv' function. */
+#undef HAVE_SETENV
+
+/* Define to 1 if you have the `setpriority' function. */
+#undef HAVE_SETPRIORITY
+
+/* Define to 1 if you have the <signal.h> header file. */
+#undef HAVE_SIGNAL_H
+
+/* Define to 1 if you have the `socketpair' function. */
+#undef HAVE_SOCKETPAIR
+
+/* Define to 1 if you have the `statvfs' function. */
+#undef HAVE_STATVFS
+
+/* Define to 1 if you have the <stdarg.h> header file. */
+#undef HAVE_STDARG_H
+
+/* Define to 1 if you have the <stddef.h> header file. */
+#undef HAVE_STDDEF_H
+
+/* Define to 1 if you have the <stdint.h> header file. */
+#undef HAVE_STDINT_H
+
+/* Define to 1 if you have the <stdio.h> header file. */
+#undef HAVE_STDIO_H
+
+/* Define to 1 if you have the <stdlib.h> header file. */
+#undef HAVE_STDLIB_H
+
+/* Define to 1 if you have the <strings.h> header file. */
+#undef HAVE_STRINGS_H
+
+/* Define to 1 if you have the <string.h> header file. */
+#undef HAVE_STRING_H
+
+/* Define to 1 if you have the `strsep' function. */
+#undef HAVE_STRSEP
+
+/* Define to 1 if you have the <sys/dir.h> header file, and it defines `DIR'.
+   */
+#undef HAVE_SYS_DIR_H
+
+/* Define to 1 if you have the <sys/mman.h> header file. */
+#undef HAVE_SYS_MMAN_H
+
+/* Define to 1 if you have the <sys/msg.h> header file. */
+#undef HAVE_SYS_MSG_H
+
+/* Define to 1 if you have the <sys/ndir.h> header file, and it defines `DIR'.
+   */
+#undef HAVE_SYS_NDIR_H
+
+/* Define to 1 if you have the <sys/resource.h> header file. */
+#undef HAVE_SYS_RESOURCE_H
+
+/* Define to 1 if you have the <sys/select.h> header file. */
+#undef HAVE_SYS_SELECT_H
+
+/* Define to 1 if you have the <sys/socket.h> header file. */
+#undef HAVE_SYS_SOCKET_H
+
+/* Define to 1 if you have the <sys/statvfs.h> header file. */
+#undef HAVE_SYS_STATVFS_H
+
+/* Define to 1 if you have the <sys/stat.h> header file. */
+#undef HAVE_SYS_STAT_H
+
+/* Define to 1 if you have the <sys/time.h> header file. */
+#undef HAVE_SYS_TIME_H
+
+/* Define to 1 if you have the <sys/types.h> header file. */
+#undef HAVE_SYS_TYPES_H
+
+/* Define to 1 if you have the <sys/uio.h> header file. */
+#undef HAVE_SYS_UIO_H
+
+/* Define to 1 if you have the <sys/un.h> header file. */
+#undef HAVE_SYS_UN_H
+
+/* Define to 1 if you have the <sys/wait.h> header file. */
+#undef HAVE_SYS_WAIT_H
+
+/* Define to 1 if you have the `timegm' function. */
+#undef HAVE_TIMEGM
+
+/* Define to 1 if the system has the type `uintmax_t'. */
+#undef HAVE_UINTMAX_T
+
+/* Define to 1 if the system has the type `uintptr_t'. */
+#undef HAVE_UINTPTR_T
+
+/* Define to 1 if you have the <unistd.h> header file. */
+#undef HAVE_UNISTD_H
+
+/* Define to 1 if the system has the type `unsigned long long int'. */
+#undef HAVE_UNSIGNED_LONG_LONG_INT
+
+/* Define to 1 if your processor stores words with the least significant byte
+   first (like Intel, unlike Motorola and SPARC). Define to 0 otherwise. See
+   also SK_BIG_ENDIAN. */
+#undef LITTLE_ENDIAN
+
+/* Define to the sub-directory in which libtool stores uninstalled libraries.
+   */
+#undef LT_OBJDIR
+
+/* When SK_HAVE_LZO1X_DECOMPRESS_ASM_FAST_SAFE is defined, this is the path to
+   the lzo_asm.h header file */
+#undef LZO_ASM_HEADER_NAME
+
+/* When SK_ENABLE_LZO is set, this is the path to the lzo1x.h header file */
+#undef LZO_HEADER_NAME
+
+/* Name of package */
+#undef PACKAGE
+
+/* Define to the address where bug reports for this package should be sent. */
+#undef PACKAGE_BUGREPORT
+
+/* Define to the full name of this package. */
+#undef PACKAGE_NAME
+
+/* Define to the full name and version of this package. */
+#undef PACKAGE_STRING
+
+/* Define to the one symbol short name of this package. */
+#undef PACKAGE_TARNAME
+
+/* Define to the home page for this package. */
+#undef PACKAGE_URL
+
+/* Define to the version of this package. */
+#undef PACKAGE_VERSION
+
+/* Define to the path of the C source file that rwflowpack will use for
+   categorizing flow records. When this is undefined, rwflowpack will use a
+   plug-in loaded at run-time to determine the categories. */
+#undef PACKING_LOGIC_PATH
+
+/* Filename extension to use for SiLK plug-ins */
+#undef PLUGIN_SUFFIX
+
+/* The size of `long', as computed by sizeof. */
+#undef SIZEOF_LONG
+
+/* The size of `size_t', as computed by sizeof. */
+#undef SIZEOF_SIZE_T
+
+/* The size of `ssize_t', as computed by sizeof. */
+#undef SIZEOF_SSIZE_T
+
+/* The size of `unsigned long long', as computed by sizeof. */
+#undef SIZEOF_UNSIGNED_LONG_LONG
+
+/* The size of `void*', as computed by sizeof. */
+#undef SIZEOF_VOIDP
+
+/* Define to 1 if you have the ANSI C header files. */
+#undef STDC_HEADERS
+
+/* Define to 1 if you can safely include both <sys/time.h> and <time.h>. */
+#undef TIME_WITH_SYS_TIME
+
+/* Enable extensions on AIX 3, Interix.  */
+#ifndef _ALL_SOURCE
+# undef _ALL_SOURCE
+#endif
+/* Enable GNU extensions on systems that have them.  */
+#ifndef _GNU_SOURCE
+# undef _GNU_SOURCE
+#endif
+/* Enable threading extensions on Solaris.  */
+#ifndef _POSIX_PTHREAD_SEMANTICS
+# undef _POSIX_PTHREAD_SEMANTICS
+#endif
+/* Enable extensions on HP NonStop.  */
+#ifndef _TANDEM_SOURCE
+# undef _TANDEM_SOURCE
+#endif
+/* Enable general extensions on Solaris.  */
+#ifndef __EXTENSIONS__
+# undef __EXTENSIONS__
+#endif
+
+
+/* Version number of package */
+#undef VERSION
+
+/* Set to an integer describing this version of SiLK. */
+#undef VERSION_INTEGER
+
+/* Define WORDS_BIGENDIAN to 1 if your processor stores words with the most
+   significant byte first (like Motorola and SPARC, unlike Intel). */
+#if defined AC_APPLE_UNIVERSAL_BUILD
+# if defined __BIG_ENDIAN__
+#  define WORDS_BIGENDIAN 1
+# endif
+#else
+# ifndef WORDS_BIGENDIAN
+#  undef WORDS_BIGENDIAN
+# endif
+#endif
+
+/* Define to 1 if `lex' declares `yytext' as a `char *' by default, not a
+   `char[]'. */
+#undef YYTEXT_POINTER
+
+/* Enable large inode numbers on Mac OS X 10.5.  */
+#ifndef _DARWIN_USE_64_BIT_INODE
+# define _DARWIN_USE_64_BIT_INODE 1
+#endif
+
+/* Number of bits in a file offset, on hosts where this is settable. */
+#undef _FILE_OFFSET_BITS
+
+/* Define to 1 to make fseeko visible on some hosts (e.g. glibc 2.2). */
+#undef _LARGEFILE_SOURCE
+
+/* Define for large files, on AIX-style hosts. */
+#undef _LARGE_FILES
+
+/* Define to 1 if on MINIX. */
+#undef _MINIX
+
+/* Define to 2 if the system does not provide POSIX.1 features except with
+   this defined. */
+#undef _POSIX_1_SOURCE
+
+/* Define to 1 if you need to in order for `stat' and other things to work. */
+#undef _POSIX_SOURCE
+
+/* Define for Solaris 2.5.1 so the uint32_t typedef from <sys/synch.h>,
+   <pthread.h>, or <semaphore.h> is not used. If the typedef were allowed, the
+   #define below would cause a syntax error. */
+#undef _UINT32_T
+
+/* Define for Solaris 2.5.1 so the uint64_t typedef from <sys/synch.h>,
+   <pthread.h>, or <semaphore.h> is not used. If the typedef were allowed, the
+   #define below would cause a syntax error. */
+#undef _UINT64_T
+
+/* Define for Solaris 2.5.1 so the uint8_t typedef from <sys/synch.h>,
+   <pthread.h>, or <semaphore.h> is not used. If the typedef were allowed, the
+   #define below would cause a syntax error. */
+#undef _UINT8_T
+
+/* Define to empty if `const' does not conform to ANSI C. */
+#undef const
+
+/* Define to `__inline__' or `__inline' if that's what the C compiler
+   calls it, or to nothing if 'inline' is not supported under any name.  */
+#ifndef __cplusplus
+#undef inline
+#endif
+
+/* Define to the type of a signed integer type of width exactly 16 bits if
+   such a type exists and the standard includes do not define it. */
+#undef int16_t
+
+/* Define to the type of a signed integer type of width exactly 32 bits if
+   such a type exists and the standard includes do not define it. */
+#undef int32_t
+
+/* Define to the type of a signed integer type of width exactly 64 bits if
+   such a type exists and the standard includes do not define it. */
+#undef int64_t
+
+/* Define to the type of a signed integer type of width exactly 8 bits if such
+   a type exists and the standard includes do not define it. */
+#undef int8_t
+
+/* Define to the widest signed integer type if <stdint.h> and <inttypes.h> do
+   not define. */
+#undef intmax_t
+
+/* Define to the type of a signed integer type wide enough to hold a pointer,
+   if such a type exists, and if the system does not define it. */
+#undef intptr_t
+
+/* Define to `int' if <sys/types.h> does not define. */
+#undef mode_t
+
+/* Define to `long int' if <sys/types.h> does not define. */
+#undef off_t
+
+/* Define to `int' if <sys/types.h> does not define. */
+#undef pid_t
+
+/* Define to `unsigned int' if <sys/types.h> does not define. */
+#undef size_t
+
+/* Define to `int' if <sys/types.h> does not define. */
+#undef ssize_t
+
+/* Define to the type of an unsigned integer type of width exactly 16 bits if
+   such a type exists and the standard includes do not define it. */
+#undef uint16_t
+
+/* Define to the type of an unsigned integer type of width exactly 32 bits if
+   such a type exists and the standard includes do not define it. */
+#undef uint32_t
+
+/* Define to the type of an unsigned integer type of width exactly 64 bits if
+   such a type exists and the standard includes do not define it. */
+#undef uint64_t
+
+/* Define to the type of an unsigned integer type of width exactly 8 bits if
+   such a type exists and the standard includes do not define it. */
+#undef uint8_t
+
+/* Define to the widest unsigned integer type if <stdint.h> and <inttypes.h>
+   do not define. */
+#undef uintmax_t
+
+/* Define to the type of an unsigned integer type wide enough to hold a
+   pointer, if such a type exists, and if the system does not define it. */
+#undef uintptr_t
+
+/* Define to empty if the keyword `volatile' does not work. Warning: valid
+   code using `volatile' can become incorrect without. Disable with care. */
+#undef volatile

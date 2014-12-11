@@ -1,0 +1,611 @@
+=pod
+
+=head1 NAME
+
+B<rwscan> - Detect scanning activity in a SiLK dataset
+
+=head1 SYNOPSIS
+
+  rwscan [--scan-model=MODEL] [--output-path=OUTFILE]
+        [--trw-internal-set=SETFILE]
+        [--trw-theta0=PROB] [--trw-theta1=PROB]
+        [--no-titles] [--no-columns] [--column-separator=CHAR]
+        [--no-final-delimiter] [{--delimited | --delimited=CHAR}]
+        [--integer-ips] [--model-fields] [--scandb]
+        [--threads=THREADS] [--queue-depth=DEPTH]
+        [--verbose-progress=CIDR] [--verbose-flows]
+        [ {--verbose-results | --verbose-results=NUM} ]
+        [--site-config-file=FILENAME]
+        [FILES...]
+
+  rwscan --help
+
+  rwscan --version
+
+=head1 DESCRIPTION
+
+B<rwscan> reads sorted SiLK Flow records, performs scan detection
+analysis on those records, and outputs textual columnar output for the
+scanning IP addresses.  B<rwscan> writes its out to the
+B<--output-path> or to the standard output when B<--output-path> is
+not specified.
+
+The types of scan detection analysis that B<rwscan> supports are
+Threshold Random Walk (TRW) and Bayesian Logistic Regression (BLR).
+Details about these techniques are described in the L</METHOD OF
+OPERATION> section below.
+
+B<rwscan> is designed to write its data into a database.  This
+database can be queried using the B<rwscanquery(1)> tool.  See the
+L</EXAMPLES> section for the recommended database schema.
+
+The input to B<rwscan> should be pre-sorted using B<rwsort(1)> by the
+source IP, protocol, and destination IP (i.e.,
+B<--fields=sip,proto,dip>).
+
+B<rwscan> reads SiLK Flow records from the files named on the command
+line or from the standard input when no file names are specified.  To
+read the standard input in addition to the named files, use C<-> or
+C<stdin> as a file name.  If an input file name ends in C<.gz>, the
+file will be uncompressed as it is read.
+
+=head1 OPTIONS
+
+Option names may be abbreviated if the abbreviation is unique or is an
+exact match for an option.  A parameter to an option may be specified
+as B<--arg>=I<param> or S<B<--arg> I<param>>, though the first form is
+required for options that take optional parameters.
+
+=over 4
+
+=item B<--scan-model>=I<MODEL>
+
+Select a specific scan detection model.  If not specified, the default
+value for I<MODEL> is C<0>.  See the L</METHOD OF OPERATION> section
+for more details.
+
+=over 4
+
+=item S< 0 >
+
+Use the Threshold Random Walk (TRW) and Bayesian Logistic Regression
+(BLR) scan detection models in series.
+
+=item S< 1 >
+
+Use only the TRW scan detection model.
+
+=item S< 2 >
+
+Use only the BLR scan detection model.
+
+=back
+
+=item B<--output-path>=I<OUTFILE>
+
+Specify the output file that scan records will be written to.  If not
+specified, the scan records are written to standard output.
+
+=item B<--trw-internal-set>=I<SETFILE>
+
+Specify an IPset file containing B<all> valid internal IP addresses.
+This parameter is required when using the TRW scan detection model,
+since the TRW model requires the list of targeted IPs (i.e., the IPs
+to detect the scanning activity to).  This switch is ignored when the
+TRW model is not used.  For information on creating IPset files, see
+the B<rwset(1)> and B<rwsetbuild(1)> manual pages.  Prior to SiLK 3.4,
+this switch was named B<--trw-sip-set>.
+
+=item B<--trw-sip-set>=I<SETFILE>
+
+This is a deprecated alias for B<--trw-internal-set>.
+
+=item B<--trw-theta0>=I<PROB>
+
+Set the theta_0 parameter for the TRW scan model to I<PROB>, which must
+be a floating point number between 0 and 1.  theta_0 is defined as the
+probability that a connection succeeds given the hypothesis that the
+remote source is benign (not a scanner).  The default value for this
+option is 0.8.  This option should only be used by experts familiar
+with the TRW algorithm.
+
+=item B<--trw-theta1>=I<PROB>
+
+Set the theta_1 parameter for the TRW scan model to I<PROB>, which must
+be a floating point number between 0 and 1.  theta_1 is defined as the
+probability that a connection succeeds given the hypothesis that the
+remote source is malicious (a scanner).  The default value for this
+option is 0.2.  This option should only be used by experts familiar
+with the TRW algorithm.
+
+=item B<--no-titles>
+
+Turn off column titles.  By default, titles are printed.
+
+=item B<--no-columns>
+
+Disable fixed-width columnar output.
+
+=item B<--column-separator>=I<C>
+
+Use specified character between columns.  When this switch is not
+specified, the default of 'B<|>' is used.
+
+=item B<--no-final-delimiter>
+
+Do not print the column separator after the final column.  Normally a
+delimiter is printed.
+
+=item B<--delimited>
+
+=item B<--delimited>=I<C>
+
+Run as if B<--no-columns> B<--no-final-delimiter> B<--column-sep>=I<C>
+had been specified.  That is, disable fixed-width column output; if
+character I<C> is provided, it is used as the delimiter between
+columns instead of the default 'B<|>'.
+
+=item B<--integer-ips>
+
+Print IP addresses as decimal integers instead of in their canonical
+representation.
+
+=item B<--model-fields>
+
+Show scan model detail fields.  This switch controls whether
+additional informational fields about the scan detection models are
+printed.
+
+=item B<--scandb>
+
+Produce output suitable for loading into a database.  Sample database
+schema are given below under L</EXAMPLES>.  This option is equivalent
+to B<--no-titles> B<--no-columns> B<--no-final-delimiter>
+B<--model-fields> B<--integer-ips>.
+
+=item B<--threads>=I<THREADS>
+
+Specify the number of worker threads to create for scan detection
+processing.  By default, one thread will be used.  Changing this
+number to match the number of available CPUs will often yield a large
+performance improvement.
+
+=item B<--queue-depth>=I<DEPTH>
+
+Specify the depth of the work queue.  The default is to make the work
+queue the same size as the number of worker threads, but this can be
+changed.  Normally, the default is fine.
+
+=item B<--verbose-progress>=I<CIDR>
+
+Report progress as B<rwscan> processes input data.  The I<CIDR>
+argument should be an integer that corresponds to the netblock size of
+each line of progress.  For example, B<--verbose-progress>=I<8> would
+print a progress message for each /8 network processed.
+
+=item B<--verbose-flows>
+
+Cause B<rwscan> to print very verbose information for each flow.  This
+switch is primarily useful for debugging.
+
+=item B<--verbose-results>
+
+=item B<--verbose-results>=I<NUM>
+
+Print detailed information on each IP processed by B<rwscan>.  If a
+I<NUM> argument is provided, only print verbose results for sources
+that sent at least I<NUM> flows. This information includes scan model
+calculations, overall scan scores, etc.  This option will generate a
+lot of output, and is primarily useful for debugging.
+
+=item B<--site-config-file>=I<FILENAME>
+
+Read the SiLK site configuration from the named file I<FILENAME>.
+When this switch is not provided, B<rwscan> searches for the site
+configuration file in the locations specified in the L</FILES>
+section.
+
+=item B<--help>
+
+Print the available options and exit.
+
+=item B<--version>
+
+Print the version number and information about how SiLK was
+configured, then exit the application.
+
+=back
+
+=head1 METHOD OF OPERATION
+
+B<rwscan>'s default behavior is to consult two scan detection models
+to determine whether a source is a scanner.  The primary model used is
+the Threshold Random Walk (TRW) model.  The TRW algorithm takes
+advantage of the tendency of scanners to attempt to contact a large
+number of IPs that do not exist on the target network.
+
+By keeping track of the number of "hits" (successful connections) and
+"misses" (attempts to connect to IP addresses that are not active on
+the target network), scanners can be detected quickly and with a high
+degree of accuracy.  Sequential hypothesis testing is used to analyze
+the probability that a source is a scanner as each flow record is
+processed.  Once the scan probability exceeds a configured maximum,
+the source is flagged as a scanner, and no further analysis of traffic
+from that host is necessary.
+
+The TRW model is not 100% accurate, however, and only finds scans in
+TCP flow data. In the case where the TRW model is inconclusive, a
+secondary model called BLR is invoked.  BLR stands for "Bayesian
+Logistic Regression."  Unlike TRW, the BLR approach must analyze all
+traffic from a given source IP to determine whether that IP is a
+scanner.
+
+Because of this, BLR operates much slower than TRW. However, the BLR
+model has been shown to detect scans that are not detected by the TRW
+model, particularly scans in UDP and ICMP data, and vertical TCP scans
+which focus on finding services on a single host.  It does this by
+calculating metrics from the flow data from each source, and using
+those metrics to arrive at an overall likelihood that the flow data
+represents scanning activity.
+
+The metrics BLR uses for detecting scans in TCP flow data are:
+
+=over 4
+
+=item *
+
+the ratio of flows with no ACK bit set to all flows
+
+=item *
+
+the ratio of flows with fewer than three packets to all flows
+
+=item *
+
+the average number of source ports per destination IP address
+
+=item *
+
+the ratio of the number of flows that have an average of 60
+bytes/packet or greater to all flows
+
+=item *
+
+the ratio of the number of unique destination IP addresses to the
+total number of flows
+
+=item *
+
+the ratio of the number of flows where the flag combination indicates
+backscatter to all flows
+
+=back
+
+The metrics BLR uses for detecting scans in UDP flow data are:
+
+=over 4
+
+=item *
+
+the ratio of flows with fewer than three packets to all flows
+
+=item *
+
+the maximum run length of IP addresses per /24 subnet
+
+=item *
+
+the maximum number of unique low-numbered (less than 1024) destination
+ports contacted on any one host
+
+=item *
+
+the maximum number of consecutive low-numbered destination ports
+contacted on any one host
+
+=item *
+
+the average number of unique source ports per destination IP address
+
+=item *
+
+the ratio of flows with 60 or more bytes/packet to all flows
+
+=item *
+
+the ratio of unique source ports (both low and high) to the number of
+flows
+
+=back
+
+The metrics BLR uses for detecting scans in ICMP flow data are:
+
+=over 4
+
+=item *
+
+the maximum number of consecutive /24 subnets that were contacted
+
+=item *
+
+the maximum run length of IP addresses per /24 subnet
+
+=item *
+
+the maximum number of IP addresses contacted in any one /24 subnet
+
+=item *
+
+the total number of IP addresses contacted
+
+=item *
+
+the ratio of ICMP echo requests to all ICMP flows
+
+=back
+
+Because the TRW model has a lower false positive rate than the BLR
+model, any source identified as a scanner by TRW will be identified as
+a scanner by the hybrid model without consulting BLR.  BLR is only
+invoked in the following cases:
+
+=over 4
+
+=item *
+
+The traffic being analyzed is UDP or ICMP traffic, which B<rwscan>'s
+implementation of TRW cannot process.
+
+=item *
+
+The TRW model has identified the source as benign.  This occurs when
+the scan probability drops below a configured minimum during
+sequential hypothesis testing.
+
+=item *
+
+The TRW model has identified the source as unknown (where the scan
+probability never exceeded the minimum or maximum thresholds during
+sequential hypothesis testing).
+
+=back
+
+In situations where the use of one model is preferred, the other model
+can be disabled using the B<--scan-model> switch.  This may have an
+impact on the performance and/or accuracy of the system.
+
+=head1 LIMITATIONS
+
+B<rwscan> detects scans in IPv4 flows only.
+
+=head1 EXAMPLES
+
+In the following examples, the dollar sign (C<$>) represents the shell
+prompt.  The text after the dollar sign represents the command line.
+Lines have been wrapped for improved readability, and the back slash
+(C<\>) is used to indicate a wrapped line.
+
+=head2 Basic Usage
+
+Assuming a properly sorted SiLK Flow file as input, the basic usage
+for Bayesian Logistic Regression (BLR) scan detection requires only
+the input file, F<data.rw>, and output file, F<scans.txt>, arguments.
+
+ $ rwscan --scan-model=2 --output-path=scans.txt data.rw
+
+Basic usage of Threshold Random Walk (TRW) scan detection requires the
+IP addresses of the targeted network (i.e., the internal IP space),
+specified in the F<internal.set> IPset file.
+
+ $ rwscan --trw-internal-set=internal.set --output-path=scans.txt data.rw
+
+=head2 Typical Usage
+
+More commonly, an analyst uses B<rwfilter(1)> to query the data
+repository for flow records within a time window.  First, the analyst
+has B<rwset(1)> put the source addresses of I<outgoing> flow records
+into an IPset, resulting in the IPset containing the IPs of active
+hosts on the internal network.  Next, the I<incoming> traffic is piped
+to B<rwsort(1)> and then to B<rwscan>.
+
+ $ rwfilter --start=2004/12/29:00 --type=out,outweb --all-dest=stdout \
+   | rwset --sip=internal.set
+
+ $ rwfilter --start=2004/12/29:00 --type=in,inweb --all-dest=stdout \
+   | rwsort --fields=sip,proto,dip                                  \
+   | rwscan --trw-internal-set=internal.set --scan-model=0          \
+        --output-path=scans.txt
+
+=head2 Storing Scans in a PostgreSQL Database
+
+Instead of having the analyst run B<rwscan> directly, often the output
+from B<rwscan> is put into a database where it can be queried by
+B<rwscanquery(1)>.  The output produced by the B<--scandb> switch is
+suitable for loading into a database of scans.  The process for using
+the PostgreSQL database is described in this section.
+
+Schemas for Oracle, MySQL, and SQLite are provided below, but the
+details to create users with the proper rolls are not included.
+
+Here is the schema for PostgreSQL:
+
+ CREATE DATABASE scans
+
+ CREATE SCHEMA scans
+
+ CREATE SEQUENCE scans_id_seq
+
+ CREATE TABLE scans (
+   id          BIGINT      NOT NULL    DEFAULT nextval('scans_id_seq'),
+   sip         BIGINT      NOT NULL,
+   proto       SMALLINT    NOT NULL,
+   stime       TIMESTAMP without time zone NOT NULL,
+   etime       TIMESTAMP without time zone NOT NULL,
+   flows       BIGINT      NOT NULL,
+   packets     BIGINT      NOT NULL,
+   bytes       BIGINT      NOT NULL,
+   scan_model  INTEGER     NOT NULL,
+   scan_prob   FLOAT       NOT NULL,
+   PRIMARY KEY (id)
+ )
+
+ CREATE INDEX scans_stime_idx ON scans (stime)
+ CREATE INDEX scans_etime_idx ON scans (etime)
+ ;
+
+A database user should be created for the purposes of populating the
+scan database, e.g.:
+
+ CREATE USER rwscan WITH PASSWORD 'secret';
+
+ GRANT ALL PRIVILEGES ON DATABASE scans TO rwscan;
+
+Additionally, a user with read-only access should be created for use
+by the B<rwscanquery> tool:
+
+ CREATE USER rwscanquery WITH PASSWORD 'secret';
+
+ GRANT SELECT ON DATABASE scans TO rwscanquery;
+
+To import B<rwscan>'s B<--scandb> output into a PostgreSQL database,
+use a command similar to the following:
+
+ $ cat /tmp/scans.import.txt            \
+   | psql -c                            \
+     "COPY scans                        \
+         (sip, proto, stime, etime,     \
+         flows, packets, bytes,         \
+         scan_model, scan_prob)         \
+     FROM stdin DELIMITER as '|'" scans
+
+=head2 Sample Schema for Oracle
+
+ CREATE TABLE scans (
+   id          integer unsigned    not null unique,
+   sip         integer unsigned    not null,
+   proto       tinyint unsigned    not null,
+   stime       datetime            not null,
+   etime       datetime            not null,
+   flows       integer unsigned    not null,
+   packets     integer unsigned    not null,
+   bytes       integer unsigned    not null,
+   scan_model  integer unsigned    not null,
+   scan_prob   float unsigned      not null,
+   primary key (id)
+ );
+
+=head2 Sample Schema for MySQL
+
+ CREATE TABLE scans (
+   id          integer unsigned    not null auto_increment,
+   sip         integer unsigned    not null,
+   proto       tinyint unsigned    not null,
+   stime       datetime            not null,
+   etime       datetime            not null,
+   flows       integer unsigned    not null,
+   packets     integer unsigned    not null,
+   bytes       integer unsigned    not null,
+   scan_model  integer unsigned    not null,
+   scan_prob   float unsigned      not null,
+   primary key (id),
+   INDEX (stime),
+   INDEX (etime)
+ ) TYPE=InnoDB;
+
+=head2 Sample Schema and Import Command for SQLite
+
+ CREATE TABLE scans (
+   id          INTEGER PRIMARY KEY AUTOINCREMENT,
+   sip         INTEGER             NOT NULL,
+   proto       SMALLINT            NOT NULL,
+   stime       TIMESTAMP           NOT NULL,
+   etime       TIMESTAMP           NOT NULL,
+   flows       INTEGER             NOT NULL,
+   packets     INTEGER             NOT NULL,
+   bytes       INTEGER             NOT NULL,
+   scan_model  INTEGER             NOT NULL,
+   scan_prob   FLOAT               NOT NULL
+ );
+ CREATE INDEX scans_stime_idx ON scans (stime);
+ CREATE INDEX scans_etime_idx ON scans (etime);
+
+To import B<rwscan>'s B<--scandb> output into a SQLite database, use
+the following command:
+
+ $ perl -nwe 'chomp;
+     print "INSERT INTO scans VALUES (NULL,",
+           (join ",",map { / / ? qq("$_") : $_ } split /\|/),
+           ");\n";' \
+ scans.txt | sqlite3 scans.sqlite
+
+=head1 ENVIRONMENT
+
+=over 4
+
+=item SILK_CLOBBER
+
+The SiLK tools normally refuse to overwrite existing files.  Setting
+SILK_CLOBBER to a non-empty value removes this restriction.
+
+=item SILK_CONFIG_FILE
+
+This environment variable is used as the value for the
+B<--site-config-file> when that switch is not provided.
+
+=item SILK_DATA_ROOTDIR
+
+This environment variable specifies the root directory of data
+repository.  As described in the L</FILES> section, B<rwscan> may
+use this environment variable when searching for the SiLK site
+configuration file.
+
+=item SILK_PATH
+
+This environment variable gives the root of the install tree.  When
+searching for configuration files, B<rwscan> may use this environment
+variable.  See the L</FILES> section for details.
+
+=back
+
+=head1 FILES
+
+=over 4
+
+=item F<${SILK_CONFIG_FILE}>
+
+=item F<${SILK_DATA_ROOTDIR}/silk.conf>
+
+=item F<@SILK_DATA_ROOTDIR@/silk.conf>
+
+=item F<${SILK_PATH}/share/silk/silk.conf>
+
+=item F<${SILK_PATH}/share/silk.conf>
+
+=item F<@prefix@/share/silk/silk.conf>
+
+=item F<@prefix@/share/silk.conf>
+
+Possible locations for the SiLK site configuration file which are
+checked when the B<--site-config-file> switch is not provided.
+
+=back
+
+=head1 SEE ALSO
+
+B<rwscanquery(1)>, B<rwfilter(1)>, B<rwsort(1)>, B<rwset(1)>,
+B<rwsetbuild(1)>, B<silk(7)>
+
+=head1 BUGS
+
+When used in an IPv6 environment, B<rwscan> converts IPv6 flow records
+that contain addresses in the ::ffff:0:0/96 prefix to IPv4.  IPv6
+records outside of that prefix are silently ignored.
+
+=cut
+
+$SiLK: rwscan.pod cd09f0a5fcc6 2014-06-14 15:43:33Z mthomas $
+
+Local Variables:
+mode:text
+indent-tabs-mode:nil
+End:

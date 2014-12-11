@@ -1,0 +1,130 @@
+=pod
+
+=head1 NAME
+
+B<rwipaimport> - Import SiLK IP collections into an IPA catalog
+
+=head1 SYNOPSIS
+
+  rwipaimport --catalog=CATALOG [--description=DESCRIPTION]
+        [--start-time=START_TIME] [--end-time=END_TIME] INPUT_FILE
+
+  rwipaimport --help
+
+  rwipaimport --version
+
+=head1 DESCRIPTION
+
+B<rwipaimport> reads a SiLK IPset, Bag, or Prefix Map file and imports
+its contents into an IPA (IP Association,
+L<http://tools.netsa.cert.org/ipa/>) catalog.  An IPA catalog is a
+collection of sets, bags, and prefix maps which can have an optional
+time period associated with them defining when that particular
+collection of data is considered valid.
+
+=head1 OPTIONS
+
+Option names may be abbreviated if the abbreviation is unique or is an
+exact match for an option.  A parameter to an option may be specified
+as B<--arg>=I<param> or S<B<--arg> I<param>>, though the first form is
+required for options that take optional parameters.
+
+=over 4
+
+=item B<--catalog>=I<CATALOG_NAME>
+
+Specifies the name of the IPA catalog to import into.  If the catalog
+does not already exist in the IPA data store, it will be created.  This
+option is required.
+
+=item B<--description>=I<DESCRIPTION>
+
+An optional text description of the catalog's contents.  This
+description will be stored in the database and will be visible when
+querying available catalogs with the B<ipaquery> tool.  The description
+will only be added to new catalogs; if you import a dataset into an
+existing catalog, this option is ignored.
+
+=item B<--start-time>=I<START_TIME>
+
+Specifies the beginning of the time range for which the imported data
+is valid. The expected format of this option is either a timestamp in
+YYYY/MM/DD[:HH[:MM[:SS]]] format, or C<...> (three dots) to indicate
+the time range is left-unbounded.  For more information about this
+argument, refer to the B<TIME RANGES> section of B<ipaimport(1)>.
+
+=item B<--end-time>=I<END_TIME>
+
+Specifies the end of the time range for which the imported data is
+valid. The expected format of this option is either a timestamp in
+YYYY/MM/DD[:HH[:MM[:SS]]] format, or C<...> (three dots) to indicate
+the time range is right-unbounded. For more information about this
+argument, refer to the B<TIME RANGES> section of B<ipaimport(1)>.
+
+=item B<--help>
+
+Print the available options and exit.
+
+=item B<--version>
+
+Print the version number and information about how SiLK was
+configured, then exit the application.
+
+=back
+
+=head1 EXAMPLES
+
+In the following examples, the dollar sign (C<$>) represents the shell
+prompt.  The text after the dollar sign represents the command line.
+Lines have been wrapped for improved readability, and the back slash
+(C<\>) is used to indicate a wrapped line.
+
+To import the IPset file F<test-april.set> into a new catalog with the
+name C<testset> and a short description, with data valid for only the
+month of April, 2007:
+
+ $ rwipaimport --catalog=testset --desc="Test set catalog"      \
+        --start=2007/04/01 --end=2007/05/01                     \
+        test-april.set
+
+To import the Bag file F<test.bag> into a new catalog named C<testbag>
+with data valid for all dates and times (the C<...> literally means
+the characters C<...>):
+
+ $ rwipaimport --catalog=testbag --start=... --end=... test.bag
+
+=head1 FILES
+
+=over 4
+
+=item F<$SILK_PATH/share/silk/silk-ipa.conf>
+
+=item F<$SILK_PATH/share/silk-ipa.conf>
+
+=item F<@prefix@/share/silk/silk-ipa.conf>
+
+=item F<@prefix@/share/silk-ipa.conf>
+
+Possible locations for the IPA configuration file.  This file contains
+the URI for connecting to the IPA database.  If the configuration file
+does not exist, B<rwipaimport> will exit with an error.  The format of
+this URI is I<driver>://I<user>:I<pass-word>@I<hostname>/I<database>.
+For example:
+
+ postgresql://ipauser:secret@database-server.domain.com/ipa
+
+=back
+
+=head1 SEE ALSO
+
+B<rwipaexport(1)>, B<ipafilter(3)>, B<silk(7)>, B<ipaimport(1)>,
+B<ipaexport(1)>, B<ipaquery(1)>
+
+=cut
+
+$SiLK: rwipaimport.pod cd09f0a5fcc6 2014-06-14 15:43:33Z mthomas $
+
+Local Variables:
+mode:text
+indent-tabs-mode:nil
+End:

@@ -1,0 +1,266 @@
+=pod
+
+=head1 NAME
+
+B<rwcat> - Concatenate SiLK Flow files into single stream
+
+=head1 SYNOPSIS
+
+  rwcat [--output-path=FILE] [--note-add=TEXT] [--note-file-add=FILE]
+        [--print-filenames] [--byte-order={big | little | native}]
+        [--ipv4-output] [--compression-method=COMP_METHOD]
+        [--site-config-file=FILENAME]
+        {[--xargs] | [--xargs=FILENAME] | [FILE [FILE...]]}
+
+  rwcat --help
+
+  rwcat --version
+
+=head1 DESCRIPTION
+
+B<rwcat> reads SiLK Flow records and writes the records in the
+standard binary SiLK format to the specified output-path; B<rwcat>
+will write the records to the standard output when stdout is not the
+terminal and B<--output-path> is not provided.
+
+B<rwcat> reads SiLK Flow records from the files named on the command
+line or from the standard input when no file names are specified and
+B<--xargs> is not present.  To read the standard input in addition to
+the named files, use C<-> or C<stdin> as a file name.  If an input
+file name ends in C<.gz>, the file will be uncompressed as it is read.
+When the B<--xargs> switch is provided, B<rwcat> will read the names
+of the files to process from the named text file, or from the standard
+input if no file name argument is provided to the switch.  The input
+to B<--xargs> must contain one file name per line.
+
+B<rwcat> does I<not> copy the invocation history and annotations
+(notes) from the header(s) of the source file(s) to the destination
+file.  The B<--note-add> or B<--note-file-add> switch may be used to
+add a new annotation to the destination file.
+
+=head1 OPTIONS
+
+Option names may be abbreviated if the abbreviation is unique or is an
+exact match for an option.  A parameter to an option may be specified
+as B<--arg>=I<param> or B<--arg> I<param>, though the first form is
+required for options that take optional parameters.
+
+=over 4
+
+=item B<--output-path>=I<FILE>
+
+Write the SiLK Flow records to I<FILE>, which must not exist.  If the
+switch is not provided or if I<FILE> is C<stdout>, flows are written
+to the standard output.  If the name ends in C<.gz>, the output will
+be compressed using B<gzip(1)>.
+
+=item B<--note-add>=I<TEXT>
+
+Add the specified I<TEXT> to the header of the output file as an
+annotation.  This switch may be repeated to add multiple annotations
+to a file.  To view the annotations, use the B<rwfileinfo(1)> tool.
+
+=item B<--note-file-add>=I<FILENAME>
+
+Open I<FILENAME> and add the contents of that file to the header of
+the output file as an annotation.    This switch may be repeated to
+add multiple annotations.  Currently the application makes no effort
+to ensure that I<FILENAME> contains text; be careful that you do not
+attempt to add a SiLK data file as an annotation.
+
+=item B<--byte-order>=I<ENDIAN>
+
+Set the byte order for the output SiLK Flow records.  The argument is
+one of the following:
+
+=over 4
+
+=item C<native>
+
+Use the byte order of the machine where B<rwcat> is running.  This is
+the default.
+
+=item C<big>
+
+Use network byte order (big endian) for the output.
+
+=item C<little>
+
+Write the output in little endian format.
+
+=back
+
+=item B<--ipv4-output>
+
+Force the output to contain only IPv4 flow records.  When this switch
+is specified, IPv6 flow records that contain addresses in the
+::ffff:0:0/96 prefix are converted to IPv4 and written to the output,
+and all other IPv6 records are ignored.  When SiLK has not been
+compiled with IPv6 support, B<rwcat> acts as if this switch were
+always in effect.
+
+=item B<--compression-method>=I<COMP_METHOD>
+
+Specify how to compress the output.  When this switch is not given,
+output to the standard output or to named pipes is not compressed, and
+output to files is compressed using the default chosen when SiLK was
+compiled.  The valid values for I<COMP_METHOD> are determined by which
+external libraries were found when SiLK was compiled.  To see the
+available compression methods and the default method, use the
+B<--help> or B<--version> switch.  SiLK can support the following
+I<COMP_METHOD> values when the required libraries are available.
+
+=over 4
+
+=item none
+
+Do not compress the output using an external library.
+
+=item zlib
+
+Use the B<zlib(3)> library for compressing the output, and always
+compress the output regardless of the destination.  Using zlib
+produces the smallest output files at the cost of speed.
+
+=item lzo1x
+
+Use the I<lzo1x> algorithm from the LZO real time compression library
+for compression, and always compress the output regardless of the
+destination.  This compression provides good compression with less
+memory and CPU overhead.
+
+=item best
+
+Use lzo1x if available, otherwise use zlib.  Only compress the output
+when writing to a file.
+
+=back
+
+=item B<--print-filenames>
+
+Print the names of input files and the number of records each file
+contains as the files are read.
+
+=item B<--site-config-file>=I<FILENAME>
+
+Read the SiLK site configuration from the named file I<FILENAME>.
+When this switch is not provided, B<rwcat> searches for the site
+configuration file in the locations specified in the L</FILES>
+section.
+
+=item B<--xargs>
+
+=item B<--xargs>=I<FILENAME>
+
+Causes B<rwcat> to read file names from I<FILENAME> or from the
+standard input if I<FILENAME> is not provided.  The input should have
+one file name per line.  B<rwcat> will open each file in turn and read
+records from it, as if the files had been listed on the command line.
+
+=item B<--help>
+
+Print the available options and exit.
+
+=item B<--version>
+
+Print the version number and information about how SiLK was
+configured, then exit the application.
+
+=back
+
+=head1 EXAMPLES
+
+In the following examples, the dollar sign (C<$>) represents the shell
+prompt.  The text after the dollar sign represents the command line.
+Lines have been wrapped for improved readability, and the back slash
+(C<\>) is used to indicate a wrapped line.
+
+To combine the results of several B<rwfilter(1)> runs---stored in the
+files F<run1.rw>, F<run2.rw>, ... F<runN.rw>---together to create the
+file F<combined.rw>, you can use:
+
+ $ rwcat --output=combined.rw  *.rw
+
+If the shell complains about too many arguments, you can use the UNIX
+B<find(1)> function and pipe its output to B<rwcat>:
+
+ $ find . -name '*.rw' -print                   \
+   | rwcat --xargs --output=combined.rw
+
+=head1 ENVIRONMENT
+
+=over 4
+
+=item SILK_CLOBBER
+
+The SiLK tools normally refuse to overwrite existing files.  Setting
+SILK_CLOBBER to a non-empty value removes this restriction.
+
+=item SILK_CONFIG_FILE
+
+This environment variable is used as the value for the
+B<--site-config-file> when that switch is not provided.
+
+=item SILK_DATA_ROOTDIR
+
+This environment variable specifies the root directory of data
+repository.  As described in the L</FILES> section, B<rwcat> may
+use this environment variable when searching for the SiLK site
+configuration file.
+
+=item SILK_PATH
+
+This environment variable gives the root of the install tree.  When
+searching for configuration files, B<rwcat> may use this environment
+variable.  See the L</FILES> section for details.
+
+=back
+
+=head1 FILES
+
+=over 4
+
+=item F<${SILK_CONFIG_FILE}>
+
+=item F<${SILK_DATA_ROOTDIR}/silk.conf>
+
+=item F<@SILK_DATA_ROOTDIR@/silk.conf>
+
+=item F<${SILK_PATH}/share/silk/silk.conf>
+
+=item F<${SILK_PATH}/share/silk.conf>
+
+=item F<@prefix@/share/silk/silk.conf>
+
+=item F<@prefix@/share/silk.conf>
+
+Possible locations for the SiLK site configuration file which are
+checked when the B<--site-config-file> switch is not provided.
+
+=back
+
+=head1 SEE ALSO
+
+B<rwfilter(1)>, B<rwfileinfo(1)>, B<silk(7)>, B<gzip(1)>, B<find(1)>,
+B<zlib(3)>
+
+=head1 BUGS
+
+Although B<rwcat> will read from the standard input, this feature
+should be used with caution.  B<rwcat> will treat the standard input
+as a single file, as it has no way to know when one file ends and the
+next begins.  The following will not work:
+
+ $ cat run1.rw run2.rw | rwcat --output=combined.rw     # WRONG!
+
+The header of F<run2.rw> will be treated as data of F<run1.rw>,
+resulting in corrupt output.
+
+=cut
+
+$SiLK: rwcat.pod cd09f0a5fcc6 2014-06-14 15:43:33Z mthomas $
+
+Local Variables:
+mode:text
+indent-tabs-mode:nil
+End:

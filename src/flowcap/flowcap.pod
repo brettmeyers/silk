@@ -1,0 +1,379 @@
+=pod
+
+=head1 NAME
+
+B<flowcap> - Capture, temporarily store, and forward flow data
+
+=head1 SYNOPSIS
+
+  flowcap --destination-directory=DIR
+        --sensor-configuration=FILENAME [--probes=NAME[,NAME...]]
+        --max-file-size=SIZE [--fc-version=NUM]
+        [--timeout=TIMEOUT] [--clock-time[=OFFSET]]
+        [--freespace-minimum=SIZE] [--space-maximum-percent=NUM]
+        [--compression-method=COMP_METHOD]
+        { --log-destination=DESTINATION
+          | --log-pathname=FILE_PATH
+          | --log-directory=DIR_PATH [--log-basename=LOG_BASENAME]
+            [--log-post-rotate=COMMAND] }
+        [--log-level=LEVEL] [--log-sysfacility=NUMBER]
+        [--pidfile=FILE_PATH] [--no-chdir] [--no-daemon]
+
+Help options:
+
+  flowcap --sensor-configuration=FILE_PATH
+        { --verify-sensor-config | --verify-sensor-config=VERBOSE }
+
+  flowcap --help
+
+  flowcap --version
+
+=head1 DESCRIPTION
+
+B<flowcap> is a daemon that collects data from devices that produce
+flow data (such as a router producing NetFlow v5 or a flow meter
+producing IPFIX (Internet Protocol Flow Information eXport)),
+temporarily stores the data to files on its local disk, and forwards
+these files to B<rwflowpack(8)> for packing.
+
+As B<flowcap> receives flow records, it stores them in files in the
+location specified by the B<--destination-directory> switch.  These
+files are closed on quantum boundaries, with one file per flow source
+per quantum.  A quantum is either the amount of time represented by
+the B<--timeout> switch or the file size represented by the
+B<--max-file-size> switch, whichever is reached first.
+
+To transfer the files to B<rwflowpack>, B<flowcap> works in tandem
+with the B<rwsender(8)> program.  B<rwsender> polls the storage
+directory and sends the files it finds there to an B<rwreceiver(8)>
+process for processing by B<rwflowpack>.
+
+B<flowcap> produces files that are named
+I<PROBE>_I<YYYYMMDDhhmmss>.I<XXXXXX>, where I<PROBE> is the name of
+the probe, I<YYYY> is the current year, I<MM> is the current month,
+I<DD> is the current day, I<hh> is the current hour, I<mm> is the
+current minute, I<ss> is the current second, and I<XXXXXX> is a random
+six-character string.
+
+=head1 OPTIONS
+
+Option names may be abbreviated if the abbreviation is unique or is an
+exact match for an option.  A parameter to an option may be specified
+as B<--arg>=I<param> or B<--arg> I<param>, though the first form is
+required for options that take optional parameters.
+
+For the following options, a I<SIZE> may be given as an ordinary
+integer, or as a real number followed by a suffix C<K>, C<M>, C<G>, or
+C<T>, which represents the numerical value multiplied by 1,024 (kilo),
+1,048,576 (mega), 1,073,741,824 (giga), and 1,099,511,627,776 (tera),
+respectively.  For example, 1.5K represents 1,536 bytes, or one and
+one-half kilobytes.
+
+=head2 General Configuration Switches
+
+=over 4
+
+=item B<--destination-directory>=I<DIR>
+
+Store aggregated packed flow files in this directory for processing by
+B<rwsender>.  This switch is required.
+
+=item B<--sensor-configuration>=I<FILENAME>
+
+Give the path to the configuration file that B<flowcap> will consult
+to determine how to collect flow records.  The complete syntax of the
+configuration file is described in the B<sensor.conf(5)> manual page;
+see also the I<SiLK Installation Handbook>.  This switch is required.
+
+=item B<--probes>=I<NAME[,NAME...]>
+
+Choose which of the probes described in the sensor configuration file
+will be used by B<flowcap>.  The default is to use all of the probes
+defined in the configuration file.  This switch instructs B<flowcap>
+to only use the specifically named probes.
+
+=item B<--max-file-size>=I<SIZE>
+
+Set the approximate maximum size of B<flowcap> files to I<SIZE> bytes.
+If a B<flowcap> file's exceeds I<SIZE> bytes, it will be closed, and a
+new file will be created and used.  In addition, before opening an
+output file, B<flowcap> ensures there are I<SIZE> bytes of free space
+available, and exits if there is not.  This switch is required.
+
+=item B<--timeout>=I<TIMEOUT>
+
+Set the maximum duration that a B<flowcap> output file remains open to
+I<TIMEOUT> seconds.  When the B<--clock-time> switch is given, the
+first duration will be less than I<TIMEOUT> seconds.  If the
+B<--timeout> switch is not specified, B<flowcap> uses a default of 60
+seconds.
+
+=item B<--clock-time>[=I<OFFSET>]
+
+Force B<flowcap> to close its files at predictable times.  When this
+switch is provided, B<flowcap> closes its output files at I<OFFSET>
+seconds after midnight (UTC of the current day) and at every
+I<TIMEOUT> seconds thereafter.  The default value of I<OFFSET> is 0.
+For example, B<--timeout=900 --clock-time=300> causes B<flowcap> to
+close its output files at the 05, 20, 35, and 50 minute points in each
+hour.  Even with this switch, files will still be closed if they
+exceed the size specified by B<--max-file-size>.
+
+=item B<--fc-version>=I<NUM>
+
+Choose the record version for the files of IPv4 flow records that
+B<flowcap> produces.  Valid values are 2, 3, 4, and 5, and the default
+is 5.  This switch is ignored for probes that support IPv6 addresses.
+
+=item B<--freespace-minimum>=I<SIZE>
+
+Set the minimum free space to maintain on the file system where the
+B<--destination-directory> is located.  By default, B<flowcap> assumes
+that it has full rein over the file system on which it writes its
+files.  The default is to leave 1GB of free space.  If B<flowcap>
+fills this space, it will exit.  Flows arriving during this time will
+be lost.  See also B<--space-maximum-percent>.
+
+=item B<--space-maximum-percent>=I<NUM>
+
+Use no more than this percentage of the file system containing the
+B<--destination-directory>.  The default is to use no more than 98% of
+the file system.  If B<flowcap> fills this space, it will exit.  See
+also B<--freespace-minimum>.
+
+=item B<--compression-method>=I<COMP_METHOD>
+
+Specify how to compress the output.  When this switch is not given,
+flowcap files are compressed using the C<best> method, regardless of
+the default chosen when SiLK was compiled.  The valid values for
+I<COMP_METHOD> are determined by which external libraries were found
+when SiLK was compiled.  To see the available compression methods and
+the default method, use the B<--help> or B<--version> switch. SiLK can
+support the following I<COMP_METHOD> values when the required
+libraries are available.
+
+=over 4
+
+=item none
+
+Do not compress the output using an external library.
+
+=item zlib
+
+Use the B<zlib(3)> library for compressing the output.  Using zlib
+produces the smallest output files at the cost of speed.
+
+=item lzo1x
+
+Use the I<lzo1x> algorithm from the LZO real time compression library
+for compression.  This compression provides good compression with less
+memory and CPU overhead.
+
+=item best
+
+Use lzo1x if available, otherwise use zlib.
+
+=back
+
+=item B<--verify-sensor-config>
+
+=item B<--verify-sensor-config>=I<VERBOSE>
+
+Verify that the syntax of the sensor configuration file is correct and
+then exit B<flowcap>.  If the file is incorrect or if it does not
+define any probes, an error message is printed and B<flowcap> exits
+abnormally.  If the file is correct and no argument is provided to the
+B<--verify-sensor-config> switch, B<flowcap> simply exits with status
+0.  If an argument (other than the empty string and C<0>) is provided
+to the switch, the names of the probes found in the sensor
+configuration file are printed to the standard output, and then
+B<flowcap> exits.
+
+=item B<--help>
+
+Print the available options and exit.
+
+=item B<--version>
+
+Print the version number and information about how SiLK was
+configured, then exit the application.
+
+=back
+
+=head2 Logging and Daemon Configuration Switches
+
+The switches in this section determine the type of log messages that
+B<flowcap> generates and where those messages are written.
+
+One of the following switches are required:
+
+=over 4
+
+=item B<--log-destination>=I<DESTINATION>
+
+Specify the destination where logging messages are written.  When
+I<DESTINATION> begins with a slash C</>, it is treated as a file
+system path and all log messages are written to that file; there is no
+log rotation.  When I<DESTINATION> does not begin with C</>, it must
+be one of the following strings:
+
+=over 4
+
+=item C<none>
+
+Messages are not written anywhere.
+
+=item C<stdout>
+
+Messages are written to the standard output.
+
+=item C<stderr>
+
+Messages are written to the standard error.
+
+=item C<syslog>
+
+Messages are written using the B<syslog(3)> facility.
+
+=item C<both>
+
+Messages are written to the syslog facility and to the standard error
+(this option is not available on all platforms).
+
+=back
+
+=item B<--log-directory>=I<DIR_PATH>
+
+Use I<DIR_PATH> as the directory to which the log files are written;
+I<DIR_PATH> must be a complete directory path.  The log files have the
+form
+
+ DIR_PATH/LOG_BASENAME-YYYYMMDD.log
+
+where I<YYYYMMDD> is the current date and I<LOG_BASENAME> is the
+application name or the value passed to the B<--log-basename> switch
+when provided.  The log files are rotated: At midnight local time, a
+new log is opened, the previous file is closed, and the command
+specified by B<--log-post-rotate> is invoked on the previous day's log
+file.  (Old log files are not removed by B<flowcap>; the administrator
+should use another tool to remove them.)  When this switch is
+provided, a process-ID file (PID) is also written in this directory
+unless the B<--pidfile> switch is provided.
+
+=item B<--log-pathname>=I<FILE_PATH>
+
+Use I<FILE_PATH> as the complete path to the log file.  The log file
+is not rotated.
+
+=back
+
+The following switches are optional:
+
+=over 4
+
+=item B<--log-level>=I<LEVEL>
+
+Set the severity of messages that will be logged.  The levels from
+most severe to least are: C<emerg>, C<alert>, C<crit>, C<err>,
+C<warning>, C<notice>, C<info>, C<debug>.  The default is C<info>.
+
+=item B<--log-sysfacility>=I<NUMBER>
+
+Set the facility that B<syslog(3)> uses for logging messages.  This
+switch takes a number as an argument.  The default is a value that
+corresponds to C<LOG_USER> on the system where B<flowcap> is running.
+This switch produces an error unless B<--log-destination>=syslog is
+specified.
+
+=item B<--log-basename>=I<LOG_BASENAME>
+
+Use I<LOG_BASENAME> in place of the application name in the name of
+I<log> files in the log directory.  See the description of the
+B<--log-directory> switch.  This switch does B<not> affect the name of
+the process-ID file.
+
+=item B<--log-post-rotate>=I<COMMAND>
+
+Run I<COMMAND> on the previous day's log file after log rotation.
+When this switch is not specified, the previous day's log file is
+compressed with B<gzip(1)>.  When the switch is specified and
+I<COMMAND> is the empty string, no action is taken on the log file.
+Each occurrence of the string C<%s> in I<COMMAND> will be replaced
+with the full path to the log file, and each occurrence of C<%%> will
+be replaced with C<%>.  If any other character follows C<%>,
+B<flowcap> exits with an error.  Specifying this switch without also
+using B<--log-directory> is an error.
+
+=item B<--pidfile>=I<FILE_PATH>
+
+Set the complete path to the file in which B<flowcap> writes its
+process ID (PID) when it is running as a daemon.  No PID file is
+written when B<--no-daemon> is given.  When this switch is not
+present, no PID file is written unless the B<--log-directory> switch
+is specified, in which case the PID is written to
+F<I<LOGPATH>/flowcap.pid>.
+
+=item B<--no-chdir>
+
+Do not change directory to the root directory.  When B<flowcap>
+becomes a daemon process, it changes its current directory to the root
+directory so as to avoid potentially running on a mounted file system.
+Specifying B<--no-chdir> prevents this behavior, which may be useful
+during debugging.  The application does not change its directory when
+B<--no-daemon> is given.
+
+=item B<--no-daemon>
+
+Force B<flowcap> to run in the foreground---it does not become a
+daemon process.  This may be useful during debugging.
+
+=back
+
+=head1 ENVIRONMENT
+
+=over 4
+
+=item SILK_IPFIX_PRINT_TEMPLATES
+
+When set to 1, B<flowcap> writes messages to the log file
+describing each IPFIX and NetFlow v9 template it receives.  The first
+message includes the domain, the template identifier, the number of
+information elements in the template, and the name of this environment
+variable.  Next, a message is printed for each information element in
+the template where the message contains the domain id, the template
+id, and the element's position in the template, length in octets,
+numeric information element identifier, and name.  For elements
+defined by a private enterprise, the IE number has two parts: the
+private enterprise number and the information element number,
+separated by a slash (/).  (Requires libfixbuf 1.4.0 or later.)
+I<Since SiLK 3.8.2.>
+
+=back
+
+=head1 FILES
+
+=over 4
+
+=item F<sensor.conf>
+
+The location of this file must be specified by the
+B<--sensor-configuration> switch.  This file specifies B<probe> blocks
+that tell B<flowcap> how to capture data.  The syntax of this file is
+described in the B<sensor.conf(5)> manual page.
+
+=back
+
+=head1 SEE ALSO
+
+B<sensor.conf(5)>, B<rwflowpack(8)>, B<rwsender(8)>, B<rwreceiver(8)>,
+B<silk(7)>, B<syslog(3)>, B<zlib(3)>, B<gzip(1)>,
+I<SiLK Installation Handbook>
+
+=cut
+
+$SiLK: flowcap.pod 451cb3934c03 2014-03-07 20:44:02Z mthomas $
+
+Local Variables:
+mode:text
+indent-tabs-mode:nil
+End:

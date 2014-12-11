@@ -1,0 +1,176 @@
+=pod
+
+=head1 NAME
+
+B<rwappend> - Append SiLK Flow file(s) to an existing SiLK Flow file
+
+=head1 SYNOPSIS
+
+  rwappend [--create=[TEMPLATE_FILE]] [--print-statistics]
+         [--site-config-file=FILENAME]
+         TARGET_FILE SOURCE_FILE [SOURCE_FILE...]
+
+  rwappend --help
+
+  rwappend --version
+
+=head1 DESCRIPTION
+
+B<rwappend> reads SiLK Flow records from the specified I<SOURCE_FILE>s
+and appends them to the I<TARGET_FILE>.  If C<stdin> is used as the
+name of one of the I<SOURCE_FILE>s, SiLK flow records will be read
+from the standard input.
+
+When the I<TARGET_FILE> does not exist and the B<--create> switch is
+not provided, B<rwappend> will exit with an error.  When B<--create>
+is specified and I<TARGET_FILE> does not exist, B<rwappend> will
+create the I<TARGET_FILE> using the same format, version, and
+byte-order as the specified I<TEMPLATE_FILE>.  If no I<TEMPLATE_FILE>
+is given, the I<TARGET_FILE> is created in the default format and
+version (the same format that B<rwcat(1)> would produce).
+
+The I<TARGET_FILE> must be an actual file---it cannot be a named pipe
+or the standard output.  In addition, the header of I<TARGET_FILE>
+must not be compressed; that is, you cannot append to a file whose
+entire contents has been compressed with B<gzip> (those files normally
+end in the C<.gz> extension).
+
+=head1 OPTIONS
+
+Option names may be abbreviated if the abbreviation is unique or is an
+exact match for an option.  A parameter to an option may be specified
+as B<--arg>=I<param> or S<B<--arg> I<param>>, though the first form is
+required for options that take optional parameters.
+
+=over 4
+
+=item B<--create>
+
+=item B<--create>=I<TEMPLATE_FILE>
+
+Create the I<TARGET_FILE> if it does not exist.  The file will have
+the same format, version, and byte-order as the I<TEMPLATE_FILE> if it
+is provided; otherwise the defaults are used.  The I<TEMPLATE_FILE>
+will B<NOT> be appended to I<TARGET_FILE> unless it also appears in
+as the name of a I<SOURCE_FILE>.
+
+=item B<--print-statistics>
+
+Print to the standard error the number of records read from each
+I<SOURCE_FILE> and the total number of records appended to the
+I<TARGET_FILE>.
+
+=item B<--site-config-file>=I<FILENAME>
+
+Read the SiLK site configuration from the named file I<FILENAME>.
+When this switch is not provided, B<rwappend> searches for the site
+configuration file in the locations specified in the L</FILES>
+section.
+
+=item B<--help>
+
+Print the available options and exit.
+
+=item B<--version>
+
+Print the version number and information about how SiLK was
+configured, then exit the application.
+
+=back
+
+=head1 EXAMPLES
+
+In the following examples, the dollar sign (C<$>) represents the shell
+prompt.  The text after the dollar sign represents the command line.
+Lines have been wrapped for improved readability, and the back slash
+(C<\>) is used to indicate a wrapped line.
+
+Standard usage where the file to append to, F<results.rw>, exists:
+
+ $ rwappend results.rw sample5.rw sample6.rw
+
+To append files F<sample*.rw> to F<results.rw>, or to create
+F<results.rw> using the same format as the first file argument (note
+that F<sample1.rw> must be repeated):
+
+ $ rwappend results.rw --create=sample1.rw          \
+        sample1.rw sample2.rw
+
+If F<results.rw> does not exist, the following two commands are
+equivalent:
+
+ $ rwappend --create results.rw sample1.rw sample2.rw
+
+ $ rwcat sample1.rw sample2.rw > results.rw
+
+=head1 ENVIRONMENT
+
+=over 4
+
+=item SILK_CONFIG_FILE
+
+This environment variable is used as the value for the
+B<--site-config-file> when that switch is not provided.
+
+=item SILK_DATA_ROOTDIR
+
+This environment variable specifies the root directory of data
+repository.  As described in the L</FILES> section, B<rwappend> may
+use this environment variable when searching for the SiLK site
+configuration file.
+
+=item SILK_PATH
+
+This environment variable gives the root of the install tree.  When
+searching for configuration files, B<rwappend> may use this
+environment variable.  See the L</FILES> section for details.
+
+=back
+
+=head1 FILES
+
+=over 4
+
+=item F<${SILK_CONFIG_FILE}>
+
+=item F<${SILK_DATA_ROOTDIR}/silk.conf>
+
+=item F<@SILK_DATA_ROOTDIR@/silk.conf>
+
+=item F<${SILK_PATH}/share/silk/silk.conf>
+
+=item F<${SILK_PATH}/share/silk.conf>
+
+=item F<@prefix@/share/silk/silk.conf>
+
+=item F<@prefix@/share/silk.conf>
+
+Possible locations for the SiLK site configuration file which are
+checked when the B<--site-config-file> switch is not provided.
+
+=back
+
+=head1 SEE ALSO
+
+B<rwcat(1)>, B<silk(7)>
+
+=head1 BUGS
+
+When a I<SOURCE_FILE> contains IPv6 flow records and the
+I<TARGET_FILE> only supports IPv4 records, B<rwappend> converts IPv6
+records that contain addresses in the ::ffff:0:0/96 prefix to IPv4 and
+writes them to the I<TARGET_FILE>.  B<rwappend> silently ignores IPv6
+records having addresses outside of that prefix.
+
+B<rwappend> makes some attempts to avoid appending a file to itself
+(which would eventually exhaust the disk space) by comparing the names
+of files it is given; it should be smarter about this.
+
+=cut
+
+$SiLK: rwappend.pod cd09f0a5fcc6 2014-06-14 15:43:33Z mthomas $
+
+Local Variables:
+mode:text
+indent-tabs-mode:nil
+End:

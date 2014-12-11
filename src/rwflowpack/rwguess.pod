@@ -1,0 +1,194 @@
+=pod
+
+=head1 NAME
+
+B<rwguess> - Determine which SNMP interfaces are active
+
+=head1 SYNOPSIS
+
+  rwguess [{ --top=NUM | --print-all }] PDU_FILE [PDU_FILE...]
+
+  rwguess --help
+
+  rwguess --version
+
+=head1 DESCRIPTION
+
+B<rwguess> is deprecated as of SiLK 3.8.3 and it will be removed in
+the SiLK 4.0 release.  Replace invocations of B<rwguess> with
+B<rwpdu2silk(1)> and either B<rwstats(1)> or B<rwuniq(1)> as shown in
+L</EXAMPLES>.
+
+B<rwguess> reads NetFlow v5 PDUs from file(s) specified on the command
+line and counts the number of flow records that are seen on each
+input and output SNMP interface.  Once all input has been processed,
+B<rwguess> sorts the SNMP interfaces by the number of records each
+interface saw, and prints the two sorted lists, one for the input
+interfaces and one for the output interfaces.  By default, only the
+top-10 interfaces are printed; the number of rows printed may be
+changed with the B<--top> switch.
+
+When the B<--print-all> switch is specified, the results are printed
+in SNMP interface order, with one column for the input record count
+and another for the output record count, and one row for each
+interface that saw traffic.
+
+The purpose of B<rwguess> is to help one configure the C<sensor>
+blocks in the B<silk.conf(5)> file used by B<rwflowpack(8)> to
+categorize flow records into classes and types.
+
+The PDU files are expected to be in the form created by NetFlow
+Collector: Each file's size must be an integer multiple of 1464, where
+each 1464 byte chunk contains a 24 byte NetFlow v5 header and space
+for thirty 48 byte NetFlow records.  The number of valid records per
+chunk is specified in the PDU header.
+
+To convert a PDU file to a stream of SiLK Flow records, use
+B<rwpdu2silk(1)>.
+
+=head1 OPTIONS
+
+Option names may be abbreviated if the abbreviation is unique or is an
+exact match for an option.  A parameter to an option may be specified
+as B<--arg>=I<param> or S<B<--arg> I<param>>, though the first form is
+required for options that take optional parameters.
+
+=over 4
+
+=item B<--top>=I<NUM>
+
+Print the top I<NUM> interfaces for each of input and output.  If not
+specified, the default is to print the top 10 interfaces.
+
+=item B<--print-all>
+
+Print all SNMP interfaces that saw records, sorted by the SNMP
+interface number.  This switch disables top-N printing.
+
+=item B<--help>
+
+Print the available options and exit.
+
+=item B<--version>
+
+Print the version number and information about how SiLK was
+configured, then exit the application.
+
+=back
+
+=head1 EXAMPLES
+
+B<rwguess> is deprecated.  This section demonstrates how to get
+equivalent functionality by piping the output from B<rwpdu2silk(1)>
+into either B<rwstats(1)> or B<rwuniq(1)>.
+
+In the following examples, the dollar sign (C<$>) represents the shell
+prompt.  The text after the dollar sign represents the command line.
+Lines have been wrapped for improved readability, and the back slash
+(C<\>) is used to indicate a wrapped line.
+
+=head2 Top-N List
+
+By default, B<rwguess> creates a top-10 list of SNMP interfaces.
+
+ $ rwguess file.pdu
+ Top 10 (of 36) SNMP Input Interfaces
+ Index|  Input_Recs|
+    54|        3466|
+    38|        1374|
+    84|         770|
+    88|         746|
+    56|         737|
+    68|         513|
+   106|         508|
+    62|         373|
+   114|         323|
+     8|         321|
+
+ Top 10 (of 37) SNMP Output Interfaces
+ Index| Output_Recs|
+    54|        3507|
+    38|         885|
+    98|         699|
+    84|         673|
+    88|         671|
+    56|         605|
+    58|         538|
+   106|         501|
+    92|         460|
+    62|         380|
+
+Use B<rwpdu2silk> to convert the file to SiLK flow format, and pipe
+the result to B<rwstats>.  You must invoke B<rwstats> twice, once the
+input interface (B<--field=in>) and once for the output interface
+(B<--field=out>).  The B<--copy-input> switch allows the second
+B<rwstats> command to read output from B<rwpdu2silk>.
+
+ $ rwpdu2silk file.pdu  \
+   | rwstats --count=10 --fields=in --copy-input=- --output-path=stderr \
+   | rwstats --count=10 --fields=out
+ INPUT: 12056 Records for 36 Bins and 12056 Total Records
+ OUTPUT: Top 10 Bins by Records
+    in|   Records|  %Records|   cumul_%|
+    54|      3466| 28.750663| 28.750663|
+    38|      1374| 11.398869| 40.149532|
+    84|       770|  6.388336| 46.537868|
+    88|       746|  6.193106| 52.730975|
+    56|       737|  6.117718| 58.848693|
+    68|       513|  4.261379| 63.110072|
+   106|       508|  4.216760| 67.326831|
+    62|       373|  3.094729| 70.421560|
+   114|       323|  2.681877| 73.103437|
+     8|       321|  2.666285| 75.769722|
+ INPUT: 12056 Records for 37 Bins and 12056 Total Records
+ OUTPUT: Top 10 Bins by Records
+   out|   Records|  %Records|   cumul_%|
+    54|      3507| 29.089205| 29.089205|
+    38|       885|  7.347980| 36.437185|
+    98|       699|  5.801735| 42.238920|
+    84|       673|  5.588923| 47.827843|
+    88|       671|  5.572502| 53.400345|
+    56|       605|  5.022807| 58.423152|
+    58|       538|  4.462497| 62.885649|
+   106|       501|  4.155802| 67.041451|
+    92|       460|  3.821822| 70.863273|
+    62|       380|  3.157428| 74.020701|
+
+=head2 Seeing all interfaces
+
+The B<--print-all> switch shows all interfaces.
+
+ $ rwguess --print-all file2.pdu
+ Index|  Input_Recs| Output_Recs|
+    10|       17099|       17115|
+   172|        7893|        7893|
+   192|       25008|       24992|
+
+Use B<rwuniq> to generate similar output, though you must run
+B<rwuniq> twice (as with B<rwstats> in the previous example).
+
+ $ rwpdu2silk file2.pdu   \
+   | rwuniq --sort --fields=in --copy-input=- --output-path=stderr  \
+   | rwuniq --sort --fields=out
+    in|   Records|
+    10|     17099|
+   172|      7893|
+   192|     25008|
+   out|   Records|
+    10|     17115|
+   172|      7893|
+   192|     24992|
+
+=head1 SEE ALSO
+
+B<rwpdu2silk(1)>, B<rwstats(1)>, B<rwuniq(1)>, B<rwflowpack(8)>,
+B<sensor.conf(5)>, B<silk(7)>
+
+=cut
+
+$SiLK: rwguess.pod 72c1364e7399 2014-06-19 14:34:57Z mthomas $
+
+Local Variables:
+mode:text
+indent-tabs-mode:nil
+End:

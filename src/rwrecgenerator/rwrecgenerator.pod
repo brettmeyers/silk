@@ -1,0 +1,739 @@
+=pod
+
+=head1 NAME
+
+B<rwrecgenerator> - Generate random SiLK Flow records
+
+=head1 SYNOPSIS
+
+  rwrecgenerator { --silk-output-path=PATH | --text-output-path=PATH
+                   | { --output-directory=DIR_PATH
+                       --processing-directory=DIR_PATH }}
+        --log-destination=DESTINATION [--log-level=LEVEL]
+        [--log-sysfacility=NUMBER] [--seed=SEED]
+        [--start-time=START_DATETIME --end-time=END_DATETIME]
+        [--time-step=MILLISECONDS] [--events-per-step=COUNT]
+        [--num-subprocesses=COUNT] [--flush-timeout=MILLISEC]
+        [--file-cache-size=SIZE] [--compression-method=COMP_METHOD]
+        [--epoch-time] [--integer-ips] [--zero-pad-ips]
+        [--integer-sensors] [--integer-tcp-flags] [--no-titles]
+        [--no-columns] [--column-separator=CHAR]
+        [--no-final-delimiter] [--delimited=[CHAR]]]
+        [--site-config-file=FILENAME] [--sensor-prefix-map=FILE]
+        [--flowtype-in=CLASS/TYPE] [--flowtype-inweb=CLASS/TYPE]
+        [--flowtype-out=CLASS/TYPE] [--flowtype-outweb=CLASS/TYPE]
+
+  rwrecgenerator --help
+
+  rwrecgenerator --version
+
+=head1 DESCRIPTION
+
+B<rwrecgenerator> uses pseudo-random numbers to generate I<events>,
+where each consists of one or more SiLK Flow records.
+These flow records can written as a single binary file, as text (in
+either a columnar or a comma separated value format) similar to the
+output from B<rwcut(1)>, or as a directory of small binary files to
+mimic the I<incremental files> produced by B<rwflowpack(8)>.  The type
+of output to produce must be specified using the appropriate switches.
+Currently only one type of output may be produced in a single
+invocation.
+
+B<rwrecgenerator> works through a time window, where the starting and
+ending times for the window may be specified on the command line.
+When not specified, the window defaults to the previous hour.  By
+default, B<rwrecgenerator> will generate one event at the start time
+and one event at the end time.  To modify the size of the steps
+B<rwrecgenerator> takes across the window, specify the B<--time-step>
+switch.  The number of events to create at each step may be specified
+with the B<--events-per-step> switch.
+
+The time window specifies when the events begin.  Since most events
+create multiple flow records with small time offsets between them (and
+some events may create flow records across multiple hours), flow
+records will exist that begin after the time window.
+
+To generate a single SiLK flow file, specify its location with the
+B<--silk-output-path> switch.  A value of C<-> will write the output
+to the standard output unless the standard output is connected to a
+terminal.
+
+To produce textual output, specify B<--text-output-path>.
+B<rwrecgenerator> has numerous switches to control the appearance of
+the text; however, currently B<rwrecgenerator> produces a fixed set of
+fields.
+
+When creating incremental files, the B<--output-directory> and
+B<--processing-directory> switches are required.  B<rwrecgenerator>
+creates files in the processing directory, and moves the files to the
+output directory when the flush timeout arrives.  The default flush
+timeout is 30,000 milliseconds (30 seconds); the user may modify the
+value with the B<--flush-timeout> switch. Any files in the processing
+directory are removed when B<rwrecgenerator> starts.
+
+The B<--num-subprocesses> switch tells B<rwrecgenerator> to use
+multiple subprocesses when creating incremental files.  When the
+switch is specified, B<rwrecgenerator> will split the time window into
+multiple pieces and give each subprocess its own time window to
+create.  The initial B<rwrecgenerator> process then waits for the
+subprocesses to complete.  When B<--num-subprocesses> is specified,
+B<rwrecgenerator> will create subdirectories under the
+B<--processing-directory>, where each subprocess gets its own
+processing directory.
+
+The B<--seed> switch may be specified to provide a consistent set of
+flow records across multiple invocations.  (Note that the names of the
+incremental files will differ across invocations since those names are
+created with the mkstemp(3) function.)
+
+Given the same seed for the pseudo-random number generator and
+assuming the B<--num-subprocesses> is I<not> specified, the output
+from B<rwrecgenerator> will contain the same data regardless of
+whether the output is written to a single SiLK flow file, a text file,
+or a series of incremental files.
+
+When both B<--seed> and B<--num-subprocesses> is specified, the
+incremental files will contain the same flow records across
+invocations, but the flow records will not be consistent with those
+created by B<--silk-output-path> or B<--text-output-path>.
+
+B<rwrecgenerator> must have access to a B<silk.conf(5)> site
+configuration file, either specified by the B<--site-config-file>
+switch on the command line or specified by the typical methods.
+
+The B<--flowtype-in>, B<--flowtype-inweb>, B<--flowtype-out>, and
+B<--flowtype-outweb> switches may be used to specify the I<flowtype>
+(that is, the I<class>/I<type> pair) that B<rwrecgenerator> uses for
+its flow records.  When these switches are not specified,
+B<rwrecgenerator> attempts to use the flowtypes defined in the
+F<silk.conf> file for the I<twoway> site.  Specifically, it attempts
+to use "all/in", "all/inweb", "all/out", and "all/outweb",
+respectively.
+
+Use of the B<--sensor-prefix-map> switch is recommended.  The argument
+should name a prefix map file that maps from an internal IP address to
+a sensor number.  If the switch is not provided, all flow records will
+use the first sensor in the F<silk.conf> file that is supported by the
+class specified by the flowtypes.  When using the
+B<--sensor-prefix-map>, make certain the sensors you choose are in the
+class specified in the B<--flowtype->I<*> switches.
+
+When using the B<--sensor-prefix-map> switch and creating incremental
+files, it is recommended that you use the B<--file-cache-size> switch
+to increase the size of the stream cache to be approximately 12 to 16
+times the number of sensors.  This will reduce the amount of time
+spent closing and reopening the files.
+
+The B<--log-destination> switch is required.  Specify B<none> to
+disable logging.
+
+Currently, B<rwrecgenerator> only supports generating IPv4 addresses.
+Addresses in 0.0.0.0/1 are considered internal, and addresses in
+128.0.0.0/1 are considered external.  All flow records are between an
+internal and an external address.  Whether the internal addresses is
+the source or destination of the unidirectional flow record is
+determined randomly.
+
+The types of flow records that B<rwrecgenerator> creates are:
+
+=over 4
+
+=item *
+
+HTTP traffic on port 80/tcp that consists of a query and a response.
+This traffic will be about 30% of the total by flow count.
+
+=item *
+
+HTTPS traffic on port 443/tcp that consists of a query and a response.
+This traffic will be about 30% of the total by flow count.
+
+=item *
+
+DNS traffic on port 53/udp that consists of a query and a response.
+This traffic will be about 10% of the total by flow count.
+
+=item *
+
+FTP traffic on port 21/tcp that consists of a query and a response.
+This traffic will be about 4% of the total by flow count.
+
+=item *
+
+ICMP traffic on that consists of a single message.  This traffic will
+be about 4% of the total by flow count.
+
+=item *
+
+IMAP traffic on port 143/tcp that consists of a query and a response.
+This traffic will be about 4% of the total by flow count.
+
+=item *
+
+POP3 traffic on port 110/tcp that consists of a query and a response.
+This traffic will be about 4% of the total by flow count.
+
+=item *
+
+SMTP traffic on port 25/tcp that consists of a query and a response.
+This traffic will be about 4% of the total by flow count.
+
+=item *
+
+TELNET traffic on port 23/tcp between two machines.  This traffic may
+involve multiple flow records that reach the active timeout of 1800
+seconds.  This traffic will be about 4% of the total by flow count.
+
+=item *
+
+Traffic on IP Protocols 47, 50, or 58 that consists of a single
+record.  This traffic will be about 4% of the total by flow count.
+
+=item *
+
+Scans of every port on one IP address.  This traffic will be about 1%
+of the total by flow count.
+
+=item *
+
+Scans of a single port across a range of IP addresses.  This traffic
+will be about 1% of the total by flow count.
+
+=back
+
+=head1 OPTIONS
+
+Option names may be abbreviated if the abbreviation is unique or is an
+exact match for an option.  A parameter to an option may be specified
+as B<--arg>=I<param> or B<--arg> I<param>, though the first form is
+required for options that take optional parameters.
+
+=head2 Output Switches
+
+Exactly one of the following switches is required.
+
+=over 4
+
+=item B<--silk-output-path>=I<PATH>
+
+Specifies that B<rwrecgenerator> should create a single binary file of
+SiLK flow records to the specified location.  If I<PATH> is C<->, the
+records are written to the standard output.  B<rwrecgenerator> will
+not support writing binary data to a terminal.
+
+=item B<--output-directory>=I<DIR_PATH>
+
+Name the directory into which the incremental files are written once
+the flush timeout is reached.
+
+=item B<--text-output-path>=I<PATH>
+
+Specifies that B<rwrecgenerator> should convert the flow records it
+creates to text and to print the result in a format similar to that
+created by B<rwcut(1)>.  The output will be written to the specified
+location.  If I<PATH> is C<->, the records are written to the standard
+output.
+
+=back
+
+=head2 Logging Switches
+
+The B<--log-destination> switch is required.  Use a value of B<none>
+to disable logging.
+
+=over 4
+
+=item B<--log-destination>=I<DESTINATION>
+
+Specify the destination where logging messages are written.  When
+I<DESTINATION> begins with a slash C</>, it is treated as a file
+system path and all log messages are written to that file; there is no
+log rotation.  When I<DESTINATION> does not begin with C</>, it must
+be one of the following strings:
+
+=over 4
+
+=item C<none>
+
+Messages are not written anywhere.
+
+=item C<stdout>
+
+Messages are written to the standard output.
+
+=item C<stderr>
+
+Messages are written to the standard error.
+
+=item C<syslog>
+
+Messages are written using the B<syslog(3)> facility.
+
+=item C<both>
+
+Messages are written to the syslog facility and to the standard error
+(this option is not available on all platforms).
+
+=back
+
+=item B<--log-level>=I<LEVEL>
+
+Set the severity of messages that will be logged.  The levels from
+most severe to least are: C<emerg>, C<alert>, C<crit>, C<err>,
+C<warning>, C<notice>, C<info>, C<debug>.  The default is C<info>.
+
+=item B<--log-sysfacility>=I<NUMBER>
+
+Set the facility that B<syslog(3)> uses for logging messages.  This
+switch takes a number as an argument.  The default is a value that
+corresponds to C<LOG_USER> on the system where B<rwrecgenerator> is
+running.  This switch produces an error unless
+B<--log-destination>=syslog is specified.
+
+=back
+
+=head2 General Switches
+
+The following are general purpose switches.  None are required.
+
+=over 4
+
+=item B<--seed>=I<SEED>
+
+Seed the pseudo-random number generator with the value I<SEED>.  When
+not specified, B<rwrecgenerator> creates its own seed.  Specifying the
+seed allows different invocations of B<rwrecgenerator> to produce the
+same output (assuming the same value is given for all switches and
+that the time window is specified).
+
+=item B<--start-time>=I<YYYY/MM/DD[:HH[:MM[:SS[.ssssss]]]]>
+
+=item B<--start-time>=I<EPOCH_SECONDS_PLUS_MILLISECONDS>
+
+Specify the earliest date and time at which an event is started.  The
+specified time must be given to at least day precision.  Any parts of
+the date-time string that are not specified are set to 0.  The switch
+also accepts UNIX epoch seconds with optional fractional seconds.
+When not specified, defaults to the beginning of the previous hour.
+
+=item B<--end-time>=I<YYYY/MM/DD[:HH[:MM[:SS[.ssssss]]]]>
+
+=item B<--end-time>=I<EPOCH_SECONDS_PLUS_MILLISECONDS>
+
+Specify the latest date and time at which an event is started.  This
+time does B<not> specify the latest end-time for the flow records or
+even the latest start-time, since many events simulate a
+query/response pair, with the response following the query by a few
+milliseconds.  The specified time must be given to at least day
+precision, and it must not be less than the start-time.  Any parts of
+the date-time string that are not specified are set to 0.  The switch
+also accepts UNIX epoch seconds with optional fractional seconds.
+When not specified, defaults to the end of the previous hour.
+
+=item B<--time-step>=I<MILLISECONDS>
+
+Move forward I<MILLISECONDS> milliseconds at each step as
+B<rwrecgenerator> moves through the time window.  When not specified,
+defaults to the difference between the start-time and end-time; that
+is, B<rwrecgenerator> will generate events at the start-time and then
+at the end-time.  A I<MILLISECONDS> value of 0 indicates
+B<rwrecgenerator> should only create events at the start-time.
+
+=item B<--events-per-step>=I<COUNT>
+
+Create I<COUNT> events at each time step.  The default is 1.
+
+=item B<--help>
+
+Print the available options and exit.
+
+=item B<--version>
+
+Print the version number and information about how B<rwrecgenerator>
+was configured, then exit the application.
+
+=back
+
+=head2 Incremental Files Switches
+
+The following switches are used when creating incremental files.
+
+=over 4
+
+=item B<--processing-directory>=I<DIR_PATH>
+
+Name the directory under the incremental files are initially created.
+Any files in this directory are removed when B<rwrecgenerator> is
+started.  When the flush timeout is reached, the files are closed and
+moved from this directory to the output-directory.  If
+B<--num-subprocesses> is specified, subdirectories are created under
+I<DIR_PATH>, and each subprocess is given its own subdirectory.
+
+=item B<--num-subprocesses>=I<COUNT>
+
+Tell B<rwrecgenerator> to create I<COUNT> subprocesses to generate
+incremental files.  This switch is ignored when incremental files are
+not being created.  When this switch is specified, B<rwrecgenerator>
+creates subdirectories below the processing directory.  The default
+value for I<COUNT> is 0.
+
+=item B<--flush-timeout>=I<MILLISECONDS>
+
+Set the timeout for flushing any in-memory records to disk to
+I<MILLISECONDS> milliseconds.  At this time, the incremental files are
+closed and the files are moved from the processing directory to the
+output directory.  The timeout uses the internal time as
+B<rwrecgenerator> moves through the time window.  If not specified,
+the default is 30,000 milliseconds (30 seconds).  This switch is
+ignored when incremental files are not being created.
+
+=item B<--file-cache-size>=I<SIZE>
+
+Set the maximum number of data files to have open for writing at any
+one time to I<SIZE>.  If not specified, the default is 32 files.
+
+=item B<--compression-method>=I<COMP_METHOD>
+
+Set the compression method of the binary SiLK flow files to
+I<COMP_METHOD>.  B<rwrecgenerator> can use an external library to
+compress its binary output.  The list of available compression methods
+and the default method are set when SiLK is compiled (the B<--help>
+and B<--version> switches print the available and default compression
+methods) and depend on which supported libraries are found.  SiLK can
+support:
+
+=over 4
+
+=item none
+
+Do not compress the SiLK Flow records using an external library.
+
+=item zlib
+
+Use the B<zlib(3)> library for compressing the flow records.
+
+=item lzo1x
+
+Use the I<lzo1x> algorithm from the LZO real-time compression library
+for compressing the flow records.
+
+=item best
+
+Use whichever available method gives the C<best> compression in
+general, though not necessarily the C<best> for this particular
+file.
+
+=back
+
+=back
+
+=head2 Text File Switches
+
+The following switches can be used when creating textual output.
+
+=over 4
+
+=item B<--timestamp-format>=I<FORMAT>
+
+When producing textual output, specify how timestamps will be printed.
+When this switch is not specified, timestamps are printed in the
+default format, and the timezone is UTC unless SiLK was compiled with
+local timezone support.  I<FORMAT> is a comma-separated list of a
+format, a timezone, and/or a modifier.  The format is one of:
+
+=over 4
+
+=item default
+
+Print the timestamps as I<YYYY>/I<MM>/I<DD>TI<hh>:I<mm>:I<ss>.I<sss>.
+
+=item iso
+
+Print the timestamps as I<YYYY>-I<MM>-I<DD> I<hh>:I<mm>:I<ss>.I<sss>.
+
+=item m/d/y
+
+Print the timestamps as I<MM>/I<DD>/I<YYYY> I<hh>:I<mm>:I<ss>.I<sss>.
+
+=item epoch
+
+Print the timestamps as the number of seconds since 00:00:00 UTC on
+1970-01-01.
+
+=back
+
+When a timezone is specified, it is used regardless of the default
+timezone support compiled into SiLK.  The timezone is one of:
+
+=over 4
+
+=item utc
+
+Use Coordinated Universal Time to print timestamps.
+
+=item local
+
+Use the TZ environment variable or the local timezone.
+
+=back
+
+One modifier is available:
+
+=over 4
+
+=item no-msec
+
+Truncate the milliseconds value on the timestamps and on the duration
+field.  When milliseconds are truncated, the sum of the printed start
+time and duration may not equal the printed end time.
+
+=back
+
+=item B<--epoch-time>
+
+When producing textual output, print timestamps as epoch time (number
+of seconds since midnight GMT on 1970-01-01).  This switch is
+equivalent to B<--timestamp-format=epoch>, it is deprecated as of SiLK
+3.8.1, and it will be removed in the SiLK 4.0 release.
+
+=item B<--ip-format>=I<FORMAT>
+
+When producing textual output, specify how IP addresses will be
+printed.  When this switch is not specified, IPs are printed in the
+canonical format.  The I<FORMAT> is one of:
+
+=over 4
+
+=item canonical
+
+Print IP addresses in their canonical form: dotted quad for IPv4
+(C<127.0.0.1>) and hexadectet for IPv6 (C<2001:db8::1>).  Note that
+IPv6 addresses in ::ffff:0:0/96 and some IPv6 addresses in ::/96 will
+be printed as a mixture of IPv6 and IPv4.
+
+=item zero-padded
+
+Print IP addresses in their canonical form, but add zeros to the
+output so it fully fills the width of column.  The addresses
+C<127.0.0.1> and C<2001:db8::1> are printed as C<127.000.000.001> and
+C<2001:0db8:0000:0000:0000:0000:0000:0001>, respectively.  When the
+B<--ipv6-policy> is C<force>, the output for C<127.0.0.1> becomes
+C<0000:0000:0000:0000:0000:ffff:7f00:0001>.
+
+=item decimal
+
+Print IP addresses as integers in decimal format.  The addresses
+C<127.0.0.1> and C<2001:db8::1> are printed as C<2130706433> and
+C<42540766411282592856903984951653826561>, respectively.
+
+=item hexadecimal
+
+Print IP addresses as integers in hexadecimal format.  The addresses
+C<127.0.0.1> and C<2001:db8::1> are printed as C<7f000001> and
+C<20010db8000000000000000000000001>, respectively.
+
+=item force-ipv6
+
+Print all IP addresses in the canonical form for IPv6 without using
+any IPv4 notation.  Any IPv4 address is mapped into the ::ffff:0:0/96
+netblock.  The addresses C<127.0.0.1> and C<2001:db8::1> are printed
+as C<::ffff:7f00:1> and C<2001:db8::1>, respectively.
+
+=back
+
+=item B<--integer-ips>
+
+When producing textual output, print IP addresses as integers.  This
+switch is equivalent to B<--ip-format=decimal>, it is deprecated as of
+SiLK 3.8.1, and it will be removed in the SiLK 4.0 release.
+
+=item B<--zero-pad-ips>
+
+When producing textual output, print IP addresses as fully-expanded,
+zero-padded values in their canonical form.  This switch is equivalent
+to B<--ip-format=zero-padded>, it is deprecated as of SiLK 3.8.1, and
+it will be removed in the SiLK 4.0 release.
+
+=item B<--integer-sensors>
+
+When producing textual output, print the integer ID of the sensor
+rather than its name.
+
+=item B<--integer-tcp-flags>
+
+When producing textual output, print the TCP flag fields (flags,
+initialFlags, sessionFlags) as an integer value.  Typically, the
+characters C<F,S,R,P,A,U,E,C> are used to represent the TCP flags.
+
+=item B<--no-titles>
+
+When producing textual output, turn off column titles.  By default,
+titles are printed.
+
+=item B<--no-columns>
+
+When producing textual output, disable fixed-width columnar output.
+
+=item B<--column-separator>=I<C>
+
+When producing textual output, use specified character between columns
+and after the final column.  When this switch is not specified, the
+default of 'B<|>' is used.
+
+=item B<--no-final-delimiter>
+
+When producing textual output, do not print the column separator after
+the final column.  Normally a delimiter is printed.
+
+=item B<--delimited>
+
+=item B<--delimited>=I<C>
+
+When producing textual output, run as if B<--no-columns>
+B<--no-final-delimiter> B<--column-sep>=I<C> had been specified.  That
+is, disable fixed-width columnar output; if character I<C> is
+provided, it is used as the delimiter between columns instead of the
+default 'B<|>'.
+
+=back
+
+=head2 SiLK Site Specific Switches
+
+The following switches control the class/type and sensor that
+B<rwrecgenerator> assigns to every flow record.
+
+=over 4
+
+=item B<--sensor-prefix-map>=I<FILE>
+
+Load a prefix map from I<FILE> and use it to map from the internal IP
+addresses to sensor numbers.  If the switch is not provided, all flow
+records will use the first sensor in the F<silk.conf> file that is
+supported by the class named in the flowtype.  The sensor IDs
+specified in I<FILE> should agree with the class specified in the
+B<--flowtype->I<*> switches.
+
+=item B<--flowtype-in>=I<CLASS>/I<TYPE>
+
+Set the class/type pair for flow records where the source IP is
+external, the destination IP is internal, and the flow record is not
+considered to represent a I<web record> to I<CLASS>/I<TYPE>.  Web
+records are those that appear on ports 80/tcp, 443/tcp, and 8080/tcp.
+When not specified, B<rwrecgenerator> attempts to find the flowtype
+"all/in" in the F<silk.conf> file.
+
+=item B<--flowtype-inweb>=I<CLASS>/I<TYPE>
+
+Set the class/type pair for flow records representing web records
+where the source IP is external and the destination IP is internal to
+I<CLASS>/I<TYPE>.  When not specified and the B<--flowtype-in> switch
+is given, that I<CLASS>/I<TYPE> pair will be used.  When neither this
+switch nor B<--flowtype-in> is given, B<rwrecgenerator> attempts to
+find the flowtype "all/inweb" in the F<silk.conf> file.
+
+=item B<--flowtype-out>=I<CLASS>/I<TYPE>
+
+Set the class/type pair for flow records where the source IP is
+internal, the destination IP is external, and the flow record is not
+considered to represent a I<web record> to I<CLASS>/I<TYPE>.  When not
+specified, B<rwrecgenerator> attempts to find the flowtype "all/out"
+in the F<silk.conf> file.
+
+=item B<--flowtype-outweb>=I<CLASS>/I<TYPE>
+
+Set the class/type pair for flow records representing web records
+where the source IP is internal and the destination IP is external to
+I<CLASS>/I<TYPE>.  When not specified and the B<--flowtype-out> switch
+is given, that I<CLASS>/I<TYPE> pair will be used.  When neither this
+switch nor B<--flowtype-out> is given, B<rwrecgenerator> attempts to
+find the flowtype "all/outweb" in the F<silk.conf> file.
+
+=item B<--site-config-file>=I<FILENAME>
+
+Read the SiLK site configuration from the named file I<FILENAME>.
+When this switch is not provided, the location specified by the
+SILK_CONFIG_FILE environment variable is used if that variable is not
+empty.  The value of SILK_CONFIG_FILE should include the name of the
+file.  Otherwise, the application looks for a file named F<silk.conf>
+in the following directories: the directory specified in the
+SILK_DATA_ROOTDIR environment variable; the data root directory that
+is compiled into SiLK (use the B<--version> switch to view this
+value); the directories F<$SILK_PATH/share/silk/> and
+F<$SILK_PATH/share/>; and the F<share/silk/> and F<share/> directories
+parallel to the application's directory.
+
+=back
+
+=head1 ENVIRONMENT
+
+=over 4
+
+=item SILK_CONFIG_FILE
+
+This environment variable is used as the value for the
+B<--site-config-file> when that switch is not provided.
+
+=item SILK_DATA_ROOTDIR
+
+This environment variable specifies the root directory of data
+repository.  As described in the L</FILES> section, B<rwrecgenerator>
+may use this environment variable when searching for the SiLK site
+configuration file.
+
+=item SILK_PATH
+
+This environment variable gives the root of the install tree.  When
+searching for configuration files, B<rwrecgenerator> may use this
+environment variable.  See the L</FILES> section for details.
+
+=item TZ
+
+When a SiLK installation is built to use the local timezone (to
+determine if this is the case, check the C<Timezone support> value in
+the output from B<rwrecgenerator --version>), the value of the TZ
+environment variable determines the timezone in which
+B<rwrecgenerator> displays and parses timestamps.  If the TZ
+environment variable is not set, the default timezone is used.
+Setting TZ to 0 or the empty string causes timestamps to be displayed
+in and parsed as UTC.  The value of the TZ environment variable is
+ignored when the SiLK installation uses utc.  For system information
+on the TZ variable, see B<tzset(3)>.
+
+=back
+
+=head1 FILES
+
+=over 4
+
+=item F<${SILK_CONFIG_FILE}>
+
+=item F<${SILK_DATA_ROOTDIR}/silk.conf>
+
+=item F<@SILK_DATA_ROOTDIR@/silk.conf>
+
+=item F<${SILK_PATH}/share/silk/silk.conf>
+
+=item F<${SILK_PATH}/share/silk.conf>
+
+=item F<@prefix@/share/silk/silk.conf>
+
+=item F<@prefix@/share/silk.conf>
+
+Possible locations for the SiLK site configuration file which are
+checked when the B<--site-config-file> switch is not provided.
+
+=back
+
+=head1 SEE ALSO
+
+B<silk(7)>, B<rwcut(1)>, B<rwflowpack(8)>, B<silk.conf(5)>,
+B<syslog(3)>, B<zlib(3)>
+
+=cut
+
+$SiLK: rwrecgenerator.pod 5668847c0466 2014-01-15 18:51:59Z mthomas $
+
+Local Variables:
+mode:text
+indent-tabs-mode:nil
+End:

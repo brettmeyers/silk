@@ -1,0 +1,742 @@
+=pod
+
+=head1 NAME
+
+B<rwmatch> - Match SiLK records from two streams into a common stream
+
+=head1 SYNOPSIS
+
+  rwmatch --relate=FIELD_PAIR [--relate=FIELD_PAIR ...]
+        [--time-delta=DELTA] [--symmetric-delta]
+        [{ --absolute-delta | --relative-delta | --infinite-delta }]
+        [--unmatched={q|r|b}]
+        [--note-add=TEXT] [--note-file-add=FILE]
+        [--ipv6-policy={ignore,asv4,mix,force,only}]
+        [--compression-method=COMP_METHOD]
+        [--site-config-file=FILENAME]
+        QUERY_FILE RESPONSE_FILE OUTPUT_FILE
+
+  rwmatch --help
+
+  rwmatch --version
+
+=head1 DESCRIPTION
+
+B<rwmatch> provides a facility for relating (or matching) SiLK Flow
+records contained in two B<sorted> input files, labeling those flow
+records, and writing the records to an output file.
+
+The two input files are called I<QUERY_FILE> and I<RESPONSE_FILE>,
+respectively.  The purpose of B<rwmatch> is to find a record in
+I<QUERY_FILE> that represents some network stimulus that caused a
+reply which is represented by a record in I<RESPONSE_FILE>.  When
+B<rwmatch> discovers this relationship, it assigns a numeric ID to the
+match, searches both input files for additional records that are part
+of the same event, stores the numeric ID in each matching record's
+next hop IP field, and writes all records that are part of that event
+to I<OUTPUT_FILE>.
+
+When the B<--symmetric-delta> switch is specified, B<rwmatch> also
+checks for a stimulus in I<RESPONSE_FILE> that triggered a reply in
+I<QUERY_FILE>.  This is useful when matching flows where either side
+may have initiated the conversation.
+
+The input files must be sorted as described in L</Sorting the input>
+below.  To use the standard input in place of one of the input
+streams, specify C<stdin> or C<-> in its place.
+
+The criteria for defining a match are given by one of more uses of the
+B<--relate> switch and by the timestamps on the flow records:
+
+=over 4
+
+=item *
+
+Each use of B<--relate> on the command line takes two comma-separated
+SiLK Flow record fields as its argument.  These two fields form a
+I<FIELD_PAIR> in the form I<QUERY_FIELD>,I<RESPONSE_FIELD>.  For a
+match to exist, the value of I<QUERY_FIELD> on a record read from
+I<QUERY_FILE> must be identical to the value of I<RESPONSE_FIELD> on a
+record read from I<RESPONSE_FILE>, and that must be true for all
+I<FIELD_PAIR>s.
+
+=item *
+
+By default, the start-time of the record from the I<RESPONSE_FILE>
+must begin within a time window determined by the start- and end-times
+of the record read from the I<QUERY_FILE>.  The end-time is extended
+by specifying the I<DELTA> number of seconds as the argument to the
+B<--time-delta> switch.  Thus
+
+ query_rec.sTime <= response_rec.sTime <= query_rec.eTime + DELTA
+
+When the B<--symmetric-delta> switch is provided, records also match
+if the start-time of the query record begins within the time window
+determined by the start- and end-times of the response record, plus
+any value specified by B<--time-delta>.  That is:
+
+ response_rec.sTime <= query_rec.sTime <= response_rec.eTime + DELTA
+
+The B<--time-delta> switch allows for a delay in the response.
+Although responses usually occur within a second of the query, delays
+of several seconds are not uncommon due to combinations of host and
+network processing delays. The I<DELTA> value can also compensate for
+timing errors between multiple sensors.
+
+=back
+
+Once B<rwmatch> establishes a match between records in the two input
+files, it searches for additional records from both input files to add
+to the match.
+
+To do this, B<rwmatch> denotes one of the records that comprise the
+initial match pair as a I<base> record.  When possible, the base
+record is the record with the earlier start time. In the case of a
+tie, the base is determined by ports for TCP and UDP with the base
+being that with the lower port if one is above 1024 and the other
+below 1024.  If that also fails, the base record is the record read
+from I<QUERY_FILE>.  With millisecond time resolution, ties should be
+rare.
+
+To determine whether a match exists between the base record and a
+I<candidate> record, B<rwmatch> uses the I<FIELD_PAIR>s specified by
+B<--relate>.  When the base record and the candidate record were read
+from the same file, only one side of each I<FIELD_PAIR> is used.
+
+In addition to the records having identical values for each field in
+I<FIELD_PAIR>s, the candidate record must be within a time window
+determined by the B<--time-delta> switch and the B<--absolute-delta>,
+B<--relative-delta>, and B<--infinite-delta> switches.
+
+=over 4
+
+=item *
+
+When B<--infinite-delta> is specified, there is no time window and
+only the values specified by the I<FIELD_PAIR>s are checked.
+
+=item *
+
+Specifying B<--absolute-delta> requires each candidate record to start
+within the time window set by the start- and end-times of the base
+record (plus any I<DELTA>), similar to the rule used to establish the
+match.
+
+=item *
+
+If B<--relative-delta> is specified, the end of the time window is
+initially set to I<DELTA> seconds after the end-time of the base
+record.  As records from either input file are added to the match, the
+end of the time window is set to I<DELTA> seconds beyond the maximum
+end-time seen on any record in the match.
+
+=item *
+
+When none of the above are explicitly specified, B<rwmatch> uses the
+rules of B<--absolute-delta>.
+
+=back
+
+Because long-lived sessions are often broken into multiple flows,
+B<rwmatch> may discard records that are part of a long-lived session.
+The B<--relative-delta> switch may compensate for this if the gap
+between flows is less that the time specified in the B<--time-delta>
+switch.  The B<--infinite-delta> will compensate for arbitrarily long
+gaps, but it may add records to a match that are not part of a true
+session.  DNS flows that use port 53/udp as both a service and reply
+port are an example.
+
+When B<rwmatch> establishes a match, it increments the match ID, with
+the first match having a match ID of 1.  To label the records that
+comprise the match, B<rwmatch> uses a 32-bit number where the lower
+24-bits hold the match ID and the upper 8-bits is set to 0 or 255 to
+indicate whether the record was read from I<QUERY_FILE> or
+I<RESPONSE_FILE>, respectively.  B<rwmatch> stores this 32-bit number
+in the next hop IP field of the records.  If the record is IPv6,
+B<rwmatch> maps the number into the ::ffff:0:0/96 netblock before
+modifying setting the next hop IP.  Apart from the change to the next
+hop IP field, the query and response records are not modified.
+
+By default, only matched records are written to the I<OUTPUT_FILE> and
+any record that could not be determined to be part of a match is
+discarded.
+
+Specifying the B<--unmatched> switch tells B<rwmatch> to write
+unmatched query and/or response records to I<OUTPUT_FILE>.  The
+required parameter is one of C<q>, C<r>, or C<b> to write the query
+records, the response records, or both to I<OUTPUT_FILE>.  Unmatched
+query records have their next hop IP set to 0.0.0.0, and unmatched
+response records have their next hop IP set to 255.0.0.0.
+
+=head2 Sorting the input
+
+As B<rwmatch> reads I<QUERY_FILE> and I<RESPONSE_FILE>, it expects the
+SiLK Flow records to appear in a particular order that is best
+achieved by using B<rwsort(1)>.  In particular:
+
+=over 4
+
+=item *
+
+The records in I<QUERY_FILE> must appear in ascending order where the
+key is the first value in each of the B<--relate> I<FIELD_PAIR>s in
+the order in which the B<--relate> switches appear and by the start
+time of the flow.
+
+=item *
+
+Likewise for the records in I<RESPONSE_FILE>, except the second value
+in each I<FIELD_PAIR>s is used.
+
+=back
+
+When B<rwmatch> processes the following command
+
+ $ rwmatch --relate=1,2 --relate=2,1 --relate=5,5 Q.rw R.rw out.rw
+
+it assumes the F<file1.rw> and F<file2.rw> were created by
+
+ $ rwsort --fields=1,2,5,stime --output=Q.rw input1.rw ....
+ $ rwsort --fields=2,1,5,stime --output=R.rw input2.rw ....
+
+If the files F<source_ips.s.rw> and F<dest_ips.s.rw> are created by
+the following commands:
+
+ $ rwsort --field=1,9 source_ips.rw > source_ips.s.rw
+ $ rwsort --field=2,9 dest_ips.rw > dest_ips.s.rw
+
+The following call to B<rwmatch> works correctly:
+
+ $ rwmatch --relate=1,2 source_ips.s.rw dest_ips.s.rw matched.rw
+
+Note that the following command produces very few matches since
+F<source_ips.s.rw> was sorted on field 1 and F<dest_ips.s.rw> was
+sorted on field 2.
+
+ $ rwmatch --relate=2,1 source_ips.s.rw dest_ips.s.rw stdout
+
+The recommended sort ordering for TCP and UDP is shown below.  This
+correctly handles multiple flows occurring during the same time
+interval which involve multiple ports:
+
+ $ rwsort --fields=1,4,2,3,5,stime incoming.rw > incoming-query.rw
+ $ rwsort --fields=2,3,1,4,5,stime outgoing.rw > outgoing-response.rw
+
+The corresponding B<rwmatch> command is:
+
+ $ rwmatch --relate=1,2 --relate=4,3 --relate=2,1 --relate=3,4 \
+        --relate=5,5 incoming-query.rw outgoing-response.rw matched.rw
+
+=head1 OPTIONS
+
+Option names may be abbreviated if the abbreviation is unique or is an
+exact match for an option.  A parameter to an option may be specified
+as B<--arg>=I<param> or B<--arg> I<param>, though the first form is
+required for options that take optional parameters.
+
+=over 4
+
+=item B<--relate>=I<FIELD_PAIR>
+
+Specify a pair of fields where the value of these fields in two
+records must be identical for the records to be considered part of a
+match.  The first field is for records from I<QUERY_FILE> and the
+second for records from I<RESPONSE_FILE>.  At least one I<FIELD_PAIR>
+must be provided; up to 128 I<FIELD_PAIR>s may be provided.  The
+I<FIELD_PAIR> must contain two field names or field IDs separated by a
+comma, such as B<--relate=dip,sip> or B<--relate=proto,proto>.
+
+Each I<FIELD_PAIR> is unidirectional; specifying B<--relate=sip,dip>
+matches records where the query record's source IP matches the
+response record's destination IP, but does not imply any relationship
+between the response's source IP and query's destination IP.  To match
+symmetric flow records between hosts, specify:
+
+ --relate=sip,dip --relate=dip,sip
+
+When using a port-based protocol (e.g., TCP or UDP), refine the match
+further by specifying the ports:
+
+ --relate=2,1 --relate=1,2 --relate=3,4 --relate=4,3
+
+Matching becomes more specific as more fields are added. Since
+B<rwmatch> discards unmatched records, a highly specific match (such
+as the last one specified above) generates more matches (resulting in
+higher match IDs), but may result in fewer total flows due to certain
+records being unmatched.
+
+The available fields are listed here.  For a better description of
+some of these fields, see the B<rwcut(1)> manual page.
+
+=over 4
+
+=item sIP,1
+
+source IP address
+
+=item dIP,2
+
+destination IP address
+
+=item sPort,3
+
+source port for TCP and UDP, or equivalent
+
+=item dPort,4
+
+destination port for TCP and UDP, or equivalent
+
+=item protocol,5
+
+IP protocol
+
+=item packets,pkts,6
+
+packet count
+
+=item bytes,7
+
+byte count
+
+=item flags,8
+
+bit-wise OR of TCP flags over all packets
+
+=item sensor,12
+
+name or ID of sensor at the collection point
+
+=item class,20
+
+class of sensor at the collection point
+
+=item type,21
+
+type of sensor at the collection point
+
+=item iType
+
+the ICMP type value for ICMP or ICMPv6 flows and empty for non-ICMP
+flows.  This field was introduced in SiLK 3.8.1.
+
+=item iCode
+
+the ICMP code value for ICMP or ICMPv6 flows and empty for non-ICMP
+flows.  See note at C<iType>.
+
+=item in,13
+
+router SNMP input interface or vlanId if packing tools were
+configured to capture it (see B<sensor.conf(5)>)
+
+=item out,14
+
+router SNMP output interface or postVlanId
+
+=item initialFlags,26
+
+TCP flags on first packet in the flow
+
+=item sessionFlags,27
+
+bit-wise OR of TCP flags over all packets except the first in the flow
+
+=item attributes,28
+
+flow attributes set by the flow generator
+
+=item application,29
+
+guess as to the content of the flow
+
+=back
+
+=item B<--time-delta>=I<DELTA>
+
+Specify the number of seconds by which a response record may start
+after a query record has ended.  I<DELTA> may contain fractional
+seconds to millisecond precision; for example, 0.500 represents a 500
+millisecond delay.  Responses match queries if
+
+ query.sTime <= response.sTime <= query.eTime + DELTA
+
+When B<--time-delta> is not specified, I<DELTA> defaults to 0 and the
+response must begin before the query ends.
+
+=item B<--symmetric-delta>
+
+Allow matching of flows where the I<RESPONSE_FILE> contains the
+initial flow.  In this case, a query record matches a response record
+when
+
+ response.sTime <= query.sTime <= response.eTime + DELTA
+
+=item B<--absolute-delta>
+
+When adding additional records to an established match, only include
+candidate flows that start less than I<DELTA> seconds after the end of
+the initial flow.  This is the default behavior.  This switch is
+incompatible with B<--relative-delta> and B<--infinite-delta>.
+
+=item B<--relative-delta>
+
+When adding additional records to an established match, include
+candidate flows that start within I<DELTA> seconds of the greatest end
+time for all records in the current match.  This switch is
+incompatible with B<--absolute-delta> and B<--infinite-delta>.
+
+=item B<--infinite-delta>
+
+When adding additional records to an established match, include
+candidate records based on the I<FIELD_PAIRS> alone, ignoring time.
+This switch is incompatible with B<--absolute-delta> and
+B<--relative-delta>.
+
+=item B<--unmatched>=B<q>|B<r>|B<b>
+
+Write unmatched query and/or response records to I<OUTPUT_FILE>.  The
+parameter determines whether the query records, the response records,
+or both are written to I<OUTPUT_FILE>.  Unmatched query records have
+their next hop IPv4 address set to 0.0.0.0, and unmatched response
+records have their next hop IPv4 address set to 255.0.0.0.  When the
+B<b> value is used, I<OUTPUT_FILE> contains a complete merge of
+I<QUERY_FILE> and I<RESPONSE_FILE>.
+
+=item B<--note-add>=I<TEXT>
+
+Add the specified I<TEXT> to the header of the output file as an
+annotation.  This switch may be repeated to add multiple annotations
+to a file.  To view the annotations, use the B<rwfileinfo(1)> tool.
+
+=item B<--note-file-add>=I<FILENAME>
+
+Open I<FILENAME> and add the contents of that file to the header of
+the output file as an annotation.    This switch may be repeated to
+add multiple annotations.  Currently the application makes no effort
+to ensure that I<FILENAME> contains text; be careful that you do not
+attempt to add a SiLK data file as an annotation.
+
+=item B<--ipv6-policy>=I<POLICY>
+
+Determine how IPv4 and IPv6 flows are handled when SiLK has been
+compiled with IPv6 support.  When the switch is not provided, the
+SILK_IPV6_POLICY environment variable is checked for a policy.  If it
+is also unset or contains an invalid policy, the I<POLICY> is
+B<mix>.  When SiLK has not been compiled with IPv6 support, IPv6
+flows are always ignored, regardless of the value passed to this
+switch or in the SILK_IPV6_POLICY variable.  The supported values for
+I<POLICY> are:
+
+=over 4
+
+=item ignore
+
+Ignore any flow record marked as IPv6, regardless of the IP addresses
+it contains.
+
+=item asv4
+
+Convert IPv6 flow records that contain addresses in the ::ffff:0:0/96
+prefix to IPv4 and ignore all other IPv6 flow records.
+
+=item mix
+
+Process the input as a mixture of IPv4 and IPv6 flow records.  Should
+B<rwmatch> need to compare an IPv4 and IPv6 address, it maps the IPv4
+address into the ::ffff:0:0/96 prefix.
+
+=item force
+
+Convert IPv4 flow records to IPv6, mapping the IPv4 addresses into the
+::ffff:0:0/96 prefix.
+
+=item only
+
+Process only flow records that are marked as IPv6 and ignore IPv4 flow
+records in the input.
+
+=back
+
+=item B<--compression-method>=I<COMP_METHOD>
+
+Specify how to compress the output.  When this switch is not given,
+output to the standard output or to named pipes is not compressed, and
+output to files is compressed using the default chosen when SiLK was
+compiled.  The valid values for I<COMP_METHOD> are determined by which
+external libraries were found when SiLK was compiled.  To see the
+available compression methods and the default method, use the
+B<--help> or B<--version> switch.  SiLK can support the following
+I<COMP_METHOD> values when the required libraries are available.
+
+=over 4
+
+=item none
+
+Do not compress the output using an external library.
+
+=item zlib
+
+Use the B<zlib(3)> library for compressing the output, and always
+compress the output regardless of the destination.  Using zlib
+produces the smallest output files at the cost of speed.
+
+=item lzo1x
+
+Use the I<lzo1x> algorithm from the LZO real time compression library
+for compression, and always compress the output regardless of the
+destination.  This compression provides good compression with less
+memory and CPU overhead.
+
+=item best
+
+Use lzo1x if available, otherwise use zlib.  Only compress the output
+when writing to a file.
+
+=back
+
+=item B<--site-config-file>=I<FILENAME>
+
+Read the SiLK site configuration from the named file I<FILENAME>.
+When this switch is not provided, B<rwmatch> searches for the site
+configuration file in the locations specified in the L</FILES>
+section.
+
+=item B<--help>
+
+Print the available options and exit.
+
+=item B<--version>
+
+Print the version number and information about how SiLK was
+configured, then exit the application.
+
+=back
+
+=head1 EXAMPLES
+
+In the following examples, the dollar sign (C<$>) represents the shell
+prompt.  The text after the dollar sign represents the command line.
+Lines have been wrapped for improved readability, and the back slash
+(C<\>) is used to indicate a wrapped line.
+
+=head2 Matching TCP Flows
+
+B<rwmatch> is a generalized matching tool; the most basic function
+provided by B<rwmatch> is the ability to match both sides of a TCP
+connection.  Given incoming and outgoing web traffic in two files
+F<web_in.rw> and F<web_out.rw>, the following sequence of commands
+will generate a file, F<web-sessions.rw> consisting of matched sessions
+for every complete web session in F<web_in.rw> and F<web_out.rw>:
+
+ $ rwsort --field=1,2,3,4,stime web_in.rw  > web_in-s.rw
+ $ rwsort --field=2,1,4,3,stime web_out.rw > web_out-s.rw
+
+ $ rwmatch --relate=1,2 --relate=2,1 --relate=3,4 --relate=4,3      \
+        web_in-s.rw  web_out-s.rw  web-sessions.rw
+
+=head2 Finding Responses to a Scan
+
+Because B<rwmatch> can match fields arbitrarily, you can also match
+records across different protocols.  Suppose there are two SiLK Flow
+files, F<indata.rw> and F<outdata.rw>, that contain the incoming and
+outgoing data, respectively, for a particular time period.
+
+To trace responses to a scan attempt, we start by identifying a
+specific horizontal scan.  In this example, we use an SMTP scan on TCP
+port 25.  Assume that we have an IPset file, F<smtp-scanners.set>,
+that contains the external IP addresses that scanned us port port 25.
+(Perhaps this file was obtained by using B<rwscan(1)> and
+B<rwscanquery(1)>.)
+
+First, use B<rwfilter(1)> to find the flow records matching these scan
+attempts in the incoming data file.  Sort the output of B<rwfilter> by
+source IP, source port, destination IP, destination port, and time,
+and store the results in F<smtp-scans.rw>:
+
+ $ rwfilter --proto=6 --sip-set=smtp-scanners.set --dport=25        \
+        --pass=-  indata.rw                                         \
+   | rwsort --field=sip,sport,dip,dport,stime > smtp-scans.rw
+
+We can identify hosts that responded to the scan (we consider a
+accepting the TCP connection as a response) by finding potential
+replies in the outgoing data file, sorting them, and storing the
+results in F<scan-response.rw>.  For this command on the outgoing
+data, note that we must swap source and destination from the values
+used for the incoming data:
+
+ $ rwfilter --proto=6 --dip-set=smtp-scanners.set --sport=25        \
+        --pass=-  outdata.rw                                        \
+   | rwsort --field=dip,dport,sip,sport,stime > scan-response.rw
+
+We can now match the flow records to produce the file
+F<matched-scans.rw>:
+
+ $ rwmatch --relate=1,2 --relate-3,4 --relate=2,1 --relate=4,3      \
+        smtp-scans.rw  scan-response.rw  matched-scans.rw
+
+The results file, F<matched-scans.rw>, will contain all the exchanges
+between the scanning hosts and the responders on port 25.  Examination
+of these flows may show evidence of buffer overflows, data
+exfiltration, or similar attacks.
+
+Next, we want to identify responses to the scan that were produced by
+our routers, such as ICMP destination unreachable messages.
+
+Use B<rwfilter> to find the ICMP messages going to the scanning hosts,
+sort the flow records, and store the results in F<icmp.rw>:
+
+ $ rwfilter --proto=1 --icmp-type=3 --pass=stdout  outdata.rw       \
+   | rwsort --field=dip,stime > icmp.rw
+
+Run B<rwmatch> and match exclusively on the IP address.
+
+ $ rwmatch --relate=2,1  icmp.rw  smtp-scans.rw  result.rw
+
+The resulting file, F<result.rw> will consist of single packet flows
+(from F<smtp-scans.rw>) with an ICMP response (from F<icmp.rw>).
+
+Similar queries can be used to identify other multiple-protocol
+phenomena, such as the results of a B<traceroute>.
+
+=head2 Displaying the Results
+
+These examples assume F<matched.rw> is an output file produced by
+B<rwmatch>.
+
+When using B<rwcut(1)> to display the records in F<matched.rw>, you
+may specify the next hop IP field (C<nhIP>) to see the match
+identifier:
+
+ $ rwcut --num-rec=8 --fields=sip,sport,dip,dport,type,nhip matched.rw
+             sIP|sPort|            dIP|dPort|   type|           nhIP|
+     10.4.52.235|29631|192.168.233.171|   80|  inweb|        0.0.0.1|
+ 192.168.233.171|   80|    10.4.52.235|29631| outweb|      255.0.0.1|
+     10.9.77.117|29906| 192.168.184.65|   80|  inweb|        0.0.0.2|
+  192.168.184.65|   80|    10.9.77.117|29906| outweb|      255.0.0.2|
+   10.14.110.214|29989| 192.168.249.96|   80|  inweb|        0.0.0.3|
+  192.168.249.96|   80|  10.14.110.214|29989| outweb|      255.0.0.3|
+     10.18.66.79|29660| 192.168.254.69|   80|  inweb|        0.0.0.4|
+  192.168.254.69|   80|    10.18.66.79|29660| outweb|      255.0.0.4|
+
+The first record is a query from the external host 10.4.52.235 to the
+web server on the internal host 192.168.233.171, and the second record
+is the web server's response.  The third and fourth records represent
+another query/response pair.
+
+The F<cutmatch.so> plug-in is an alternate way to display the match
+parameter that B<rwmatch> writes into the next hop IP field.  The
+F<cutmatch.so> plug-in defines a C<match> field that displays the
+direction of the flow (C<-E<gt>> represents a query and C<E<lt>-> a
+response) and the match ID.  To use the plug-in, you must explicit
+load it into B<rwcut> by specifying the B<--plugin> switch.  You can
+then add B<match> to the list of B<--fields> to print:
+
+ $ rwcut --plugin=cutmatch.so --num-rec=8  \
+        --fields=sip,sport,match,dip,dport,type matched.rw
+             sIP|sPort| <->Match#|            dIP|dPort|   type|
+     10.4.52.235|29631|->       1|192.168.233.171|   80|  inweb|
+ 192.168.233.171|   80|<-       1|    10.4.52.235|29631| outweb|
+     10.9.77.117|29906|->       2| 192.168.184.65|   80|  inweb|
+  192.168.184.65|   80|<-       2|    10.9.77.117|29906| outweb|
+   10.14.110.214|29989|->       3| 192.168.249.96|   80|  inweb|
+  192.168.249.96|   80|<-       3|  10.14.110.214|29989| outweb|
+     10.18.66.79|29660|->       4| 192.168.254.69|   80|  inweb|
+  192.168.254.69|   80|<-       4|    10.18.66.79|29660| outweb|
+
+Using the C<sIP> and C<dIP> fields is confusing when the file you are
+examining contains both incoming and outgoing flow records.  To make
+the output from B<rwmatch> more clear, use the B<int-ext-fields(3)>
+plug-in as well.  That plug-in allows you to display the external IPs
+in one column and the internal IPs in a another column.  See its
+manual page for additional information.
+
+ $ export INCOMING_FLOWTYPES=all/in,all/inweb
+ $ export OUTGOING_FLOWTYPES=all/out,all/outweb
+ $ rwcut --plugin=cutmatch.so --plugin=int-ext-fields.so --num-rec=8 \
+      --fields=ext-ip,ext-port,match,int-ip,int-port,proto matched.rw
+         ext-ip|ext-p| <->Match#|         int-ip|int-p|   type|
+    10.4.52.235|29631|->       1|192.168.233.171|   80|  inweb|
+    10.4.52.235|29631|<-       1|192.168.233.171|   80| outweb|
+    10.9.77.117|29906|->       2| 192.168.184.65|   80|  inweb|
+    10.9.77.117|29906|<-       2| 192.168.184.65|   80| outweb|
+  10.14.110.214|29989|->       3| 192.168.249.96|   80|  inweb|
+  10.14.110.214|29989|<-       3| 192.168.249.96|   80| outweb|
+    10.18.66.79|29660|->       4| 192.168.254.69|   80|  inweb|
+    10.18.66.79|29660|<-       4| 192.168.254.69|   80| outweb|
+
+=head1 ENVIRONMENT
+
+=over 4
+
+=item SILK_IPV6_POLICY
+
+This environment variable is used as the value for the
+B<--ipv6-policy> when that switch is not provided.
+
+=item SILK_CLOBBER
+
+The SiLK tools normally refuse to overwrite existing files.  Setting
+SILK_CLOBBER to a non-empty value removes this restriction.
+
+=item SILK_CONFIG_FILE
+
+This environment variable is used as the value for the
+B<--site-config-file> when that switch is not provided.
+
+=item SILK_DATA_ROOTDIR
+
+This environment variable specifies the root directory of data
+repository.  As described in the L</FILES> section, B<rwmatch> may
+use this environment variable when searching for the SiLK site
+configuration file.
+
+=item SILK_PATH
+
+This environment variable gives the root of the install tree.  When
+searching for configuration files, B<rwmatch> may use this
+environment variable.  See the L</FILES> section for details.
+
+=back
+
+=head1 FILES
+
+=over 4
+
+=item F<${SILK_CONFIG_FILE}>
+
+=item F<${SILK_DATA_ROOTDIR}/silk.conf>
+
+=item F<@SILK_DATA_ROOTDIR@/silk.conf>
+
+=item F<${SILK_PATH}/share/silk/silk.conf>
+
+=item F<${SILK_PATH}/share/silk.conf>
+
+=item F<@prefix@/share/silk/silk.conf>
+
+=item F<@prefix@/share/silk.conf>
+
+Possible locations for the SiLK site configuration file which are
+checked when the B<--site-config-file> switch is not provided.
+
+=back
+
+=head1 SEE ALSO
+
+B<rwfilter(1)>, B<rwsort(1)>, B<rwcut(1)>, B<rwfileinfo(1)>,
+B<rwscan(1)>, B<rwscanquery(1)>, B<sensor.conf(5)>, B<silk(7)>,
+B<zlib(3)>
+
+=head1 NOTES
+
+SiLK 3.9.0 expanded the set of fields accepted by the B<--relate>
+switch and added support for IPv6 flow records.
+
+=cut
+
+$SiLK: rwmatch.pod b0322a07081d 2014-09-24 18:55:26Z mthomas $
+
+Local Variables:
+mode:text
+indent-tabs-mode:nil
+End:

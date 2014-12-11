@@ -1,0 +1,103 @@
+# Example prefixmap source file for producing an address_types.pmap file.
+# RCSIDENT("$SiLK: addrtype-templ.txt b733a14b584f 2013-02-08 21:00:10Z mthomas $")
+#
+#    See the end of this file for instructions
+#
+
+## Required Setup ######################################################
+
+# Note: The addrtype library code assumes the following definitions of
+# label IDs 0, 1, and 2 as defined below.
+
+#    Numerical mappings of labels
+
+label 0             non-routable
+label 1             internal
+label 2             external
+
+#    Default to "external" for all un-defined ranges.
+
+default             external
+
+#    Force IP-based mode
+
+mode                ip
+
+## Reserved and non-routable blocks ####################################
+
+#    Addresses in this block refer to source hosts on "this"
+#    network.  Address 0.0.0.0/32 may be used as a source address for this
+#    host on this network; other addresses within 0.0.0.0/8 may be used to
+#    refer to specified hosts on this network [RFC1700, page 4].
+
+0.0.0.0/8           non-routable
+
+#    This block is set aside for use in private networks.
+#    Its intended use is documented in [RFC1918].  Addresses within this
+#    block should not appear on the public Internet.
+
+10.0.0.0/8          non-routable
+
+#    This block is assigned for use as the Internet host
+#    loopback address.  A datagram sent by a higher level protocol to an
+#    address anywhere within this block should loop back inside the host.
+#    This is ordinarily implemented using only 127.0.0.1/32 for loopback,
+#    but no addresses within this block should ever appear on any network
+#    anywhere [RFC1700, page 5].
+
+127.0.0.0/8         non-routable
+
+#    This is the "link local" block.  It is allocated for
+#    communication between hosts on a single link.  Hosts obtain these
+#    addresses by auto-configuration, such as when a DHCP server may not
+#    be found.
+
+169.254.0.0/16      non-routable
+
+#    This block is set aside for use in private networks.
+#    Its intended use is documented in [RFC1918].  Addresses within this
+#    block should not appear on the public Internet.
+
+172.16.0.0/12       non-routable
+
+#    This block is assigned as "TEST-NET" for use in
+#    documentation and example code.  It is often used in conjunction with
+#    domain names example.com or example.net in vendor and protocol
+#    documentation.  Addresses within this block should not appear on the
+#    public Internet.
+
+192.0.2.0/24        non-routable
+
+#    This block is set aside for use in private networks.
+#    Its intended use is documented in [RFC1918].  Addresses within this
+#    block should not appear on the public Internet.
+
+192.168.0.0/16      non-routable
+
+#    240.0.0.0/4 - This block, formerly known as the Class E address
+#    space, is reserved.  The "limited broadcast" destination address
+#    255.255.255.255 should never be forwarded outside the (sub-)net of
+#    the source.  The remainder of this space is reserved for future use.
+#    [RFC1700, page 4]
+
+255.255.255.255/32  non-routable
+
+## Instructions ########################################################
+
+# See the addrtype(3) man page for the details, but for the impatient:
+# Add your local address space to end of this file by adding lines of
+# the form
+#
+#CIDR  internal
+#
+# for example
+#
+##Carnegie Mellon
+#128.2.0.0/16  internal
+#
+# Generate the binary address_types.pmap file using:
+#
+#   rwpmapbuild -input <this file> -output address_types.pmap
+#
+# and move address_types.pmap into $SILK_PATH/share/silk/
+

@@ -1,0 +1,280 @@
+=pod
+
+=head1 NAME
+
+B<int-ext-fields> - SiLK plug-in providing internal/external ip/port fields
+
+=head1 SYNOPSIS
+
+  rwcut --plugin=int-ext-fields.so --fields=FIELDS ...
+
+  rwgroup --plugin=int-ext-fields.so --fields=FIELDS ...
+
+  rwsort --plugin=int-ext-fields.so --fields=FIELDS ...
+
+  rwstats --plugin=int-ext-fields.so --fields=FIELDS ...
+
+  rwuniq --plugin=int-ext-fields.so --fields=FIELDS ...
+
+=head1 DESCRIPTION
+
+The B<int-ext-fields> plug-in adds four potential fields to
+B<rwcut(1)>, B<rwgroup(1)>, B<rwsort(1)>, B<rwstats(1)>, and
+B<rwuniq(1)>.  These fields contain the internal IP (C<int-ip>), the
+external IP (C<ext-ip>), the internal port (C<int-port>, and the
+external port (C<ext-port>).  To use these fields, specify their names
+in the B<--fields> switch.
+
+These fields can be useful when a file contains flow records that were
+collected for multiple directions---for example, some flow records
+are incoming and some are outgoing.
+
+For these fields to be available, the user must specify the list of
+flowtypes (i.e., class/type pairs) that are considered incoming and
+the list that are considered outgoing.  The user must specify the
+flowtypes because SiLK has no innate sense of the direction of a flow
+record.  Although "in" and "out" are common types, SiLK does not
+recognize that these represent flows going in opposite directions.
+
+If a record has a flowtype that is not in the list of incoming and
+output flowtypes, the application uses a value of 0 for that field.
+
+The user specifies the flowtypes by giving a comma-separated list of
+class/type pairs using the B<--incoming-flowtypes> and
+B<--outgoing-flowtypes> switches on the application's command line.
+When the switch is not provided, the application checks the
+INCOMING_FLOWTYPES and OUTGOING_FLOWTYPES environment variables.  If
+the list of incoming and/or outgoing flowtypes are not specified, the
+fields are not available.
+
+For the B<packlogic-twoway(3)> site, one would set the following
+environment variables:
+
+ INCOMING_FLOWTYPES=all/in,all/inweb,all/inicmp,all/innull
+ OUTGOING_FLOWTYPES=all/out,all/outweb,all/outicmp,all/outnull
+
+The parsing of flowtypes requires the B<silk.conf(5)> site
+configuration file.  You may need to set the SILK_CONFIG_FILE
+environment variable or specify B<--site-config-file> on the command
+line prior to loading the plug-in.
+
+=head1 OPTIONS
+
+The B<int-ext-fields> plug-in provides the following options to
+B<rwcut>, B<rwgroup>, B<rwsort>, B<rwstats>, and B<rwuniq>.
+
+=over 4
+
+=item B<--fields>=I<FIELDS>
+
+I<FIELDS> refers to a list of fields to use for the operation.  The
+B<int-ext-fields> plug-in adds the following fields for display, sorting,
+and grouping using the B<rwcut(1)>, B<rwgroup(1)>, B<rwsort(1)>,
+B<rwstats(1)>, and B<rwuniq(1)> tools:
+
+=over 4
+
+=item int-ip
+
+Print, sort by, or group by the internal IP address.  The internal IP
+is the destination address for incoming flowtypes and the source
+address for outgoing flowtypes.  When a SiLK Flow record's flowtype is
+not listed in either the incoming or outgoing flowtypes list, the
+int-ip field is 0.
+
+=item ext-ip
+
+Print, sort by, or group by the external IP address.  The external IP
+is the source address for incoming flowtypes and the destination
+address for outgoing flowtypes.  When a SiLK Flow record's flowtype is
+not listed in either the incoming or outgoing flowtypes list, the
+ext-ip field is 0.
+
+=item int-port
+
+Print, sort by, or group by the internal port.  This value is 0 for
+ICMP flow records, and when the SiLK Flow record's flowtype is not
+listed in either the incoming or outgoing flowtypes list.
+
+=item ext-port
+
+Print, sort by, or group by the external port.  This value is 0 for
+ICMP flow records, and when the SiLK Flow record's flowtype is not
+listed in either the incoming or outgoing flowtypes list.
+
+=back
+
+=item B<--incoming-flowtypes>=I<CLASS>/I<TYPE>[,I<CLASS>/I<TYPE> ...]
+
+Names the flowtypes that should be considered incoming.  The list of
+flowtypes should be specified as a comma-separated list of class/type
+pairs.  This switch overrides the flowtype list specified in the
+INCOMING_FLOWTYPES environment variable.  If this switch is not
+provided and the INCOMING_FLOWTYPES environment variable is not set,
+the B<int-ext-fields> plug-in will not define any fields.
+
+=item B<--outgoing-flowtypes>=I<CLASS>/I<TYPE>[,I<CLASS>/I<TYPE> ...]
+
+Similar to B<--incoming-flowtypes>, except it names the flowtypes that
+should be considered outgoing, and it overrides the OUTGOING_FLOWTYPES
+environment variable.
+
+=back
+
+=head1 EXAMPLE
+
+In the following example, the dollar sign (C<$>) represents the shell
+prompt.  The text after the dollar sign represents the command line.
+Lines have been wrapped for improved readability, and the back slash
+(C<\>) is used to indicate a wrapped line.
+
+Consider the file F<data.rw> that contains data going in different
+directions:
+
+ $ rwcut --fields=sip,sport,dip,dport,proto,class,type data.rw
+             sIP|sPort|            dIP|dPort|pro|cla|   type|
+    10.239.86.13|29897|192.168.228.153|   25|  6|all|     in|
+ 192.168.228.153|   25|   10.239.86.13|29897|  6|all|    out|
+ 192.168.208.237|29416| 10.233.108.250|   25|  6|all|    out|
+  10.233.108.250|   25|192.168.208.237|29416|  6|all|     in|
+  192.168.255.94|29301|  10.198.18.193|   80|  6|all| outweb|
+   10.198.18.193|   80| 192.168.255.94|29301|  6|all|  inweb|
+    10.202.7.122|29438|192.168.248.202|   25|  6|all|     in|
+ 192.168.248.202|   25|   10.202.7.122|29438|  6|all|    out|
+  10.255.142.104|26731|192.168.236.220|   25|  6|all|     in|
+ 192.168.236.220|   25| 10.255.142.104|26731|  6|all|    out|
+
+Using the B<int-ext-fields> plug-in allows one to print the internal
+and external addresses and ports (note: command line wrapped for
+improved readability):
+
+ $ rwcut --plugin=int-ext-fields.so                                 \
+        --incoming=all/in,all/inweb --outgoing=all/out,all/outweb   \
+        --fields=ext-ip,ext-port,int-ip,int-port,proto,class,type
+          ext-ip|ext-p|         int-ip|int-p|pro|cla|   type|
+    10.239.86.13|29897|192.168.228.153|   25|  6|all|     in|
+    10.239.86.13|29897|192.168.228.153|   25|  6|all|    out|
+  10.233.108.250|   25|192.168.208.237|29416|  6|all|    out|
+  10.233.108.250|   25|192.168.208.237|29416|  6|all|     in|
+   10.198.18.193|   80| 192.168.255.94|29301|  6|all| outweb|
+   10.198.18.193|   80| 192.168.255.94|29301|  6|all|  inweb|
+    10.202.7.122|29438|192.168.248.202|   25|  6|all|     in|
+    10.202.7.122|29438|192.168.248.202|   25|  6|all|    out|
+  10.255.142.104|26731|192.168.236.220|   25|  6|all|     in|
+  10.255.142.104|26731|192.168.236.220|   25|  6|all|    out|
+
+This can be especially useful when using a tool like B<rwuniq> or
+B<rwstats>:
+
+ $ export INCOMING_FLOWTYPES=all/in,all/inweb
+ $ export OUTGOING_FLOWTYPES=all/out,all/outweb
+ $ rwuniq --plugin=int-ext-fields.so               \
+        --fields=int-ip,int-port --value=bytes
+          int-ip|int-p|               Bytes|
+ 192.168.208.237|29416|               28517|
+ 192.168.248.202|   25|                4016|
+ 192.168.228.153|   25|                3454|
+ 192.168.236.220|   25|               31872|
+  192.168.255.94|29301|               14147|
+
+
+=head1 ENVIRONMENT
+
+=over 4
+
+=item INCOMING_FLOWTYPES
+
+Used as the value for the B<--incoming-flowtypes> when that switch is
+not provided.
+
+=item OUTGOING_FLOWTYPES
+
+Used as the value for the B<--outgoing-flowtypes> when that switch is
+not provided.
+
+=item SILK_CONFIG_FILE
+
+This environment variable is used when the SiLK application attempts
+to locate the the SiLK site configuration file unless the
+B<--site-config-file> switch is specified.  Additional locations where
+the application searches are listed in the L</FILES> section.  The
+site configuration file is required to parse the flowtypes.
+
+=item SILK_DATA_ROOTDIR
+
+This environment variable specifies the root directory of data
+repository.  As described in the L</FILES> section, an application may
+use this environment variable when searching for the SiLK site
+configuration file.
+
+=item SILK_PATH
+
+This environment variable gives the root of the install tree.  When
+searching for configuration files and plug-ins, an application may use
+this environment variable.  See the L</FILES> section for details.
+
+=item SILK_PLUGIN_DEBUG
+
+When set to 1, the SiLK applications print status messages to the
+standard error as they attempt to find and open the
+F<int-ext-fields.so> plug-in.  A typical invocation using this
+variable is
+
+ env SILK_PLUGIN_DEBUG=1 rwcut --plugin=int-ext-fields.so --version
+
+=back
+
+=head1 FILES
+
+=over 4
+
+=item F<${SILK_CONFIG_FILE}>
+
+=item F<${SILK_DATA_ROOTDIR}/silk.conf>
+
+=item F<@SILK_DATA_ROOTDIR@/silk.conf>
+
+=item F<${SILK_PATH}/share/silk/silk.conf>
+
+=item F<${SILK_PATH}/share/silk.conf>
+
+=item F<@prefix@/share/silk/silk.conf>
+
+=item F<@prefix@/share/silk.conf>
+
+Possible locations for the SiLK site configuration file which are
+checked when the B<--site-config-file> switch is not provided.
+
+=item F<${SILK_PATH}/lib64/silk/int-ext-fields.so>
+
+=item F<${SILK_PATH}/lib64/int-ext-fields.so>
+
+=item F<${SILK_PATH}/lib/silk/int-ext-fields.so>
+
+=item F<${SILK_PATH}/lib/int-ext-fields.so>
+
+=item F<@prefix@/lib64/silk/int-ext-fields.so>
+
+=item F<@prefix@/lib64/int-ext-fields.so>
+
+=item F<@prefix@/lib/silk/int-ext-fields.so>
+
+=item F<@prefix@/lib/int-ext-fields.so>
+
+Possible locations for the plug-in.
+
+=back
+
+=head1 SEE ALSO
+
+B<rwcut(1)>, B<rwgroup(1)>, B<rwsort(1)>, B<rwstats(1)>, B<rwuniq(1)>,
+B<silk.conf(5)>, B<silk(7)>
+
+=cut
+
+$SiLK: int-ext-fields.pod cd09f0a5fcc6 2014-06-14 15:43:33Z mthomas $
+
+Local Variables:
+mode:text
+indent-tabs-mode:nil
+End:

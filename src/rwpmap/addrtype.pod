@@ -1,0 +1,200 @@
+=pod
+
+=head1 NAME
+
+B<addrtype> - Labeling IPv4 addresses as internal or external
+
+=head1 SYNOPSIS
+
+  rwfilter [--stype=ID] [--dtype=ID] ...
+
+  rwcut --fields=sType,dType ...
+
+  rwgroup --id-fields=sType,dType ...
+
+  rwsort --fields=sType,dType ...
+
+  rwstats --fields=sType,dType ...
+
+  rwuniq --fields=sType,dType ...
+
+=head1 DESCRIPTION
+
+The I<address type> mapping file provides a way to map an IPv4 address
+to an integer denoting the IP as internal, external, or non-routable.
+With this mapping file, SiLK flow records can be partitioned
+(B<rwfilter(1)>), displayed (B<rwcut(1)>), grouped (B<rwgroup(1)>),
+sorted (B<rwsort(1)>), and counted (B<rwstats(1)> and B<rwuniq(1)>) by
+the characteristic of the address.
+
+The address type is a specialized form of the Prefix Map,
+B<pmapfilter(3)>, where the following labels are assumed to exist and
+to have the indicated values:
+
+=over 4
+
+=item S< 0 >
+
+denotes a (I<non-routable>) IP address
+
+=item S< 1 >
+
+denotes an IP address I<internal> to the monitored network
+
+=item S< 2 >
+
+denotes an IP address I<external> to the monitored network
+
+=back
+
+The SiLK tools look for the address type mapping file in a standard
+location as detailed in the L</FILES> section below.  To provide an
+alternate location, specify that location in the SILK_ADDRESS_TYPES
+environment variable.
+
+Creating the prefix map file that maps IPs to one of these labels is
+described in the L</MAPPING FILE> section below.
+
+=head1 OPTIONS
+
+The address type utility provides the following options to the
+indicated applications.
+
+=head2 B<rwfilter> Switches
+
+=over 4
+
+=item B<--stype>=I<ID>
+
+When I<ID> is 0, pass the record if its source address is
+non-routable.  When I<ID> is 1, pass the record if its source address
+is internal.  When I<ID> is 2, pass the record if its source address
+is external (i.e., routable and not internal).  When I<ID> is 3, pass
+the record if its source address is not internal (non-routable or
+external).
+
+=item B<--dtype>=I<ID>
+
+As B<--stype> for the destination IP address.
+
+=back
+
+=head2 B<rwcut>, B<rwgroup>, B<rwsort>, B<rwstats>, and B<rwuniq> Switches
+
+=over 4
+
+=item B<--fields>=I<FIELDS>
+
+I<FIELDS> refers to a list of fields to use for the operation.  The
+address type utility makes two additional fields, C<sType> (alias
+C<16>) and C<dType> (C<17>) available for display, grouping, sorting,
+and counting using the B<rwcut(1)>, B<rwgroup(1)>, B<rwsort(1)>,
+B<rwstats(1)>, and B<rwuniq(1)> tools:
+
+=over 4
+
+=item sType,16
+
+For the source IP address, prints 0 if the address is non-routable, 1
+if it is internal, or 2 if it is routable and external.
+
+=item dType,17
+
+as B<sType>, except for the destination address
+
+=back
+
+=back
+
+=head1 MAPPING FILE
+
+To denote an address as C<non-routable>, C<internal>, or C<external>
+at your site, you will need to create the F<address_types.pmap> file
+and either install it in the appropriate location (see the L</FILES>
+section below) or set the SILK_ADDRESS_TYPES environment variable to
+the file's location.
+
+The B<rwpmapbuild(1)> tool creates a I<prefix map> file from a text
+file.  A template for the text file is available in
+$SILK_PATH/share/silk/addrtype-templ.txt.  The text file used to
+create F<address_types.pmap> must include the following section to
+ensure that IPs are mapped to the integer values that the
+F<addrtype.so> expects:
+
+  #    Numerical mappings of labels
+
+  label 0             non-routable
+  label 1             internal
+  label 2             external
+
+  #    Default to "external" for all un-defined ranges.
+
+  default             external
+
+The remainder of the file can list CIDR blocks and a label for each
+block:
+
+  # RFC1918 space
+  10.0.0.0/8          non-routable
+  172.16.0.0/12       non-routable
+  192.168.0.0/16      non-routable
+
+  # My IP space (CMU)
+  128.2.0.0/16        internal
+
+Once the text file is saved to disk, use B<rwpmapbuild> to create
+F<address_types.pmap>:
+
+  rwpmapbuild --input addresses.txt --output address_types.pmap
+
+
+=head1 ENVIRONMENT
+
+=over 4
+
+=item SILK_ADDRESS_TYPES
+
+This environment variable allows the user to specify the address type
+mapping file to use.  The value may be a complete path or a file
+relative to SILK_PATH.  If the variable is not specified, the code
+looks for a file named F<address_types.pmap> as specified in the
+L</FILES> section below.
+
+=item SILK_PATH
+
+This environment variable gives the root of the install tree.  The
+SiLK applications check the directories F<$SILK_PATH/share/silk> and
+F<$SILK_PATH/share> for the address type mapping file,
+F<address_types.pmap>.
+
+=back
+
+=head1 FILES
+
+The tools will look for the data file that maps IPs to labels in the
+following locations.  ($SILK_ADDRESS_TYPES is the value of the
+SILK_ADDRESS_TYPES environment variable, if it is set.  $SILK_PATH is
+value of the SILK_PATH environment variable, if it is set.  The use of
+F<@prefix@/> assumes the application is installed in the
+F<@prefix@/bin/> directory.)
+
+  $SILK_ADDRESS_TYPES
+  $SILK_PATH/share/silk/address_types.pmap
+  $SILK_PATH/share/address_types.pmap
+  @prefix@/share/silk/address_types.pmap
+  @prefix@/share/address_types.pmap
+
+=head1 SEE ALSO
+
+B<rwcut(1)>, B<rwfilter(1)>, B<rwgroup(1)>, B<rwpmapbuild(1)>,
+B<rwpmapcat(1)>, B<rwsort(1)>, B<rwstats(1)>, B<rwuniq(1)>,
+B<pmapfilter(3)>, B<silk(7)>
+
+=cut
+
+$SiLK: addrtype.pod 9e71f5672f24 2013-03-05 23:37:50Z mthomas $
+
+Local Variables:
+mode:text
+indent-tabs-mode:nil
+End:

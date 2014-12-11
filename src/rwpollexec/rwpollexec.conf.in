@@ -1,0 +1,101 @@
+### rwpollexec configuration file  -*- sh -*-
+##
+## The canonical pathname for this file is
+## @sysconfdir@/@myprog@.conf
+##
+## RCSIDENT("$SiLK: rwpollexec.conf.in 7f4317c4a2a1 2014-05-22 21:38:41Z mthomas $")
+##
+## This is a /bin/sh file that gets loaded by the init.d/@myprog@
+## wrapper script, and this file must follow /bin/sh syntax rules.
+
+# Set to non-empty value to enable rwpollexec
+ENABLED=
+
+# These are convenience variables for setting other values in this
+# configuration file; their use is not required.
+statedirectory=@localstatedir@/lib/rwpollexec
+
+# If CREATE_DIRECTORIES is set to "yes", the directories named in this
+# file will be created automatically if they do not already exist
+CREATE_DIRECTORIES=no
+
+# Full path of the directory containing the "@myprog@" program
+BIN_DIR=@sbindir@
+
+# The command to run on each file in the INCOMING_DIR.  A %s in the
+# command string will be replaced by the full pathname of the file.
+# This is required.
+#
+# Example: The following will append the name of the file to another
+# file called /tmp/filelist
+#
+# COMMAND="echo %s >> /tmp/filelist"
+#
+COMMAND=
+
+# Directory in which to look for incoming files
+INCOMING_DIR=${statedirectory}/incoming
+
+# Directory to move input files to when the command returns a zero
+# exit status.  If not set, the input files are not archived, but
+# deleted instead.
+ARCHIVE_DIR=${statedirectory}/archive
+
+# When using the ARCHIVE_DIR, normally files are stored in
+# subdirectories of the ARCHIVE_DIR.  If this variable's value is 1,
+# files are stored in ARCHIVE_DIR itself, not in subdirectories of it.
+FLAT_ARCHIVE=0
+
+# Directory to move an input file into if the command returns a
+# non-zero exit status, or is terminated by a signal.  This directory
+# is required.
+ERROR_DIR=${statedirectory}/error
+
+# Interval between attempts to check the INCOMING_DIR or
+# poll-directory probe entries for new files, in seconds.  This may be
+# left blank, and will default to 15.
+POLLING_INTERVAL=
+
+# Maximum number of commands to run simultaneously.  If not set,
+# defaults to 1.  May not be greater than 50.
+SIMULTANEOUS=
+
+# Signals to send to running commands; usually used to terminate
+# commands that lock up or are taking too long.  This is a
+# space-separated list of SIGNAL,SECS pairs.  SIGNAL may be either the
+# name or number of the signal to send.  SECS is the number of seconds
+# after which the signal is sent to the command, assuming the command
+# hasn't already exited.  If not set, no signals will be sent.
+#
+# Using the 'kill -l' command will generate a list of valid signals.
+#
+# Example: the following will send a SIGTERM after 30 seconds, and a
+# SIGKILL after 60 seconds.
+#
+# TIMEOUT="TERM,30 KILL,60"
+#
+TIMEOUT=
+
+###
+
+# The type of logging to use.  Valid values are "legacy" and "syslog".
+LOG_TYPE=syslog
+
+# The lowest level of logging to actually log.  Valid values are:
+# emerg, alert, crit, err, warning, notice, info, debug
+LOG_LEVEL=info
+
+# The full path of the directory where the log files will be written
+# when LOG_TYPE is "legacy".
+LOG_DIR=${statedirectory}/log
+
+# The full path of the directory where the PID file will be written
+PID_DIR=${LOG_DIR}
+
+# The user this program runs as.  There is no need for rwpollexec to
+# run as root.
+USER=root
+#USER=`whoami`  # run as user invoking the script
+
+# Extra options to pass to rwpollexec
+EXTRA_OPTIONS=

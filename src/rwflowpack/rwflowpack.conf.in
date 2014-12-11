@@ -1,0 +1,172 @@
+### Packer configuration file  -*- sh -*-
+##
+## The canonical pathname for this file is
+## @sysconfdir@/@myprog@.conf
+##
+## RCSIDENT("$SiLK: rwflowpack.conf.in 7f4317c4a2a1 2014-05-22 21:38:41Z mthomas $")
+##
+## This is a /bin/sh file that gets loaded by the init.d/@myprog@
+## wrapper script, and this file must follow /bin/sh syntax rules.
+
+# Set to non-empty value to enable rwflowpack
+ENABLED=
+
+# These are convenience variables for setting other values in this
+# configuration file; their use is not required.
+statedirectory=@localstatedir@/lib/rwflowpack
+
+# If CREATE_DIRECTORIES is set to "yes", the directories named in this
+# file will be created automatically if they do not already exist
+CREATE_DIRECTORIES=no
+
+# Full path of the directory containing the "@myprog@" program
+BIN_DIR=@sbindir@
+
+# The full path to the sensor configuration file.  Used by
+# --sensor-configuration.  YOU MUST PROVIDE THIS (the value is ignored
+# when INPUT_MODE is "respool").
+SENSOR_CONFIG=
+
+# The full path to the root of the tree under which the packed SiLK
+# Flow files will be written.  Used by --root-directory.
+DATA_ROOTDIR=@SILK_DATA_ROOTDIR@
+
+# The full path to the site configuration file.  Used by
+# --site-config-file.  If not set, defaults to silk.conf in the
+# ${DATA_ROOTDIR}.
+SITE_CONFIG=
+
+# Specify the path to the packing-logic plug-in that rwflowpack should
+# load and use.  The plug-in provides functions that determine into
+# which class and type each flow record will be categorized and the
+# format of the files that rwflowpack will write.  When SiLK has been
+# configured with hard-coded packing logic (i.e., when
+# --enable-packing-logic was specified to the configure script), this
+# value should be empty.  A default value for this switch may be
+# specified in the ${SITE_CONFIG} site configuration file.  This value
+# is ignored when INPUT_MODE is "respool".
+PACKING_LOGIC=
+
+# Data input mode.  Valid values are:
+#  * "stream" mode to read from the network or from probes that have
+#    poll-directories
+#  * "fcfiles" to process flowcap files on the local disk
+#  * "respool" to process SiLK flow files maintaining the sensor and
+#    class/type values that already exist on those records.
+INPUT_MODE=stream
+
+# Directory in which to look for incoming flowcap files in "fcfiles"
+# mode or for incoming SiLK files in "respool" mode
+INCOMING_DIR=${statedirectory}/incoming
+
+# Directory to move input files to after successful processing.  When
+# in "stream" mode, these are the files passed to any probe with a
+# poll-directory directive.  When in "fcfiles" mode, these are the
+# flowcap files.  When in "respool" mode, these are the SiLK Flow
+# files.  If not set, the input files are not archived but are deleted
+# instead.
+ARCHIVE_DIR=${statedirectory}/archive
+
+# When using the ARCHIVE_DIR, normally files are stored in
+# subdirectories of the ARCHIVE_DIR.  If this variable's value is 1,
+# files are stored in ARCHIVE_DIR itself, not in subdirectories of it.
+FLAT_ARCHIVE=0
+
+# Directory to move an input file into if there is a problem opening
+# the file.  If this value is not set, rwflowpack will exit when it
+# encounters a problem file.  When in "fcfiles" mode, these are the
+# flowcap files.  When in "stream" mode, these are the files passed to
+# any probe with a poll-directory directive.
+ERROR_DIR=  #${statedirectory}/error
+
+# Data output mode.  As of SiLK-3.6.0, valid values are
+# "local-storage", "incremental-files", and "sending".
+#
+# For compatiblity with previous releases prior to SiLK-3.6.0, "local"
+# is an alias for "local-storage" and "remote" and is an alias for
+# "sending".
+#
+# In "local-storage" (aka "local") mode, rwflowpack writes the records
+# to hourly files in the repository on the local disk.  The root of
+# the repository must be specified by the DATA_ROOTDIR variable.
+#
+# In "incremental-files" mode, rwflowpack creates small files (called
+# incremental files) that must be processed by rwflowappend to create
+# the hourly files.  The incremental-files are created and stored in a
+# single directory named by the INCREMENTAL_DIR variable.
+#
+# In "sending" (aka "remote") mode, rwflowpack also creates
+# incremental files.  The files are created in directory specified by
+# the INCREMENTAL_DIR variable and then moved to directory specified
+# by the SENDER_DIR variable.
+OUTPUT_MODE=local-storage
+
+# When the OUTPUT_MODE is "sending", this is the destination directory
+# in which the incremental files are finally stored to await
+# processing by rwflowappend, rwsender, or another process.
+SENDER_DIR=${statedirectory}/sender-incoming
+
+# When OUTPUT_MODE is "incremental-files" or "sending", this is the
+# directory where the incremental files are initially built.  In
+# "incremental-files" mode, the files remain in this directory.  In
+# "sending" mode, the incremental files are moved to the SENDER_DIR
+# directory.
+INCREMENTAL_DIR=${statedirectory}/sender-incoming
+
+
+# The type of compression to use for packed files.  Left empty, the
+# value chosen at compilation time will be used.  Valid values are
+# "best" and "none".  Other values are system-specific (the available
+# values are listed in the description of the --compression-method
+# switch in the output of rwflowpack --help).
+COMPRESSION_TYPE=
+
+# Interval between attempts to check the INCOMING_DIR or
+# poll-directory probe entries for new files, in seconds.  This may be
+# left blank, and will default to 15.
+POLLING_INTERVAL=
+
+# Interval between periodic flushes of open SiLK Flow files to disk,
+# in seconds.  This may be left blank, and will default to 120.
+FLUSH_TIMEOUT=
+
+# Maximum number of SiLK Flow files to have open for writing
+# simultaneously.  This may be left blank, and will default to 64
+FILE_CACHE_SIZE=
+
+# Whether rwflowpack should use advisory write locks.  1=yes, 0=no.
+# Set to zero if messages like "Cannot get a write lock on file"
+# appear in rwflowpack's log file.
+FILE_LOCKING=1
+
+# Whether rwflowpack should include the input and output SNMP
+# interfaces and the next-hop-ip in the output files.  1=yes, 0=no.
+# The default is no, and these values are not stored to save disk
+# space.  (The input and output fields contain VLAN tags when the
+# sensor.conf file contains the attribute "interface-values vlan".)
+PACK_INTERFACES=0
+
+
+###
+
+# The type of logging to use.  Valid values are "legacy" and "syslog".
+LOG_TYPE=syslog
+
+# The lowest level of logging to actually log.  Valid values are:
+# emerg, alert, crit, err, warning, notice, info, debug
+LOG_LEVEL=info
+
+# The full path of the directory where the log files will be written
+# when LOG_TYPE is "legacy".
+LOG_DIR=${statedirectory}/log
+
+# The full path of the directory where the PID file will be written
+PID_DIR=${LOG_DIR}
+
+# The user this program runs as; root permission is required only when
+# rwflowpack listens on a privileged port.
+USER=root
+#USER=`whoami`  # run as user invoking the script
+
+# Extra options to pass to rwflowpack
+EXTRA_OPTIONS=

@@ -1,0 +1,115 @@
+=pod
+
+=head1 NAME
+
+B<rwsetmember> - Determine whether IP address(es) are members of an IPset
+
+=head1 SYNOPSIS
+
+  rwsetmember [--count] [--quiet] PATTERN [INPUT_SET [INPUT_SET...]]
+
+  rwsetmember --help
+
+  rwsetmember --version
+
+=head1 DESCRIPTION
+
+B<rwsetmember> determines whether an IP address or pattern exists in
+one or more IPset files, printing the name of the IPset files that
+contain the IP and optionally counting the number of matches in each
+file.  I<PATTERN> can be a single IP address, a CIDR block, or an IP
+Wildcard expressed in the same form as accepted by B<rwsetbuild(1)>.
+
+If an I<INPUT_SET> is not given on the command line, B<rwsetmember>
+will attempt to read an IPset from the standard input.  To read the
+standard input in addition to the named files, use C<-> or C<stdin> as
+a file name.  If an input file name ends in C<.gz>, the file will be
+uncompressed as it is read.
+
+When B<rwsetmember> encounters an I<INPUT_SET> file that it cannot
+read as an IPset, it prints an error message and moves to the next
+I<INPUT_SET> file.
+
+=head1 OPTIONS
+
+Option names may be abbreviated if the abbreviation is unique or is an
+exact match for an option.  A parameter to an option may be specified
+as B<--arg>=I<param> or B<--arg> I<param>, though the first form is
+required for options that take optional parameters.
+
+=over 4
+
+=item B<--count>
+
+Follow each set filename by a colon character and the number of pattern
+matches in the IPset.  Files that do not match will still be printed,
+but with a zero match count.  The B<--count> switch is ignored when
+B<--quiet> is also specified.
+
+=item B<--quiet>
+
+Produce no standard output.  The exit status of the program (see below)
+should be checked to determine whether any files matched.
+
+=item B<--help>
+
+Print the available options and exit.
+
+=item B<--version>
+
+Print the version number and information about how SiLK was
+configured, then exit the application.
+
+=back
+
+=head1 EXAMPLES
+
+In the following examples, the dollar sign (C<$>) represents the shell
+prompt.  The text after the dollar sign represents the command line.
+
+=for comment
+Lines have been wrapped for improved readability, and the back slash
+(C<\>) is used to indicate a wrapped line.
+
+To quickly check whether a single set file contains an address (check
+the exit status):
+
+ $ rwsetmember --quiet 192.168.1.1 file.set
+
+To display which of several set files (if any) match a given IP
+address:
+
+ $ rwsetmember 192.168.1.1 *.set
+
+To display the same, but with counts from each file:
+
+ $ rwsetmember --count 192.168.1.1 *.set
+
+To find all sets that contain addresses in the 10.0.0.0/8 subnet:
+
+ $ rwsetmember 10.0.0.0/8 *.set
+
+To find files containing any IP address that ends with a number between
+1 and 10 (this will use a lot of memory):
+
+ $ rwsetmember x.x.x.1-10 *.set
+
+
+=head1 EXIT STATUS
+
+B<rwsetmember> exits with status code 0 if any file matched the
+pattern or 1 if there were no matches across any files or if there
+was a fatal error with the input.
+
+=head1 SEE ALSO
+
+B<rwset(1)>, B<rwsetbuild(1)>, B<rwsetcat(1)>, B<silk(7)>
+
+=cut
+
+$SiLK: rwsetmember.pod 555c76ddb38c 2014-06-22 12:17:13Z mthomas $
+
+Local Variables:
+mode:text
+indent-tabs-mode:nil
+End:

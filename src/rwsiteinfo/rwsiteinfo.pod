@@ -1,0 +1,413 @@
+=pod
+
+=head1 NAME
+
+B<rwsiteinfo> - Print information from the silk.conf site configuration file
+
+=head1 SYNOPSIS
+
+  rwsiteinfo --fields=FIELD[,FIELD...]
+        { [--classes=CLASS[,CLASS...]] [--types=TYPE[,TYPE...]]
+          | [--flowtypes=CLASS/TYPE[,CLASS/TYPE...]] }
+        [--sensors=SENSOR[,SENSOR...]]
+        [--data-rootdir=ROOT_DIRECTORY] [--site-config-file=FILENAME]
+        [--no-titles] [--no-columns] [--column-separator=CHAR]
+        [--no-final-delimiter] [{--delimited | --delimited=CHAR}]
+        [--list-delimiter=CHAR] [--pager=PAGER_PROG]
+
+  rwsiteinfo --help
+
+  rwsiteinfo --version
+
+=head1 DESCRIPTION
+
+B<rwsiteinfo> is a utility to print selected information about the
+classes, types, flowtypes, and sensors that are defined in the
+B<silk.conf(5)> site configuration file.  The B<--fields> switch is
+required, and its argument is a comma-separated list of field names
+selecting the fields to be printed.  The output from B<rwsiteinfo>
+consists of multiple columns and rows, where each column contains one
+of the I<FIELD>s and where each row has a unique value for one of the
+I<FIELD>s.  B<rwsiteinfo> prints rows until all possible combinations
+of fields is exhausted.  By default, the information is printed in a
+columnar, bar (C<|>) delimited format.
+
+The B<--classes>, B<--types>, B<--flowtypes>, and B<--sensors>
+switches allow the user to limit the amount of information printed.
+(These switches operate similarly to their namesakes on B<rwfilter(1)>
+and B<rwfglob(1)>.)  If none of these switches are given,
+B<rwsiteinfo> prints information for I<all> values defined in the
+F<silk.conf> file.  If one or more of these switches is specified,
+B<rwsiteinfo> limits its output to the specified values.  To print
+information about the default class or the default types within a
+class, use the at-sign (C<@>) as the name of the class or type,
+respectively.  The B<--flowtypes> switch must be used independently of
+the B<--classes> and B<--types> switches.
+
+As stated above, B<rwsiteinfo> prints unique rows given a list of
+I<FIELD>s.  As an example, suppose the user entered the command
+C<rwsiteinfo --fields=class,type,sensor>.  B<rwsiteinfo> will print a
+row containing the first class defined in the F<silk.conf> file, the
+first type defined for that class, and the first sensor name defined
+for that class/type pair.  On the next row, the class and type will be
+the same and the second sensor name will be printed.  Once all sensors
+have been printed, B<rwsiteinfo> repeats the process for the second
+type defined for the first class, and so on.  Once all information for
+the first class has been printed, the process would repeat for the
+next class, until all classes have been printed.
+
+The order of the I<FIELD>s determines how B<rwsiteinfo> iterates
+through the possible values.  The last I<FIELD> will change most
+rapidly, and the first field will change most slowly.  Two invocations
+of B<rwsiteinfo> where the first specifies C<--fields=class,sensor>
+and the second specifies C<--fields=sensor,class> produce the same
+number of rows, and each invocation has an outer and inner iterator.
+In the first invocation, the outer iterator is over the classes, and
+the inner iterator is over each sensor defined in that class.  In the
+second invocation, the outer iterator is over the sensors, and the
+inner is over the classes to which that sensor belongs.
+
+In general, the output will contain some combination of class, type,
+flowtype, and sensor.  For flowtype and sensor, the numeric ID may be
+printed instead of the name.  For class and type, the default values
+may be printed or they may be identified by a symbol.  Most field
+names support a I<FIELD>B<:list> variant that puts all possible values
+for that field into a single column.  See the description of the
+B<--fields> switch below for details.
+
+
+=head1 OPTIONS
+
+Option names may be abbreviated if the abbreviation is unique or is an
+exact match for an option.  A parameter to an option may be specified
+as B<--arg>=I<param> or B<--arg> I<param>, though the first form is
+required for options that take optional parameters.
+
+=over 4
+
+=item B<--fields>=I<FIELD>[,I<FIELD>...]
+
+Specify the fields to print as a comma-separated list of names.  The
+names are case-insensitive.  The fields will be displayed in the order
+the names are specified.  The B<--fields> switch is required, and
+B<rwsiteinfo> will fail when it is not provided.
+
+The list of possible field names is:
+
+=over 4
+
+=item class
+
+the class name, e.g., C<all>
+
+=item type
+
+the type name, e.g., C<inweb>
+
+=item flowtype
+
+the flowtype name, e.g., C<iw>.  The flowtype name is a combination of
+the class name and type name, and it is used to name files in the SiLK
+data repository.
+
+=item id-flowtype
+
+the integer identifier for the flowtype, e.g., C<2>
+
+=item sensor
+
+the sensor name, e.g., C<S3>
+
+=item id-sensor
+
+the integer identifier for the sensor, e.g., C<3>
+
+=item describe-sensor
+
+the sensor description, when present
+
+=item default-class
+
+the default class name
+
+=item default-type
+
+the default type name
+
+=item mark-defaults
+
+a two-character wide column that contains a plus 'B<+>' on a row that
+contains the default class and an asterisk 'B<*>' on a row that
+contains a default type
+
+=item class:list
+
+instead of printing class names on separate rows, join all the classes
+in a single row separated using the list-delimiter
+
+=item type:list
+
+instead of printing type names on separate rows, join all the types
+in a single row separated using the list-delimiter
+
+=item flowtype:list
+
+instead of printing flowtype names on separate rows, join all the
+flowtypes in a single row separated using the list-delimiter
+
+=item id-flowtype:list
+
+instead of printing flowtype identifiers on separate rows, join all
+the flowtype identifiers in a single row separated using the
+list-delimiter
+
+=item sensor:list
+
+instead of printing sensor names on separate rows, join all the
+sensors in a single row separated using the list-delimiter
+
+=item id-sensor:list
+
+instead of printing sensor identifiers on separate rows, join all the
+sensor identifiers in a single row separated using the list-delimiter
+
+=item default-class:list
+
+equivalent to default-class, but provided for consistency
+
+=item default-type:list
+
+instead of printing the default type names on separate rows, join all
+the default type names in a single row separated using the
+list-delimiter
+
+=back
+
+=item B<--classes>=I<CLASS>[,I<CLASS>...]
+
+Restrict the output using the class(es) named in the comma-separated
+list.  The default class may be specified by using an at-sign (C<@>)
+as the name of a class.
+
+=item B<--types>=I<TYPE>[,I<TYPE>...]
+
+Restrict the output using the type(s) named in the comma-separated
+list.  The default types for a class may be specified by using an
+at-sign (C<@>) as the name of a type.
+
+=item B<--flowtypes>=I<CLASS>/I<TYPE>[,I<CLASS>/I<TYPE>...]
+
+Restrict the output using the class/type pairs named in the
+comma-separated list, where the class name and type name are separated
+by a slash (C</>).  The keyword C<all> may be used for the I<CLASS>
+and/or I<TYPE> to select all classes and/or types.
+
+=item B<--sensors>=I<SENSOR>[,I<SENSOR>...]
+
+Restrict the output to the sensors(s) named in the comma-separated
+list of sensor names, sensor IDs (integers), and/or ranges of sensor
+IDs.
+
+=item B<--data-rootdir>=I<ROOT_DIRECTORY>
+
+Use I<ROOT_DIRECTORY> as the root of the data repository, which
+overrides the location given in the SILK_DATA_ROOTDIR environment
+variable, which in turn overrides the location that was compiled into
+B<rwsiteinfo> (@SILK_DATA_ROOTDIR@).  This directory is one of the
+locations where B<rwsiteinfo> attempts to find the F<silk.conf> file.
+
+=item B<--site-config-file>=I<FILENAME>
+
+Read the SiLK site configuration from the named file I<FILENAME>.
+When this switch is not provided, B<rwsiteinfo> searches for the site
+configuration file in the locations specified in the L</FILES>
+section.
+
+=item B<--no-titles>
+
+Turn off column titles.  By default, titles are printed.
+
+=item B<--no-columns>
+
+Disable fixed-width columnar output.
+
+=item B<--column-separator>=I<C>
+
+Use specified character between columns and after the final column.
+When this switch is not specified, the default of C<|> is used.
+
+=item B<--no-final-delimiter>
+
+Do not print the column separator after the final column.  Normally a
+delimiter is printed.
+
+=item B<--delimited>
+
+=item B<--delimited>=I<C>
+
+Run as if B<--no-columns> B<--no-final-delimiter> B<--column-sep>=I<C>
+had been specified.  That is, disable fixed-width columnar output; if
+character I<C> is provided, it is used as the delimiter between
+columns instead of the default C<|>.
+
+=item B<--list-delimiter>=I<C>
+
+Specify the character to use between items that comprise a
+I<FIELD>B<:list> column.  The default list delimiter is comma C<,>.
+
+=item B<--pager>=I<PAGER_PROG>
+
+When output is to a terminal, invoke the program I<PAGER_PROG> to view
+the output one screen full at a time.  This switch overrides the
+SILK_PAGER environment variable, which in turn overrides the PAGER
+variable.  If the value of the pager is determined to be the empty
+string, no paging will be performed and all output will be printed to
+the terminal.
+
+=item B<--help>
+
+Print the available options and exit.  Options that add fields
+can be specified before B<--help> so that the new options appear in
+the output.
+
+=item B<--version>
+
+Print the version number and information about how SiLK was
+configured, then exit the application.
+
+=back
+
+=head1 EXAMPLES
+
+In the following examples, the dollar sign (C<$>) represents the shell
+prompt.  The text after the dollar sign represents the command line.
+Lines have been wrapped for improved readability, and the back slash
+(C<\>) is used to indicate a wrapped line.
+
+The following prints all known sensor names, one name per line:
+
+ $ rwsiteinfo --fields=sensors --no-titles --delimited
+
+The following prints all known sensor names on a single line (the
+names will be separated by comma):
+
+ $ rwsiteinfo --fields=sensors:list --no-titles --delimited
+
+This changes the separator of the sensor names to a space:
+
+ $ rwsiteinfo --fields=sensors:list --no-titles --delimited \
+        --list-delimiter=' '
+
+The following prints the sensor names for the default class on a
+single line:
+
+ $ rwsiteinfo --fields=sensors:list --class=@ --no-titles --delimited
+
+The following prints four columns: (1) the sensor identifier, (2) the
+sensor name, (3) the list of classes for that sensor, and (4) a
+description of the sensor (that is, it mimics the output of
+B<mapsid(1)>):
+
+ $ rwsiteinfo --fields=sensor,id-sensor,class:list,describe-sensor
+
+The following prints two columns, the first containing a class name
+and the second the list of default types for that class:
+
+ $ rwsiteinfo --fields=class,default-types:list
+
+The following prints the default class:
+
+ $ rwsiteinfo --fields=default-class --no-titles --delimited
+
+As does this:
+
+ $ rwsiteinfo --fields=class --class=@ --no-titles --delimited
+
+The following prints the default types for the default class, with
+each type on a separate line:
+
+ $ rwsiteinfo --fields=default-type --class=@ --no-titles --delimited
+
+
+=head1 ENVIRONMENT
+
+=over 4
+
+=item SILK_PAGER
+
+When set to a non-empty string, B<rwsiteinfo> automatically invokes
+this program to display its output a screen at a time.  If set to an
+empty string, B<rwsiteinfo> does not automatically page its output.
+
+=item PAGER
+
+When set and SILK_PAGER is not set, B<rwsiteinfo> automatically
+invokes this program to display its output a screen at a time.
+
+=item SILK_CONFIG_FILE
+
+This environment variable is used as the value for the
+B<--site-config-file> when that switch is not provided.
+
+=item SILK_DATA_ROOTDIR
+
+This environment variable specifies the root directory of data
+repository.  As described in the L</FILES> section, B<rwsiteinfo> may
+use this environment variable when searching for the SiLK site
+configuration file.
+
+=item SILK_PATH
+
+This environment variable gives the root of the install tree.  When
+searching for configuration files and plug-ins, B<rwsiteinfo> may use
+this environment variable.  See the L</FILES> section for details.
+
+=back
+
+=head1 FILES
+
+=over 4
+
+=item F<${SILK_CONFIG_FILE}>
+
+=item F<${SILK_DATA_ROOTDIR}/silk.conf>
+
+=item F<@SILK_DATA_ROOTDIR@/silk.conf>
+
+=item F<${SILK_PATH}/share/silk/silk.conf>
+
+=item F<${SILK_PATH}/share/silk.conf>
+
+=item F<@prefix@/share/silk/silk.conf>
+
+=item F<@prefix@/share/silk.conf>
+
+Possible locations for the SiLK site configuration file which are
+checked when the B<--site-config-file> switch is not provided.  The
+location of the SILK_DATA_ROOTDIR may be specified using the
+B<--root-directory> switch.
+
+=back
+
+=head1 NOTES
+
+B<rwsiteinfo> was added in SiLK 3.0.
+
+B<rwsiteinfo> duplicates the functionality found in B<mapsid(1)>.
+B<mapsid> is deprecated, and it will be removed in the SiLK 4.0
+release.  Examples of using B<rwsiteinfo> in place of B<mapsid> are
+provided in the latter's manual page.
+
+=head1 SEE ALSO
+
+B<silk.conf(5)>, B<mapsid(1)>, B<rwfilter(1)>, B<rwfglob(1)>,
+B<silk(7)>
+
+=cut
+
+$SiLK: rwsiteinfo.pod 8b39dddcaab4 2013-12-06 21:47:40Z mthomas $
+
+Local Variables:
+mode:text
+indent-tabs-mode:nil
+End:

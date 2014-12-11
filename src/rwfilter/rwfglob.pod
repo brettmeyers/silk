@@ -1,0 +1,343 @@
+=pod
+
+=head1 NAME
+
+B<rwfglob> - Print files that B<rwfilter>'s File Selection switches will access
+
+=head1 SYNOPSIS
+
+  rwfglob [--start-date=YYYY/MM/DD[:HH] [--end-date=YYYY/MM/DD[:HH]]]
+        { [--class=CLASS] [--type={all | TYPE[,TYPE ...]}]
+         | [--flowtype=CLASS/TYPE[,CLASS/TYPE ...]] }
+        [--sensors=SENSOR[,SENSOR ...]]
+        [--data-rootdir=ROOT_DIRECTORY] [--site-config-file=FILENAME]
+        [--print-missing-files] [--no-block-check] [--no-file-names]
+        [--no-summary]
+
+  rwfglob [--data-rootdir=ROOT_DIRECTORY]
+        [--site-config-file=FILENAME] --help
+
+  rwfglob --version
+
+=head1 DESCRIPTION
+
+B<rwfglob> accepts the normal File Selection options of B<rwfilter(1)>
+and prints, to the standard output, the names of the files that would
+normally be accessed, one file name per line.  At the end, a summary
+is printed, to the standard output, of the number of files that
+B<rwfglob> found.  To suppress the printing of the file names and/or
+the summary, specify the B<--no-file-names> and/or B<--no-summary>
+switches, respectively.
+
+By default, B<rwfglob> only prints the names of files that exist.
+When the B<--print-missing-files> switch is provided, B<rwfglob>
+prints, to the standard error, the names of files that it did not
+find, one file name per line, preceded by the text S<'Missing '>.
+
+For each file it finds, B<rwfglob> will check the size of the file and
+the number of blocks allocated to the file.  If the block count is
+zero but the file size is non-zero, B<rwfglob> treats the file as
+existing but as residing I<on tape>.  The names of these files are
+printed to the standard output, but each name is preceded by the text
+S<'  \t*** ON_TAPE ***'> where S<'\t'> represents a tab character.
+The summary line will include the number of files that B<rwfglob>
+believes are on tape.  To suppress this check and to remove the count
+from the summary line, use the B<--no-block-check> switch.
+
+=head1 OPTIONS
+
+Option names may be abbreviated if the abbreviation is unique or is an
+exact match for an option.  A parameter to an option may be specified
+as B<--arg>=I<param> or B<--arg> I<param>, though the first form is
+required for options that take optional parameters.
+
+=head2 Selection Switches
+
+This set of switches are the same as those used by B<rwfilter> to
+select the files to process.  At least one of these switches must be
+provided.
+
+=over 4
+
+=item B<--start-date>=I<YYYY/MM/DD[:HH]>
+
+=item B<--end-date>=I<YYYY/MM/DD[:HH]>
+
+The date predicates indicate which days and hours to consider when
+creating the list of files.  The dates may be expressed as seconds
+since the UNIX epoch or in C<YYYY/MM/DD[:HH]> format, where the hour
+is optional.  A C<T> may be used in place of the C<:> to separate the
+day and hour.  Whether the C<YYYY/MM/DD[:HH]> strings represent times
+in UTC or the local timezone depend on how SiLK was compiled.  To
+determine how your version of SiLK was compiled, see the C<Timezone
+support> setting in the output from B<rwfglob --version>.
+
+When both B<--start-date> and B<--end-date> are specified to hour
+precision, all hours within that time range are processed.
+
+When B<--start-date> is specified to day precision, the hour specified
+in B<--end-date> (if any) is ignored, and files for all dates between
+midnight on B<start-date> and 23:59 on B<end-date> are processed.
+
+When B<--start-date> is specified to hour precision and B<--end-date>
+is specified to day precision, the hour of the start-date is used as
+the hour for the end-date.
+
+When B<--end-date> is not specified and B<--start-date> is specified
+to day precision, files for that complete day are processed.
+
+When B<--end-date> is not specified and B<--start-date> is specified
+to hour precision, files for that single hour are processed.
+
+When neither B<--start-date> nor B<--end-date> is given, B<rwfglob>
+prints all files for the current day.
+
+It is an error to specify B<--end-date> without specifying
+B<--start-date>.
+
+=item B<--class>=I<CLASS>
+
+The B<--class> switch is used to specify a group of data to process.
+Only a single class may be selected.  Classes are defined in the
+B<silk.conf(5)> site configuration file.  If the B<--class> option is
+not given, the default-class as specified in F<silk.conf> is used.
+Use B<rwfglob --help> to see the list of available classes and the
+default class.
+
+=item B<--type>={C<all> | I<TYPE>[,I<TYPE>]}
+
+The B<--type> predicate further specifies data within the selected
+I<CLASS> by listing the I<TYPE>s of traffic to process.  The switch
+takes a comma-separated list of types or the keyword C<all> which
+specifies all types for the specified I<CLASS>.  Types are defined in
+F<silk.conf>, they typically refer to the direction of the flow, and
+they may vary by class.  When the B<--type> switch is not specified, a
+list of default types will be used.  The default-type list is
+determined by the value of I<CLASS>, and the default types generally
+include only incoming traffic.  Use B<rwfglob --help> to see the
+list of available types and the default types for each class.
+
+=item B<--flowtypes>=I<CLASS>/I<TYPE>[,I<CLASS>/I<TYPE> ...]
+
+The B<--flowtype> predicate provides an alternate way to specify
+class/type pairs.  The B<--flowtype> switch allows a single B<rwfglob>
+invocation to print data from multiple classes.  The keyword C<all>
+may be used for the I<CLASS> and/or I<TYPE> to select all classes
+and/or types.
+
+=item B<--sensors>=I<SENSOR>[,I<SENSOR> ...]
+
+The B<--sensor> switch is used to select data from specific sensors.
+The parameter is a comma separated list of sensor names, sensor IDs
+(integers), and/or ranges of sensor IDs.  Sensors are defined in the
+B<silk.conf(5)> site configuration file, and the B<rwsiteinfo(1)> command
+can be used to print a mapping of sensor names to IDs and classes.
+When the B<--sensor> switch is not specified, the default is to use
+all sensors which are valid for the specified class(es).
+
+=item B<--data-rootdir>=I<ROOT_DIRECTORY>
+
+Tell B<rwfglob> to use I<ROOT_DIRECTORY> as the root of the data
+repository, which overrides the location given in the
+SILK_DATA_ROOTDIR environment variable, which in turn overrides the
+location that was compiled into B<rwfglob> (@SILK_DATA_ROOTDIR@).
+
+=item B<--site-config-file>=I<FILENAME>
+
+Read the SiLK site configuration from the named file I<FILENAME>.
+When this switch is not provided, B<rwfglob> searches for the site
+configuration file in the locations specified in the L</FILES>
+section.
+
+=item B<--print-missing-files>
+
+This option prints to the standard error file names that B<rwfglob>
+expected to find but did not.  This switch is useful for debugging,
+but the list of files it produces can be misleading.  For example,
+suppose there is a decommissioned sensor that still appears in the
+F<silk.conf> file to permit retrieval of historical data; these data
+files will be I<missing> even though their absence is expected.  Use
+the output from this switch judiciously.  The file names are preceded
+by the text S<'Missing '>; each file name appears on a separate line.
+
+=back
+
+=head2 Application Switches
+
+=over 4
+
+=item B<--no-block-check>
+
+This option instructs B<rwfglob> not to check whether the file exists
+I<on tape> by checking whether the number of blocks allocated to the
+file is zero.  By default, B<rwfglob> precedes a file name that has a
+block count of 0 with the text S<'  \t*** ON_TAPE ***'>.
+
+=item B<--no-file-names>
+
+This option instructs B<rwfglob> not to print the names of the files
+that it successfully finds.  By default, B<rwfglob> prints the names
+of the files it finds and a summary line showing the number of files
+it found.  When both this switch and B<--print-missing-files> are
+specified, B<rwfglob> prints only the names of missing files (and the
+summary).
+
+=item B<--no-summary>
+
+This option instructs B<rwfglob> not to print the summary line (that
+is, the line that shows the number of files found).  By default,
+B<rwfglob> prints the names of the files it finds and a summary line
+showing the number of files it found.
+
+=item B<--help>
+
+Print the available options and exit.  The available classes and types
+will be included in output; you may specify a different root directory
+or site configuration file before B<--help> to see the classes and
+types available for that site.
+
+=item B<--version>
+
+Print the version number and information about how SiLK was
+configured, then exit the application.
+
+=back
+
+=head1 EXAMPLES
+
+In the following examples, the dollar sign (C<$>) represents the shell
+prompt.  The text after the dollar sign represents the command line.
+
+=for comment
+Lines have been wrapped for improved readability, and the back slash
+(C<\>) is used to indicate a wrapped line.
+
+Looking at a day on a single sensor:
+
+ $ rwfglob --start=2003/10/11 --sensor=2
+ /data/in/2003/10/11/in-GAMMA_20031011.23
+ /data/in/2003/10/11/in-GAMMA_20031011.22
+ /data/in/2003/10/11/in-GAMMA_20031011.21
+ /data/in/2003/10/11/in-GAMMA_20031011.20
+ /data/in/2003/10/11/in-GAMMA_20031011.19
+ /data/in/2003/10/11/in-GAMMA_20031011.18
+ /data/in/2003/10/11/in-GAMMA_20031011.17
+ /data/in/2003/10/11/in-GAMMA_20031011.16
+ /data/in/2003/10/11/in-GAMMA_20031011.15
+ /data/in/2003/10/11/in-GAMMA_20031011.14
+ /data/in/2003/10/11/in-GAMMA_20031011.13
+ /data/in/2003/10/11/in-GAMMA_20031011.12
+ /data/in/2003/10/11/in-GAMMA_20031011.11
+ /data/in/2003/10/11/in-GAMMA_20031011.10
+ /data/in/2003/10/11/in-GAMMA_20031011.09
+ /data/in/2003/10/11/in-GAMMA_20031011.08
+ /data/in/2003/10/11/in-GAMMA_20031011.07
+ /data/in/2003/10/11/in-GAMMA_20031011.06
+ /data/in/2003/10/11/in-GAMMA_20031011.05
+ /data/in/2003/10/11/in-GAMMA_20031011.04
+ /data/in/2003/10/11/in-GAMMA_20031011.03
+ /data/in/2003/10/11/in-GAMMA_20031011.02
+ /data/in/2003/10/11/in-GAMMA_20031011.01
+ /data/in/2003/10/11/in-GAMMA_20031011.00
+ globbed 24 files; 0 on tape
+
+If you only want the summary, specify B<--no-file-names>
+
+ $ rwfglob --start-date=2003/10/11 --sensor=2 --no-file-names
+ globbed 24 files; 0 on tape
+
+=head1 ENVIRONMENT
+
+=over 4
+
+=item SILK_CONFIG_FILE
+
+This environment variable is used as the value for the
+B<--site-config-file> when that switch is not provided.
+
+=item SILK_DATA_ROOTDIR
+
+This environment variable specifies the root directory of data
+repository.  This value overrides the compiled-in value, and
+B<rwfglob> uses it unless the B<--data-rootdir> switch is specified.
+In addition, B<rwfglob> may use this value when searching for the SiLK
+site configuration file.  See the L</FILES> section for details.
+
+=item SILK_PATH
+
+This environment variable gives the root of the install tree.  When
+searching for configuration files, B<rwfglob> may use this
+environment variable.  See the L</FILES> section for details.
+
+=item TZ
+
+When a SiLK installation is built to use the local timezone (to
+determine if this is the case, check the C<Timezone support> value in
+the output from B<rwfglob --version>), the value of the TZ environment
+variable determines the timezone in which B<rwfglob> parses
+timestamps.  (The date on the filenames that B<rwfglob> returns are
+always in UTC.)  If the TZ environment variable is not set, the
+default timezone is used.  Setting TZ to 0 or the empty string causes
+timestamps to be parsed as UTC.  The value of the TZ environment
+variable is ignored when the SiLK installation uses utc.  For system
+information on the TZ variable, see B<tzset(3)>.
+
+=back
+
+=head1 FILES
+
+=over 4
+
+=item F<${SILK_CONFIG_FILE}>
+
+=item F<ROOT_DIRECTORY/silk.conf>
+
+=item F<${SILK_PATH}/share/silk/silk.conf>
+
+=item F<${SILK_PATH}/share/silk.conf>
+
+=item F<@prefix@/share/silk/silk.conf>
+
+=item F<@prefix@/share/silk.conf>
+
+Possible locations for the SiLK site configuration file which are
+checked when the B<--site-config-file> switch is not provided, where
+F<ROOT_DIRECTORY/> is the directory B<rwfglob> is using as the root
+of the data repository.
+
+=item F<${SILK_DATA_ROOTDIR}/>
+
+=item F<@SILK_DATA_ROOTDIR@/>
+
+Locations for the root directory of the data repository when the
+B<--data-rootdir> switch is not specified.
+
+=back
+
+=head1 SEE ALSO
+
+B<rwfilter(1)>, B<rwsiteinfo(1)>, B<silk.conf(5)>, B<silk(7)>
+
+=head1 BUGS
+
+The B<--print-missing-files> option needs to be smarter about what
+files are really missing.
+
+The output of B<--print-missing-files> goes to the standard error,
+while all other output goes to the standard output.  To redirect the
+output of B<--print-missing-files> to the standard output, use the
+following in a Bourne-compatible shell:
+
+ $ rwfglob --print-missing-files ... 2>&1
+
+The block count check is of unknown portability across different
+tape-farm systems.
+
+=cut
+
+$SiLK: rwfglob.pod cd09f0a5fcc6 2014-06-14 15:43:33Z mthomas $
+
+Local Variables:
+mode:text
+indent-tabs-mode:nil
+End:

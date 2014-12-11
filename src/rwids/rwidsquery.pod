@@ -1,0 +1,281 @@
+=pod
+
+=head1 NAME
+
+B<rwidsquery> - invoke rwfilter to find flows matching Snort signatures
+
+=head1 SYNOPSIS
+
+ rwidsquery --intype=INPUT_TYPE
+        [--output-file=OUTPUT_FILE]
+        [--start-date=YYYY/MM/DD[:HH] [--end-date=YYYY/MM/DD[:HH]]]
+        [--year=YEAR] [--tolerance=SECONDS]
+        [--config-file=CONFIG_FILE]
+        [--mask=PREDICATE_LIST]
+        [--verbose] [--dry-run]
+        [INPUT_FILE | -]
+        [-- EXTRA_RWFILTER_ARGS...]
+
+  rwidsquery --help
+
+  rwidsquery --version
+
+=head1 DESCRIPTION
+
+B<rwidsquery> facilitates selection of SiLK flow records that
+correspond to Snort IDS alerts and signatures.  B<rwidsquery> takes as
+input either a B<snort(8)> alert log or rule file, analyzes the alert or
+rule contents, and invokes B<rwfilter(1)> with the appropriate
+arguments to retrieve flow records that match attributes of the input
+file.  B<rwidsquery> will process the Snort rules or alerts from a
+single file named on the command line; if no file name is given,
+B<rwidsquery> will attempt to read the Snort rules or alerts from the
+standard input, unless the standard input is connected to a terminal.
+An input file name of C<-> or C<stdin> will force B<rwidsquery> to
+read from the standard input, even when the standard input is a
+terminal.
+
+=head1 OPTIONS
+
+In addition to the options listed below, you can pass extra options
+through to B<rwfilter(1)> on the B<rwidsquery> command line.  The
+syntax for doing so is to place a double-hyphen (--) sequence after
+all valid B<rwidsquery> options, and before all of the options you wish
+to pass through to B<rwfilter>.
+
+=over 4
+
+=item B<--intype>=I<INPUT_TYPE>
+
+Specify the type of input contained in the input file.  This switch is
+required.  Two alert formats and one rule format are currently
+supported.  Valid values for this option are:
+
+=over 4
+
+=item C<fast>
+
+Input is a Snort "fast" log file entry.  Alerts are written in this
+format when Snort is configured with the C<snort_fast> output module
+enabled.  C<snort_fast> alerts resemble the following:
+
+    Jan  1 01:23:45 hostname snort[1976]: [1:1416:11] ...
+
+=item C<full>
+
+Input is a Snort "full" log file entry.  Alerts are written in this
+format when Snort is configured with the C<snort_full> output module
+enabled.  C<snort_full> alerts look like the following example:
+
+    [**] [116:151:1] (snort decoder) Bad Traffic  ...
+
+=item C<rule>
+
+Input is a Snort rule (signature).  For example:
+
+    alert tcp $EXTERNAL_NET any -> $HOME_NET any ...
+
+=back
+
+=item B<--output-file>=I<OUTPUT_FILE>
+
+Specify the output file that flows will be written to.  If not
+specified, the default is to write to stdout.  The argument to this
+option becomes the argument to B<rwfilter>'s B<--pass-destination>
+switch.
+
+=item B<--start-date>=I<YYYY/MM/DD[:HH]>
+
+=item B<--end-date>=I<YYYY/MM/DD[:HH]>
+
+Used in conjunction with rule file input only.  The date predicates
+indicate which time to start and end the search. See the B<rwfilter(1)>
+manual page for details of the date format.
+
+=item B<--year>=I<YEAR>
+
+Used in conjunction with alert file input only.  Timestamps in Snort
+alert files do not contain year information.  By default, the current
+calendar year is used, but this option can be used to override this
+default behavior.
+
+=item B<--tolerance>=I<SECONDS>
+
+Used in conjunction with alert file input only.  This option is
+provided to compensate for timing differences between the timestamps in
+Snort alerts and the start/end time of the corresponding flows.  The
+default B<--tolerance> value is 3600 seconds, which means that flow
+records +/- one hour from the alert timestamp will be searched.
+
+=item B<--config-file>=I<CONFIG_FILE>
+
+Used in conjunction with rule file input only.  Snort requires a
+configuration file which, among other things, contains variables that
+can be used in Snort rule definitions.  This option allows you to
+specify the location of this configuration file so that IP addresses,
+port numbers, and other information from the snort configuration file
+can be used to find matching flows.
+
+=item B<--mask>=I<PREDICATE_LIST>
+
+Exclude the B<rwfilter> predicates named in I<PREDICATE_LIST> from the
+selection criteria.  This option is provided to widen the scope of
+queries by making them more general than the Snort rule or alert
+provided.  For instance, B<--mask>=I<dport> will return flows with any
+destination port, not just those which match the input Snort alert or
+rule.
+
+=item B<--verbose>
+
+Print the resulting B<rwfilter(1)> command to the standard error prior
+to executing it.
+
+=item B<--dry-run>
+
+Print the resulting B<rwfilter(1)> command to the standard error but
+do not execute it.
+
+=item B<--help>
+
+Print the available options and exit.
+
+=item B<--version>
+
+Print the version number and information about how SiLK was
+configured, then exit the application.
+
+=back
+
+=head1 EXAMPLES
+
+In the following examples, the dollar sign (C<$>) represents the shell
+prompt.  The text after the dollar sign represents the command line.
+Lines have been wrapped for improved readability, and the back slash
+(C<\>) is used to indicate a wrapped line.
+
+To find SiLK flows matching a Snort alert in snort_fast format:
+
+ $ rwidsquery --intype fast --year 2007 --tolerance 300 alert.fast.txt
+
+For the following Snort alert:
+
+ Nov  15 00:00:58 hostname snort[5214]: [1:1416:11]
+ SNMP broadcast trap [Classification: Attempted Information Leak]
+ [Priority: 2]: {TCP}
+ 192.168.0.1:4161 -> 127.0.0.1:139
+
+The resulting B<rwfilter(1)> command would look similar to:
+
+ $ rwfilter --start-date=2007/11/14:23 --end-date=2007/11/15:00     \
+        --stime=2007/11/14:23:55:58-2007/11/15:00:05:58             \
+        --saddress=192.168.0.1 --sport=4161 --daddress=127.0.0.1    \
+        --dport=139 --protocol=6 --pass=stdout
+
+If you want to find flows matching the same criteria, except you want UDP
+flows instead of TCP flows, use the following syntax:
+
+ $ rwidsquery --intype fast --year 2007 --tolerance 300     \
+        --mask protocol alert.fast.txt -- --protocol=17
+
+which would yield the following B<rwfilter> command line:
+
+ $ rwfilter --start-date=2007/11/14:23 --end-date=2007/11/15:00     \
+        --stime=2007/11/14:23:55:58-2007/11/15:00:05:58             \
+        --saddress=192.168.0.1 --sport=4161 --daddress=127.0.0.1    \
+        --dport=139 --protocol=17 --pass=stdout
+
+To find SiLK flows matching a Snort rule:
+
+ $ rwidsquery --intype rule --start 2008/02/20:00 --end 2008/02/20:02 \
+        --config /opt/local/etc/snort/snort.conf --verbose rule.txt
+
+For the following Snort rule:
+
+ alert icmp $EXTERNAL_NET any -> $HOME_NET any
+ (msg:"ICMP Parameter Problem Bad Length"; icode:2; itype:12;
+ classtype:misc-activity; sid:425; rev:6;)
+
+The resulting B<rwfilter(1)> command would look similar to:
+
+ $ rwfilter --start-date=2008/02/20:00 --end-date=2008/02/20:02     \
+        --stime=2008/02/20:00-2008/02/20:02                         \
+        --sipset=/tmp/tmpeKIPn2.set --icmp-code=2 --icmp-type=12    \
+        --pass=stdout
+
+=head1 ENVIRONMENT
+
+=over 4
+
+=item SILK_CLOBBER
+
+The SiLK tools normally refuse to overwrite existing files.  Setting
+SILK_CLOBBER to a non-empty value removes this restriction.
+
+=item SILK_CONFIG_FILE
+
+This environment variable is used as the location for the site
+configuration file, F<silk.conf>.  When this environment variable is
+not set, B<rwfilter> searches for the site configuration file in the
+locations specified in the L</FILES> section.
+
+=item SILK_DATA_ROOTDIR
+
+This environment variable specifies the root directory of data
+repository for B<rwfilter>.  This value overrides the compiled-in
+value.  In addition, B<rwfilter> may use this value when searching for
+the SiLK site configuration files.  See the L</FILES> section for
+details.
+
+=item SILK_RWFILTER_THREADS
+
+The number of threads B<rwfilter> uses when reading files from the
+data store.
+
+=item SILK_PATH
+
+This environment variable gives the root of the install tree.  When
+searching for the site configuration file, B<rwfilter> may use this
+environment variable.  See the L</FILES> section for details.
+
+=item RWFILTER
+
+Complete path to the B<rwfilter> program.  If not set, B<rwscanquery>
+attempts to find B<rwfilter> on your PATH.
+
+=back
+
+=head1 FILES
+
+=over 4
+
+=item F<${SILK_CONFIG_FILE}>
+
+=item F<${SILK_DATA_ROOTDIR}/silk.conf>
+
+=item F<@SILK_DATA_ROOTDIR@/silk.conf>
+
+=item F<${SILK_PATH}/share/silk/silk.conf>
+
+=item F<${SILK_PATH}/share/silk.conf>
+
+=item F<@prefix@/share/silk/silk.conf>
+
+=item F<@prefix@/share/silk.conf>
+
+Possible locations for the SiLK site configuration file---for report
+types that use B<rwfilter>.
+
+=back
+
+=head1 SEE ALSO
+
+B<rwfilter(1)>, B<silk.conf(5)>, B<silk(7)>, B<snort(8)>
+
+=cut
+
+$SiLK: rwidsquery.pod cd09f0a5fcc6 2014-06-14 15:43:33Z mthomas $
+
+Local Variables:
+mode:text
+indent-tabs-mode:nil
+End:

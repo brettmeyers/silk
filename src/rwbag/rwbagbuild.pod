@@ -1,0 +1,439 @@
+=pod
+
+=head1 NAME
+
+B<rwbagbuild> - Create a binary Bag from non-flow data.
+
+=head1 SYNOPSIS
+
+  rwbagbuild { --set-input=SETFILE | --bag-input=TEXTFILE }
+        [--delimiter=C] [--default-count=DEFAULTCOUNT]
+        [--key-type=FIELD_TYPE] [--counter-type=FIELD_TYPE]
+        [--note-add=TEXT] [--note-file-add=FILE]
+        [--compression-method=COMP_METHOD] [--output-path=OUTPUTFILE]
+
+  rwbagbuild --help
+
+  rwbagbuild --version
+
+=head1 DESCRIPTION
+
+B<rwbagbuild> builds a binary Bag file from an IPset file or from
+textual input.
+
+When creating a Bag from an IPset, the value associated with each IP
+address is the value given by the B<--default-count> switch, or 1 if
+the switch isn't provided.
+
+The textual input read from the argument to the B<--bag-input> switch
+is processed a line at a time.  Comments begin with a 'B<#>'-character
+and continue to the end of the line; they are stripped from each line.
+Any line that is blank or contains only whitespace is ignored.  All
+other lines must contain a valid key or key-count pair; whitespace
+around the key and count is ignored.
+
+If the delimiter character (specified by the B<--delimiter> switch and
+having pipe ('B<|>') as its default) is not present, the line must
+contain only an IP address or an integer key.  If the delimiter is
+present, the line must contain an IP address or integer key before the
+delimiter and an integer count after the delimiter.  These lines may
+have a second delimiter after the integer count; the second delimiter
+and any text to the right of it are ignored.
+
+When the B<--default-count> switch is specified, its value will used
+as the count for each key, and the count value parsed from each line,
+if any, is ignored.  Otherwise, the parsed count is used, or 1 is used
+as the count if no delimiter was present.
+
+For each key-count pair, the key will be inserted into Bag with its
+count or, if the key is already present in the Bag, its total count
+will be incremented by the count from this line.
+
+The IP address or integer key must be expressed in one of the
+following formats.  B<rwbagbuild> complains if the key field contains
+a mixture of IPv6 addresses and integer values.
+
+=over 4
+
+=item *
+
+Dotted decimal---all 4 octets are required:
+
+ 10.1.2.4
+
+=item *
+
+An unsigned 32-bit integer:
+
+ 167838212
+
+=item *
+
+An IPv6 address in canonical form (when SiLK has been compiled with
+IPv6 support):
+
+ 2001:db8:a:1::2:4
+ ::ffff:10.1.2.4
+
+=item *
+
+Any of the above with a CIDR designation---for dotted decimal all
+four octets are still required:
+
+ 10.1.2.4/31
+ 167838212/31
+ 2001:db8:a:1::2:4/127
+ ::ffff:10.1.2.4/31
+
+=item *
+
+SiLK IP wildcard notation.  A SiLK IP Wildcard can represent multiple
+IPv4 or IPv6 addresses.  An IP Wildcard contains an IP in its
+canonical form, except each part of the IP (where I<part> is an octet
+for IPv4 or a hexadectet for IPv6) may be a single value, a range, a
+comma separated list of values and ranges, or the letter C<x> to
+signify all values for that part of the IP (that is, C<0-255> for
+IPv4).  You may not specify a CIDR suffix when using the IP Wildcard
+notation.
+
+ 10.x.1-2.4,5
+ 2001:db8:a:x::1-2:4,5
+
+=back
+
+If an IP address or count cannot be parsed, or if a line contains a
+delimiter character but no count, B<rwbagbuild> prints an error and
+exits.
+
+=head1 OPTIONS
+
+Option names may be abbreviated if the abbreviation is unique or is an
+exact match for an option.  A parameter to an option may be specified
+as B<--arg>=I<param> or S<B<--arg> I<param>>, though the first form is
+required for options that take optional parameters.
+
+The following two switches control the type of input; one and
+only one must be provided:
+
+=over 4
+
+=item B<--set-input>=I<SETFILE>
+
+Create a Bag from an IPset.  I<SETFILE> is a filename, a named pipe,
+or the keyword C<stdin> or C<-> to read the IPset from the standard
+input.  Counts have a volume of 1 when the B<--default-count> switch
+is not specified.  (IPsets are typically created by B<rwset(1)> or
+B<rwsetbuild(1)>.)
+
+=item B<--bag-input>=I<TEXTFILE>
+
+Create a Bag from a delimited text file.  I<TEXTFILE> is a filename, a
+named pipe, or the keyword C<stdin> or C<-> to read the text from the
+standard input.  See the L</DESCRIPTION> section for the syntax of the
+I<TEXTFILE>.
+
+=item B<--delimiter>=I<C>
+
+The delimiter to expect between each key-count pair of the I<TEXTFILE>
+read by the B<--bag-input> switch.  The delimiter is ignored if the
+B<--set-input> switch is specified.  Since 'B<#>' is used to denote
+comments and newline is used to used to denote records, neither is a
+valid delimiter character.
+
+=item B<--default-count>=I<DEFAULTCOUNT>
+
+Override the counts of all values in the input text or IPset with the
+value of I<DEFAULTCOUNT>.  I<DEFAULTCOUNT> must be a positive integer.
+
+=item B<--key-type>=I<FIELD_TYPE>
+
+Write a entry into the header of the Bag file that specifies the key
+contains I<FIELD_TYPE> values.  When this switch is not specified, the
+key type of the Bag is set to C<custom>.  The I<FIELD_TYPE> is case
+insensitive.  The supported I<FIELD_TYPE>s are:
+
+=over 4
+
+=item sIPv4
+
+source IP address, IPv4 only
+
+=item dIPv4
+
+destination IP address, IPv4 only
+
+=item sPort
+
+source port
+
+=item dPort
+
+destination port
+
+=item protocol
+
+IP protocol
+
+=item packets
+
+packets, see also C<sum-packets>
+
+=item bytes
+
+bytes, see also C<sum-bytes>
+
+=item flags
+
+bitwise OR of TCP flags
+
+=item sTime
+
+starting time of the flow record, seconds resolution
+
+=item duration
+
+duration of the flow record, seconds resolution
+
+=item eTime
+
+ending time of the flow record, seconds resolution
+
+=item sensor
+
+sensor ID
+
+=item input
+
+SNMP input
+
+=item output
+
+SNMP output
+
+=item nhIPv4
+
+next hop IP address, IPv4 only
+
+=item initialFlags
+
+TCP flags on first packet in the flow
+
+=item sessionFlags
+
+bitwise OR of TCP flags on all packets in the flow except the first
+
+=item attributes
+
+flow attributes set by the flow generator
+
+=item application
+
+guess as to the content of the flow, as set by the flow generator
+
+=item class
+
+class of the sensor
+
+=item type
+
+type of the sensor
+
+=item icmpTypeCode
+
+an encoded version of the ICMP type and code, where the type is in the
+upper byte and the code is in the lower byte
+
+=item sIPv6
+
+source IP, IPv6
+
+=item dIPv6
+
+destination IP, IPv6
+
+=item nhIPv6
+
+next hop IP, IPv6
+
+=item records
+
+count of flows
+
+=item sum-packets
+
+sum of packet counts
+
+=item sum-bytes
+
+sum of byte counts
+
+=item sum-duration
+
+sum of duration values
+
+=item any-IPv4
+
+a generic IPv4 address
+
+=item any-IPv6
+
+a generic IPv6 address
+
+=item any-port
+
+a generic port
+
+=item any-snmp
+
+a generic SNMP value
+
+=item any-time
+
+a generic time value, in seconds resolution
+
+=item custom
+
+a number
+
+=back
+
+=item B<--counter-type>=I<FIELD_TYPE>
+
+Write a entry into the header of the Bag file that specifies the
+counter contains I<FIELD_TYPE> values.  When this switch is not
+specified, the counter type of the Bag is set to C<custom>.  The
+supported I<FIELD_TYPE>s are the same as those for the key.
+
+=item B<--note-add>=I<TEXT>
+
+Add the specified I<TEXT> to the header of the output file as an
+annotation.  This switch may be repeated to add multiple annotations
+to a file.  To view the annotations, use the B<rwfileinfo(1)> tool.
+
+=item B<--note-file-add>=I<FILENAME>
+
+Open I<FILENAME> and add the contents of that file to the header of
+the output file as an annotation.    This switch may be repeated to
+add multiple annotations.  Currently the application makes no effort
+to ensure that I<FILENAME> contains text; be careful that you do not
+attempt to add a SiLK data file as an annotation.
+
+=item B<--compression-method>=I<COMP_METHOD>
+
+Specify how to compress the output.  When this switch is not given,
+output to the standard output or to named pipes is not compressed, and
+output to files is compressed using the default chosen when SiLK was
+compiled.  The valid values for I<COMP_METHOD> are determined by which
+external libraries were found when SiLK was compiled.  To see the
+available compression methods and the default method, use the
+B<--help> or B<--version> switch.  SiLK can support the following
+I<COMP_METHOD> values when the required libraries are available.
+
+=over 4
+
+=item none
+
+Do not compress the output using an external library.
+
+=item zlib
+
+Use the B<zlib(3)> library for compressing the output, and always
+compress the output regardless of the destination.  Using zlib
+produces the smallest output files at the cost of speed.
+
+=item lzo1x
+
+Use the I<lzo1x> algorithm from the LZO real time compression library
+for compression, and always compress the output regardless of the
+destination.  This compression provides good compression with less
+memory and CPU overhead.
+
+=item best
+
+Use lzo1x if available, otherwise use zlib.  Only compress the output
+when writing to a file.
+
+=back
+
+=item B<--output-path>=I<OUTPUTFILE>
+
+Redirect output to I<OUTPUTFILE>.  I<OUTPUTFILE> is a filename, a
+named pipe, or the keyword C<stdout> or C<-> to write the bag to the
+standard output.
+
+=item B<--help>
+
+Print the available options and exit.
+
+=item B<--version>
+
+Print the version number and information about how SiLK was
+configured, then exit the application.
+
+=back
+
+=head1 EXAMPLES
+
+In the following examples, the dollar sign (C<$>) represents the shell
+prompt.  The text after the dollar sign represents the command line.
+Lines have been wrapped for improved readability, and the back slash
+(C<\>) is used to indicate a wrapped line.
+
+Assume the file F<mybag.txt> contains the following (ignore leading
+whitespace and assume every line ends with a newline):
+
+ 192.168.0.1|5
+ 192.168.0.2|500
+ 192.168.0.3|3
+ 192.168.0.4|14
+ 192.168.0.5|5
+
+To build a bag with it:
+
+ $ rwbagbuild --bag-input=mybag.txt > mybag.bag
+
+To create a Bag of protocol data from the text file F<myproto.txt>:
+
+   1|      4|
+   6|    138|
+  17|    131|
+
+use
+
+ $ rwbagbuild --bag-input=myproto.txt > myproto.bag
+
+Given the IP set F<myset.set>, create a bag where every entry in the
+set has a count of 3:
+
+ $ rwbagbuild --set-input=myset.set --default-count=3 \
+        --out=mybag2.bag
+
+
+=head1 ENVIRONMENT
+
+=over 4
+
+=item SILK_CLOBBER
+
+The SiLK tools normally refuse to overwrite existing files.  Setting
+SILK_CLOBBER to a non-empty value removes this restriction.
+
+=back
+
+=head1 SEE ALSO
+
+B<rwbag(1)>, B<rwbagcat(1)>, B<rwbagtool(1)>, B<rwfileinfo(1)>,
+B<rwset(1)>, B<rwsetbuild(1)>, B<silk(7)>, B<zlib(3)>
+
+=head1 BUGS
+
+The B<--default-count> switch is poorly named.
+
+=cut
+
+$SiLK: rwbagbuild.pod 477e54df24bf 2014-07-08 18:02:17Z mthomas $
+
+Local Variables:
+mode:text
+indent-tabs-mode:nil
+End:

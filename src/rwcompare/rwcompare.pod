@@ -1,0 +1,122 @@
+=pod
+
+=head1 NAME
+
+B<rwcompare> - Compare the records in two SiLK Flow files
+
+=head1 SYNOPSIS
+
+  rwcompare [--quiet] FILE1 FILE2
+
+  rwcompare --help
+
+  rwcompare --version
+
+=head1 DESCRIPTION
+
+B<rwcompare> opens the two files named on the command and compares the
+SiLK Flow records they contain.  If the records are identical,
+B<rwcompare> exits with status 0.  If any of the records differ,
+B<rwcompare> prints a message and exits with status 1.  If there is an
+issue reading either file, an error is printed and the exit status is
+2.  Use the B<--quiet> switch to suppress all output (error messages
+included).  You may use C<-> or C<stdin> for one of the file names, in
+which case B<rwcompare> reads from the standard input.
+
+=head1 OPTIONS
+
+Option names may be abbreviated if the abbreviation is unique or is an
+exact match for an option.  A parameter to an option may be specified
+as B<--arg>=I<param> or B<--arg> I<param>, though the first form is
+required for options that take optional parameters.
+
+=over 4
+
+=item B<--quiet>
+
+Do not print a message if the files differ, and do not an print error
+message if a file cannot be opened or read.
+
+=item B<--help>
+
+Print the available options and exit.
+
+=item B<--version>
+
+Print the version number and information about how SiLK was
+configured, then exit the application.
+
+=back
+
+=head1 EXAMPLES
+
+In the following examples, the dollar sign (B<$>) represents the shell
+prompt.  Some input lines are split over multiple lines in order to
+improve readability, and a backslash (B<\>) is used to indicate such
+lines.  The examples assume the existence of the file F<data.rw> that
+contains SiLK Flow records.  The exit status of the most recent
+command is available in the shell variable C<$?>.
+
+Compare a file with itself:
+
+ $ rwcompare data.rw data.rw
+ $ echo $?
+ 0
+
+Compare a file with itself, where one instance of the file is read
+from the standard input:
+
+ $ rwcat data.rw | rwcompare - data.rw
+ $ echo $?
+ 0
+
+Use B<rwsort(1)> to modify one instance of the file and compare the
+results:
+
+ $ rwsort --fields=proto data.rw | rwcompare - data.rw
+ - data.rw differ: record 1
+ $ echo $?
+ 1
+
+Run the command again and use the B<--quiet> switch:
+
+ $ rwsort --fields=proto data.rw | rwcompare --quiet - data.rw
+ $ echo $?
+ 1
+
+Compare the file with input containing two copies of the file:
+
+ $ rwcat data.rw data.rw | rwcompare data.rw -
+ data.rw - differ: EOF data.rw
+ $ echo $?
+ 1
+
+Compare the file with F</dev/null>:
+
+ $ rwcompare --quiet /dev/null data.rw
+ $ echo $?
+ 2
+
+B<rwcompare> checks whether two files have the same records in the
+same order.  To compare two arbitrary files, use B<rwsort(1)> to
+reorder the records.  Make certain to provide enough fields to the
+B<rwsort> command so that the records are in the same order.
+
+ $ rwsort --fields=1-10,12-15,20-29 data.rw > /tmp/sorted-data.rw
+ $ rwsort --fields=1-10,12-15,20-29 other-data.rw   \
+   | rwcompare /tmp/sorted-data.rw -
+ /tmp/sorted-data.rw - differ: record 103363
+
+
+=head1 SEE ALSO
+
+B<rwfileinfo(1)>, B<rwcat(1)>, B<rwsort(1)>, B<silk(7)>
+
+=cut
+
+$SiLK: rwcompare.pod cd09f0a5fcc6 2014-06-14 15:43:33Z mthomas $
+
+Local Variables:
+mode:text
+indent-tabs-mode:nil
+End:

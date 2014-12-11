@@ -1,0 +1,334 @@
+=pod
+
+=head1 NAME
+
+B<rwnetmask> - Zero out lower bits of IP addresses in SiLK Flow records
+
+=head1 SYNOPSIS
+
+  rwnetmask [--4sip-prefix-length=N] [--6sip-prefix-length=N]
+        [--4dip-prefix-length=N] [--6dip-prefix-length=N]
+        [--4nhip-prefix-length=N] [--6nhip-prefix-length=N]
+        [--sip-prefix-length=N] [--dip-prefix-length=N]
+        [--nhip-prefix-length=N] [--output-path=PATH]
+        [--print-filenames] [--ipv6-policy=POLICY]
+        [--note-add=TEXT] [--note-file-add=FILE]
+        [--compression-method=COMP_METHOD]
+        [--site-config-file=FILENAME]
+        {[--xargs] | [--xargs=FILENAME] | [FILE [FILE ...]]}
+
+  rwnetmask --help
+
+  rwnetmask --version
+
+=head1 DESCRIPTION
+
+B<rwnetmask> reads SiLK Flow records, sets the prefix of the source
+IP, destination IP, and/or next hop IP to the specified value(s) by
+masking the least significant bits of the address(es), and writes the
+modified SiLK Flow records to the specified output path.  Modifying
+the IP addresses allows one to group IPs into arbitrary CIDR blocks.
+Multiple prefix-lengths may be specified; at least one must be
+specified.
+
+When SiLK is compiled with IPv6 support, a separate mask can be
+specified for IPv4 and IPv6 addresses.  Records are processed using
+the IP-version in which they are read.  The B<--ipv6-policy> switch
+can be used to force the records into a particular IP-version or to
+ignore records of a particular IP-version.
+
+B<rwnetmask> reads SiLK Flow records from the files named on the
+command line or from the standard input when no file names are
+specified and B<--xargs> is not present.  To read the standard input
+in addition to the named files, use C<-> or C<stdin> as a file name.
+If an input file name ends in C<.gz>, the file will be uncompressed as
+it is read.  When the B<--xargs> switch is provided, B<rwnetmask> will
+read the names of the files to process from the named text file, or
+from the standard input if no file name argument is provided to the
+switch.  The input to B<--xargs> must contain one file name per line.
+
+When no output path is specified and the standard output is not
+connected to a terminal, B<rwnetmask> writes the records to the
+standard output.
+
+=head1 OPTIONS
+
+Option names may be abbreviated if the abbreviation is unique or is an
+exact match for an option.  A parameter to an option may be specified
+as B<--arg>=I<param> or S<B<--arg> I<param>>, though the first form is
+required for options that take optional parameters.
+
+One of these switches must be provided:
+
+=over 4
+
+=item B<--4sip-prefix-length>=I<N>
+
+=item B<--sip-prefix-length>=I<N>
+
+For IPv4 addresses, specify the number of most significant bits of the
+source address to keep.  The default is to not mask off any bits
+(i.e., I<N>=32).
+
+=item B<--4dip-prefix-length>=I<N>
+
+=item B<--dip-prefix-length>=I<N>
+
+For IPv4 addresses, specify the number of most significant bits of the
+destination address to keep.  The default is to not mask off any bits
+(i.e., I<N>=32).
+
+=item B<--4nhip-prefix-length>=I<N>
+
+=item B<--nhip-prefix-length>=I<N>
+
+For IPv4 addresses, specify the number of most significant bits of the
+next-hop address to keep.  The default is to not mask off any bits
+(i.e., I<N>=32).
+
+=item B<--6sip-prefix-length>=I<N>
+
+For IPv6 addresses, specify the number of most significant bits of the
+source address to keep.  The default is to not mask off any bits
+(i.e., I<N>=128).
+
+=item B<--6dip-prefix-length>=I<N>
+
+For IPv6 addresses, specify the number of most significant bits of the
+destination address to keep.  The default is to not mask off any bits
+(i.e., I<N>=128).
+
+=item B<--6nhip-prefix-length>=I<N>
+
+For IPv6 addresses, specify the number of most significant bits of the
+next-hop address to keep.  The default is to not mask off any bits
+(i.e., I<N>=128).
+
+=back
+
+These switches are optional:
+
+=over 4
+
+=item B<--output-path>=I<PATH>
+
+Write the output to the named I<PATH>.  I<PATH> may be a file, named
+pipe, or the symbols C<stdout> or C<-> to write to the standard
+output.  When not specified, output will be written to the standard
+output.  B<rwnetmask> will exit with an error if the output path is
+the standard output and the standard output is connected to a
+terminal.
+
+=item B<--print-filenames>
+
+Print to the standard error the names of the input files as the files
+are opened.
+
+=item B<--ipv6-policy>=I<POLICY>
+
+Determine how IPv4 and IPv6 flows are handled when SiLK has been
+compiled with IPv6 support.  When the switch is not provided, the
+SILK_IPV6_POLICY environment variable is checked for a policy.  If it
+is also unset or contains an invalid policy, the I<POLICY> is
+B<mix>.  When SiLK has not been compiled with IPv6 support, IPv6
+flows are always ignored, regardless of the value passed to this
+switch or in the SILK_IPV6_POLICY variable.  The supported values for
+I<POLICY> are:
+
+=over
+
+=item ignore
+
+Ignore any flow record marked as IPv6, regardless of the IP addresses
+it contains.  Only records marked as IPv4 will be processed.
+
+=item asv4
+
+Convert IPv6 flow records that contain addresses in the ::ffff:0:0/96
+prefix to IPv4 and ignore all other IPv6 flow records.
+
+=item mix
+
+Process the input as a mixture of IPv4 and IPv6 flows.
+
+=item force
+
+Convert IPv4 flow records to IPv6, mapping the IPv4 addresses into the
+::ffff:0:0/96 prefix.
+
+=item only
+
+Process only flow records that are marked as IPv6 and ignore IPv4 flow
+records in the input.
+
+=back
+
+=item B<--note-add>=I<TEXT>
+
+Add the specified I<TEXT> to the header of the output file as an
+annotation.  This switch may be repeated to add multiple annotations
+to a file.  To view the annotations, use the B<rwfileinfo(1)> tool.
+
+=item B<--note-file-add>=I<FILENAME>
+
+Open I<FILENAME> and add the contents of that file to the header of
+the output file as an annotation.    This switch may be repeated to
+add multiple annotations.  Currently the application makes no effort
+to ensure that I<FILENAME> contains text; be careful that you do not
+attempt to add a SiLK data file as an annotation.
+
+=item B<--compression-method>=I<COMP_METHOD>
+
+Specify how to compress the output.  When this switch is not given,
+output to the standard output or to named pipes is not compressed, and
+output to files is compressed using the default chosen when SiLK was
+compiled.  The valid values for I<COMP_METHOD> are determined by which
+external libraries were found when SiLK was compiled.  To see the
+available compression methods and the default method, use the
+B<--help> or B<--version> switch.  SiLK can support the following
+I<COMP_METHOD> values when the required libraries are available.
+
+=over 4
+
+=item none
+
+Do not compress the output using an external library.
+
+=item zlib
+
+Use the B<zlib(3)> library for compressing the output, and always
+compress the output regardless of the destination.  Using zlib
+produces the smallest output files at the cost of speed.
+
+=item lzo1x
+
+Use the I<lzo1x> algorithm from the LZO real time compression library
+for compression, and always compress the output regardless of the
+destination.  This compression provides good compression with less
+memory and CPU overhead.
+
+=item best
+
+Use lzo1x if available, otherwise use zlib.  Only compress the output
+when writing to a file.
+
+=back
+
+=item B<--site-config-file>=I<FILENAME>
+
+Read the SiLK site configuration from the named file I<FILENAME>.
+When this switch is not provided, B<rwnetmask> searches for the site
+configuration file in the locations specified in the L</FILES>
+section.
+
+=item B<--xargs>
+
+=item B<--xargs>=I<FILENAME>
+
+Causes B<rwnetmask> to read file names from I<FILENAME> or from the
+standard input if I<FILENAME> is not provided.  The input should have
+one file name per line.  B<rwnetmask> will open each file in turn and
+read records from it, as if the files had been listed on the command
+line.
+
+=item B<--help>
+
+Print the available options and exit.
+
+=item B<--version>
+
+Print the version number and information about how SiLK was
+configured, then exit the application.
+
+=back
+
+=head1 EXAMPLES
+
+In the following example, the dollar sign (C<$>) represents the shell
+prompt.  The text after the dollar sign represents the command line.
+Lines have been wrapped for improved readability, and the back slash
+(C<\>) is used to indicate a wrapped line.
+
+To summarize the TCP traffic from your network to each /24 on
+the Internet, use:
+
+ $ rwfilter --type=out,outweb --proto=6 --pass=stdout       \
+   | rwnetmask --dip-prefix-length 24                       \
+   | rwaddrcount --use-dest --sort --print-rec
+ IP Address| Bytes|Packets|Records|         Start Time|...
+ 10.10.35.0|  2345|     52|      6|01/15/2003 19:30:31|
+  10.23.3.0|   118|      2|      1|01/16/2003 19:38:40|
+  10.23.4.0| 20858|    263|     16|01/16/2003 16:54:25|
+ 10.31.49.0|266920|   3885|   1092|01/11/2003 02:04:11|
+ 10.126.7.0| 36912|    260|      9|01/16/2003 17:03:28|
+ ....
+
+=head1 ENVIRONMENT
+
+=over 4
+
+=item SILK_IPV6_POLICY
+
+This environment variable is used as the value for the
+B<--ipv6-policy> when that switch is not provided.
+
+=item SILK_CLOBBER
+
+The SiLK tools normally refuse to overwrite existing files.  Setting
+SILK_CLOBBER to a non-empty value removes this restriction.
+
+=item SILK_CONFIG_FILE
+
+This environment variable is used as the value for the
+B<--site-config-file> when that switch is not provided.
+
+=item SILK_DATA_ROOTDIR
+
+This environment variable specifies the root directory of data
+repository.  As described in the L</FILES> section, B<rwnetmask> may
+use this environment variable when searching for the SiLK site
+configuration file.
+
+=item SILK_PATH
+
+This environment variable gives the root of the install tree.  When
+searching for configuration files, B<rwnetmask> may use this
+environment variable.  See the L</FILES> section for details.
+
+=back
+
+=head1 FILES
+
+=over 4
+
+=item F<${SILK_CONFIG_FILE}>
+
+=item F<${SILK_DATA_ROOTDIR}/silk.conf>
+
+=item F<@SILK_DATA_ROOTDIR@/silk.conf>
+
+=item F<${SILK_PATH}/share/silk/silk.conf>
+
+=item F<${SILK_PATH}/share/silk.conf>
+
+=item F<@prefix@/share/silk/silk.conf>
+
+=item F<@prefix@/share/silk.conf>
+
+Possible locations for the SiLK site configuration file which are
+checked when the B<--site-config-file> switch is not provided.
+
+=back
+
+=head1 SEE ALSO
+
+B<rwfileinfo(1)>, B<silk(7)>, B<zlib(3)>
+
+=cut
+
+$SiLK: rwnetmask.pod cd09f0a5fcc6 2014-06-14 15:43:33Z mthomas $
+
+Local Variables:
+mode:text
+indent-tabs-mode:nil
+End:

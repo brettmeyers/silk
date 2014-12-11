@@ -1,0 +1,181 @@
+=pod
+
+=head1 NAME
+
+B<rwipaexport> - Export IPA datasets to SiLK binary data files
+
+=head1 SYNOPSIS
+
+  rwipaexport --catalog=CATALOG [--time=TIME] [--prefix-map-name=NAME]
+        [--note-add=TEXT] [--note-file-add=FILE]
+        [--compression-method=COMP_METHOD] OUTPUT_FILE
+
+  rwipaexport --help
+
+  rwipaexport --version
+
+=head1 DESCRIPTION
+
+B<rwipaexport> exports data from an IPA (IP Association,
+L<http://tools.netsa.cert.org/ipa/>) data store to a SiLK IPset, Bag,
+or prefix map file, depending on the type of the stored IPA catalog.
+For catalogs with time information (e.g. time period at which the
+stored data is considered valid) data can be selected for a specific
+time of interest.
+
+=head1 OPTIONS
+
+Option names may be abbreviated if the abbreviation is unique or is an
+exact match for an option.  A parameter to an option may be specified
+as B<--arg>=I<param> or S<B<--arg> I<param>>, though the first form is
+required for options that take optional parameters.
+
+=over 4
+
+=item B<--catalog>=I<CATALOG_NAME>
+
+Specifies the name of the IPA catalog to export from.
+
+=item B<--time>=I<TIME>
+
+This argument allows you to export a dataset that was active at
+I<TIME>. The expected format of this option is
+YYYY/MM/DD[:HH[:MM[:SS]]].  A dataset will only be returned if I<TIME>
+falls between the start and end time for the dataset.  If this option
+is not specified, the current time will be used.  See the B<TIME RANGES>
+section of B<ipaimport(1)> for more information about how time
+ranges are used in IPA.
+
+=item B<--prefix-map-name>=I<NAME>
+
+When creating a prefix map file, add I<NAME> to the header of the file
+as the map-name.  When this switch is not specified, no map-name is
+written to the file.  If the output is not a prefix map file, the
+B<--prefix-map-file> switch is ignored.
+
+=item B<--note-add>=I<TEXT>
+
+Add the specified I<TEXT> to the header of the output file as an
+annotation.  This switch may be repeated to add multiple annotations
+to a file.  To view the annotations, use the B<rwfileinfo(1)> tool.
+
+=item B<--note-file-add>=I<FILENAME>
+
+Open I<FILENAME> and add the contents of that file to the header of
+the output file as an annotation.    This switch may be repeated to
+add multiple annotations.  Currently the application makes no effort
+to ensure that I<FILENAME> contains text; be careful that you do not
+attempt to add a SiLK data file as an annotation.
+
+=item B<--compression-method>=I<COMP_METHOD>
+
+Specify how to compress the output.  When this switch is not given,
+output to the standard output or to named pipes is not compressed, and
+output to files is compressed using the default chosen when SiLK was
+compiled.  The valid values for I<COMP_METHOD> are determined by which
+external libraries were found when SiLK was compiled.  To see the
+available compression methods and the default method, use the
+B<--help> or B<--version> switch.  SiLK can support the following
+I<COMP_METHOD> values when the required libraries are available.
+
+=over 4
+
+=item none
+
+Do not compress the output using an external library.
+
+=item zlib
+
+Use the B<zlib(3)> library for compressing the output, and always
+compress the output regardless of the destination.  Using zlib
+produces the smallest output files at the cost of speed.
+
+=item lzo1x
+
+Use the I<lzo1x> algorithm from the LZO real time compression library
+for compression, and always compress the output regardless of the
+destination.  This compression provides good compression with less
+memory and CPU overhead.
+
+=item best
+
+Use lzo1x if available, otherwise use zlib.  Only compress the output
+when writing to a file.
+
+=back
+
+=item B<--help>
+
+Print the available options and exit.
+
+=item B<--version>
+
+Print the version number and information about how SiLK was
+configured, then exit the application.
+
+=back
+
+=head1 EXAMPLES
+
+In the following examples, the dollar sign (C<$>) represents the shell
+prompt.  The text after the dollar sign represents the command line.
+Lines have been wrapped for improved readability, and the back slash
+(C<\>) is used to indicate a wrapped line.
+
+To export the C<badhosts> IPset from an IPA set catalog into the file
+F<badhosts.set> where there is no time information:
+
+ $ rwipaexport --catalog=badhosts badhosts.set
+
+To export the C<flowcount> Bag from an IPA bag catalog into the file
+F<flowcount-20070415.bag> where there is time information:
+
+ $ rwipaexport --catalog=flowcount --time=2007/04/15  \
+        flowcount-20070415.bag
+
+=head1 ENVIRONMENT
+
+=over 4
+
+=item SILK_CLOBBER
+
+The SiLK tools normally refuse to overwrite existing files.  Setting
+SILK_CLOBBER to a non-empty value removes this restriction.
+
+=back
+
+=head1 FILES
+
+=over 4
+
+=item F<$SILK_PATH/share/silk/silk-ipa.conf>
+
+=item F<$SILK_PATH/share/silk-ipa.conf>
+
+=item F<@prefix@/share/silk/silk-ipa.conf>
+
+=item F<@prefix@/share/silk-ipa.conf>
+
+Possible locations for the IPA configuration file.  This file contains
+the URI for connecting to the IPA database.  If the configuration file
+does not exist, B<rwipaexport> will exit with an error.  The format of
+this URI is I<driver>://I<user>:I<pass-word>@I<hostname>/I<database>.
+For example:
+
+ postgresql://ipauser:secret@database-server.domain.com/ipa
+
+=back
+
+=head1 SEE ALSO
+
+B<rwipaimport(1)>, B<rwfileinfo(1)>, B<ipafilter(3)>, B<silk(7)>,
+B<ipaimport(1)>, B<ipaexport(1)>, B<ipaquery(1)>, B<zlib(3)>
+
+=cut
+
+$SiLK: rwipaexport.pod cd09f0a5fcc6 2014-06-14 15:43:33Z mthomas $
+
+Local Variables:
+mode:text
+indent-tabs-mode:nil
+End:

@@ -1,0 +1,329 @@
+=pod
+
+=head1 NAME
+
+B<rwsplit> - Divide a SiLK file into a (sampled) collection of subfiles
+
+=head1 SYNOPSIS
+
+  rwsplit --basename=BASENAME
+        { --ip-limit=LIMIT | --flow-limit=LIMIT
+          | --packet-limit=LIMIT | --byte-limit=LIMIT }
+        [--seed=NUMBER] [--sample-ratio=SAMPLE_RATIO]
+        [--file-ratio=FILE_RATIO] [--max-outputs=MAX_OUTPUTS]
+        [--note-add=TEXT] [--note-file-add=FILE]
+        [--compression-method=COMP_METHOD]
+        [--print-filenames] [--site-config-file=FILENAME]
+        [--xargs[=FILE] | FILE [FILES...]]
+
+  rwsplit --help
+
+  rwsplit --version
+
+=head1 DESCRIPTION
+
+B<rwsplit> reads SiLK Flow records from the standard input or from
+files named on the command line and writes the flows into a set of
+subfiles based on the splitting criterion.  In its simplest form,
+B<rwsplit> I<partitions> the file, meaning that each input flow will
+appear in one (and only one) of the subfiles.
+
+In addition to splitting the file, B<rwsplit> can generate files
+containing sample flows.  Sampling is specified by using the
+B<--sample-ratio> and B<--file-ratio> switches.
+
+B<rwsplit> reads SiLK Flow records from the files named on the command
+line or from the standard input when no file names are specified and
+B<--xargs> is not present.  To read the standard input in addition to
+the named files, use C<-> or C<stdin> as a file name.  If an input
+file name ends in C<.gz>, the file will be uncompressed as it is read.
+When the B<--xargs> switch is provided, B<rwsplit> will read the names
+of the files to process from the named text file, or from the standard
+input if no file name argument is provided to the switch.  The input
+to B<--xargs> must contain one file name per line.
+
+If you wish to use the size of the output files as the splitting
+criterion, use the B<--flow-limit> switch.  The paramater to this
+switch should be the size of the desired output files divided by the
+record size.  The record size can be determined by B<rwfileinfo(1)>.
+When the output files are compressed (see the description of
+B<--compression-method> below), you should assume about a 50%
+compression ratio.
+
+=head1 OPTIONS
+
+Option names may be abbreviated if the abbreviation is unique or is an
+exact match for an option.  A parameter to an option may be specified
+as B<--arg>=I<param> or B<--arg> I<param>, though the first form is
+required for options that take optional parameters.
+
+The splitting criterion is defined using one of the limit specifiers;
+one and only one must be specified.  They are:
+
+=over 4
+
+=item B<--ip-limit>=I<LIMIT>
+
+Close the current subfile and begin a new subfile when the count of
+unique source and destination IPs in the current subfile meets or
+exceeds I<LIMIT>.  The next-hop-IP does not count toward I<LIMIT>.
+
+=item B<--flow-limit>=I<LIMIT>
+
+Close the current subfile and begin a new subfile when the number of
+SiLK Flow records in the current subfile meets I<LIMIT>.
+
+=item B<--packet-limit>=I<LIMIT>
+
+Close the current subfile and begin a new subfile when the sum of the
+packet counts across all SiLK Flow records in the current subfile
+meets or exceeds I<LIMIT>.
+
+=item B<--byte-limit>=I<LIMIT>
+
+Close the current subfile and begin a new subfile when the sum of the
+byte counts across all SiLK Flow records in the current subfile meets
+or exceeds I<LIMIT>.  This switch does not specify the size of the
+subfiles.
+
+=back
+
+The other switches are:
+
+=over 4
+
+=item B<--basename>=I<BASENAME>
+
+Specifies the basename of the output files; this switch is required.
+The flows are written sequentially to a set of subfiles whose names
+follow the format F<I<BASENAME>.I<ORDER>.rwf>, where I<ORDER> is an
+8-digit zero-formatted sequence number (i.e., 00000000, 00000001, and
+so on).  The sequence number will begin at zero and increase by one
+for every file written, unless B<--file-ratio> is specified,
+
+=item B<--seed>=I<NUMBER>
+
+Use I<NUMBER> to seed the pseudo-random number generator for the
+B<--sample-ratio> or B<--file-ratio> switch.  This can be used to put
+the random number generator into a known state, which is useful for
+testing.
+
+=item B<--sample-ratio>=I<SAMPLE_RATIO>
+
+Writes one flow record, chosen at random, from every I<SAMPLE_RATIO>
+flows that are read.
+
+=item B<--file-ratio>=I<FILE_RATIO>
+
+Picks one subfile, chosen from random, out of every I<FILE_RATIO>
+names generated, for writing to disk.
+
+=item B<--max-outputs>=I<NUMBER>
+
+Limits the number of files that are written to disk to I<NUMBER>.
+
+=item B<--note-add>=I<TEXT>
+
+Add the specified I<TEXT> to the header of the output file as an
+annotation.  This switch may be repeated to add multiple annotations
+to a file.  To view the annotations, use the B<rwfileinfo(1)> tool.
+
+=item B<--note-file-add>=I<FILENAME>
+
+Open I<FILENAME> and add the contents of that file to the header of
+the output file as an annotation.    This switch may be repeated to
+add multiple annotations.  Currently the application makes no effort
+to ensure that I<FILENAME> contains text; be careful that you do not
+attempt to add a SiLK data file as an annotation.
+
+=item B<--compression-method>=I<COMP_METHOD>
+
+Specify how to compress the output.  When this switch is not given,
+the output files are compressed using the default chosen when SiLK was
+compiled.  The valid values for I<COMP_METHOD> are determined by which
+external libraries were found when SiLK was compiled.  To see the
+available compression methods and the default method, use the
+B<--help> or B<--version> switch.  SiLK can support the following
+I<COMP_METHOD> values when the required libraries are available.
+
+=over 4
+
+=item none
+
+Do not compress the output using an external library.
+
+=item zlib
+
+Use the B<zlib(3)> library for compressing the output.  Using zlib
+produces the smallest output files at the cost of speed.
+
+=item lzo1x
+
+Use the I<lzo1x> algorithm from the LZO real time compression library
+for compression.  This compression provides good compression with less
+memory and CPU overhead.
+
+=item best
+
+Use lzo1x if available, otherwise use zlib.
+
+=back
+
+=item B<--print-filenames>
+
+Print to the standard error the names of input files as they are
+opened.
+
+=item B<--site-config-file>=I<FILENAME>
+
+Read the SiLK site configuration from the named file I<FILENAME>.
+When this switch is not provided, B<rwsplit> searches for the site
+configuration file in the locations specified in the L</FILES>
+section.
+
+=item B<--xargs>
+
+=item B<--xargs>=I<FILENAME>
+
+Causes B<rwsplit> to read file names from I<FILENAME> or from the
+standard input if I<FILENAME> is not provided.  The input should have
+one file name per line.  B<rwsplit> will open each file in turn and
+read records from it, as if the files had been listed on the command
+line.
+
+=item B<--help>
+
+Print the available options and exit.
+
+=item B<--version>
+
+Print the version number and information about how SiLK was
+configured, then exit the application.
+
+=back
+
+=head1 EXAMPLES
+
+In the following examples, the dollar sign (C<$>) represents the shell
+prompt.  The text after the dollar sign represents the command line.
+Lines have been wrapped for improved readability, and the back slash
+(C<\>) is used to indicate a wrapped line.
+
+Assume a source file F<source.rwf>; to split that file into files that
+each contain about 100 unique IP addresses:
+
+ $ rwsplit --basename=result --ip-limit=100 source.rwf
+
+To split F<source.rwf> into files that each contain 100 flows:
+
+ $ rwsplit --basename=result --flow-limit=100 source.rwf
+
+The following causes B<rwsplit> to sample 1 out of every 10 records
+from F<source.rwf>; i.e., B<rwsplit> will read 1000 flow records to
+produce each subfile:
+
+ $ rwsplit --basename=result --flow-limit=100 --sample-ratio=10 source.rwf
+
+When B<--file-ratio> is specified, the file names are generated as
+usual (e.g., base-00000000, base-00000001, ...); however, one of these
+names will be chosen randomly from each set of B<--file-ratio>
+candidates, and only that file will be written to disk.
+
+ $ rwsplit --basename=result --flow-limit=100 --file-ratio=5 source.rwf
+ $ ls
+ result-00000002.rwf
+ result-00000008.rwf
+ result-00000013.rwf
+ result-00000016.rwf
+
+=head1 LIMITATIONS
+
+B<rwsplit> can take I<exactly> 1 partitioning switch per invocation.
+
+Partitioning is not exact, B<rwsplit> keeps appending flow records a
+file until it meets or exceeds the specified I<LIMIT>.  For example,
+if you specify B<--ip-limit>=100, then B<rwsplit> will fill up the
+file until it has 100 IP addresses in it; if the file has 99 addresses
+and a new record with 2 previously unseen addresses is received,
+B<rwsplit> will put this in the current file, resulting in a
+101-address file.  Similarly, if you specify B<--byte-limit>=2000, and
+B<rwsplit> receives a 10kb flow record, that flow record will be placed
+in the current subfile.
+
+The switches B<--sample-ratio>, B<--file-ratio>, and B<--max-outputs>
+are processed in that order.  So, when you specify
+
+ $ rwsplit --sample-ratio=10 --ip-limit=100    \
+        --file-ratio=10 --max-outputs=20
+
+B<rwsplit> will pick 1 out of every 10 flow records, write that
+to a file until it has 100 IP's per file, pick 1 out of every 10 files
+to write, and write up to 20 files.  If there are 1000 records, each
+with 2 unique IPs in them, then B<rwsplit> will write B<at most> 1
+file (it will write 200 unique IP addresses, but it may not pick one
+of the files from the set to write).
+
+=head1 ENVIRONMENT
+
+=over 4
+
+=item SILK_CLOBBER
+
+The SiLK tools normally refuse to overwrite existing files.  Setting
+SILK_CLOBBER to a non-empty value removes this restriction.
+
+=item SILK_CONFIG_FILE
+
+This environment variable is used as the value for the
+B<--site-config-file> when that switch is not provided.
+
+=item SILK_DATA_ROOTDIR
+
+This environment variable specifies the root directory of data
+repository.  As described in the L</FILES> section, B<rwsplit> may
+use this environment variable when searching for the SiLK site
+configuration file.
+
+=item SILK_PATH
+
+This environment variable gives the root of the install tree.  When
+searching for configuration files, B<rwsplit> may use this
+environment variable.  See the L</FILES> section for details.
+
+=back
+
+=head1 FILES
+
+=over 4
+
+=item F<${SILK_CONFIG_FILE}>
+
+=item F<${SILK_DATA_ROOTDIR}/silk.conf>
+
+=item F<@SILK_DATA_ROOTDIR@/silk.conf>
+
+=item F<${SILK_PATH}/share/silk/silk.conf>
+
+=item F<${SILK_PATH}/share/silk.conf>
+
+=item F<@prefix@/share/silk/silk.conf>
+
+=item F<@prefix@/share/silk.conf>
+
+Possible locations for the SiLK site configuration file which are
+checked when the B<--site-config-file> switch is not provided.
+
+=back
+
+=head1 SEE ALSO
+
+B<rwfileinfo(1)>, B<silk(7)>, B<zlib(3)>
+
+=cut
+
+$SiLK: rwsplit.pod cd09f0a5fcc6 2014-06-14 15:43:33Z mthomas $
+
+Local Variables:
+mode:text
+indent-tabs-mode:nil
+End:

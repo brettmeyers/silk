@@ -1,0 +1,702 @@
+=pod
+
+=head1 NAME
+
+B<rwtuc> - Text Utility Converter - B<rwcut> output to SiLK flows
+
+=head1 SYNOPSIS
+
+  rwtuc [--fields=FIELDS] [--column-separator=CHAR]
+        [--output-path=FILEPATH] [--bad-input-lines=FILEPATH]
+        [--verbose] [--stop-on-error] [--no-titles] [--note-add=TEXT]
+        [--note-file-add=FILE] [--compression-method=COMP_METHOD]
+        [--site-config-file=FILENAME] [--saddress=IPADDR]
+        [--daddress=IPADDR] [--sport=NUM] [--dport=NUM]
+        [--protocol=NUM] [--packets=NUM] [--bytes=NUM]
+        [--flags-all=TCPFLAGS] [--stime=TIME] [--duration=NUM]
+        [--etime=TIME] [--sensor=SID] [--input-index=NUM]
+        [--output-index=NUM] [--next-hop-ip=IPADDR]
+        [--flags-initial=TCPFLAGS] [--flags-session=TCPFLAGS]
+        [--attributes=ATTR] [--application=NUM] [--class=NAME]
+        [--type=NAME] [--stime+msec=TIME] [--etime+msec=TIME]
+        [--duration+msec=NUM] [--icmp-type=NUM] [--icmp-code=NUM]
+        [FILES]
+
+  rwtuc --help
+
+  rwtuc --version
+
+=head1 DESCRIPTION
+
+B<rwtuc> reads text files that have a format similar to that produced
+by B<rwcut(1)> and attempts to create a SiLK Flow record for each line
+of input.
+
+The fields which make up a single record should be separated by the
+pipe character ('B<|>'); use the B<--column-separator> switch to
+change this delimiter.  Note that the space character will not work as
+delimiter since several fields (e.g., time, TCP-flags) may contain
+embedded spaces.
+
+The fields to be read from each line can be specified with the
+B<--fields> switch; if the switch is not provided, B<rwtuc> treats the
+first line as a title and attempts to determine the fields from the
+title strings.
+
+When B<--fields> is specified, B<rwtuc> still checks whether the first
+line contains title strings, and B<rwtuc> skips the line if it
+determines it does.  Specify the B<--no-titles> switch to force
+B<rwtuc> to treat the first line as record values to be parsed.
+
+Command line switches exist which force a field to have a fixed value.
+These switches cause B<rwtuc> to override the value read from the
+input file (if any) for those fields.  See the L</Fixed Values>
+section below for details.
+
+The textual input is read from the files named on the command line; if
+no files are specified, B<rwtuc> attempts to read the text from the
+standard input if it is not connected to a terminal.  To force
+B<rwtuc> to read input from the terminal, specify C<stdin> or C<-> as
+the input stream.
+
+When the B<--output-path> switch is not provided, output is sent to
+the standard output when it is not connected to a terminal.
+
+By default, lines that cannot be parsed are silently ignored (unless
+B<rwtuc> is attempting to determine the fields from the title line).
+When the B<--verbose> switch is specified, problems parsing an input
+line will be reported to the standard error, and B<rwtuc> will
+continue to process the input.  The B<--stop-on-error> switch is
+similar to the B<--verbose> switch, except processing stops after the
+first error.  Input lines that cause parse errors can be copied to
+another output stream with the B<--bad-input-lines> switch.  Each bad
+line will have the source file name and line number prepended to it,
+separated from each other and the source line by colons ('B<:>').
+
+=head2 Field Constraints
+
+Due to the way SiLK Flow records are stored, certain field
+combinations cannot be supported, certain fields must appear together,
+and some fields may only be used on certain occasions:
+
+=over 4
+
+=item *
+
+Only two of the three time-related values (start time, duration, end
+time) may be specified.  When all three are specified, the end time is
+ignored.  This affects the C<sTime,9>, C<duration,10>, and C<eTime,11>
+fields and the B<--stime>, B<--duration>, and B<--etime> switches.
+
+=item *
+
+Both ICMP type and ICMP code must be present when one is present.
+These may be set by a combination of the C<iType> and C<iCode> fields
+and the B<--icmp-type> and B<--icmp-code> switches.  These values are
+ignored unless either the protocol is ICMP (1) or the record contains
+IPv6 addresses and the protocol is ICMPv6 (58).  The ICMP type and
+code are encoded in the destination port field (C<dPort,4> or
+B<--dport>), and they overwrite the port value for ICMP and ICMPv6
+flow records.
+
+=item *
+
+Both initial TCP flags and session TCP flags must be present when one
+is present.  These may be set by a combination of the
+C<initialFlags,26> and C<sessionFlags,27> fields and the
+B<--flags-initial> and B<--flags-session> switches.  These fields are
+set to 0 for non-TCP flow records.  When either field has a non-zero
+value, any value in the (ALL) TCP flags field (C<flags,8> or
+B<--flags-all>) is overwritten for TCP flow records.
+
+=item *
+
+If the B<silk.conf(5)> file defines more than one class, both class
+and type must be present for the values to have any affect on the SiLK
+flow record.  These may be set by a combination of the C<class> and
+C<type> fields and the B<--class> and B<--type> switches.  If
+F<silk.conf> defines a single class, that class is used by default.
+The class and type must map to a valid pair; use B<rwsiteinfo
+--fields=class,type> to see the list of valid class/type pairs for
+your site.
+
+=back
+
+=head1 OPTIONS
+
+Option names may be abbreviated if the abbreviation is unique or is an
+exact match for an option.  A parameter to an option may be specified
+as B<--arg>=I<param> or B<--arg> I<param>, though the first form is
+required for options that take optional parameters.
+
+=over 4
+
+=item B<--fields>=I<FIELDS>
+
+I<FIELDS> contains the list of fields (columns) to parse.  I<FIELDS>
+is a comma separated list of field-names, field-integers, and ranges
+of field-integers; a range is specified by separating the start and
+end of the range with a hyphen (B<->).  Field-names are case
+insensitive.
+
+A field is ignored when the fixed value switch that corresponds to
+that field is given on the command line (see L</Fixed Values>).
+
+The field names and their descriptions are:
+
+=over 4
+
+=item ignore
+
+a field that B<rwtuc> is to skip
+
+=item sIP,1
+
+source IP address in the canonical form: dotted-quad for IPv4 or
+hex-encoded for IPv6 (when SiLK has been compiled with IPv6 support).
+Integers from 0 to 4294967295 will be treated as an IPv4 address.
+
+=item dIP,2
+
+destination IP address in the same format as C<sIP,1>
+
+=item sPort,3
+
+source port as an integer from 0 to 65535 inclusive
+
+=item dPort,4
+
+destination port as an integer from 0 to 65535 inclusive (cf.
+L</Field Constraints>)
+
+=item protocol,5
+
+IP protocol as an integer from 0 to 255 inclusive
+
+=item packets,pkts,6
+
+packet count as an integer from 1 to 4294967295 inclusive
+
+=item bytes,7
+
+byte count as an integer from 1 to 4294967295 inclusive
+
+=item flags,8
+
+bitwise OR of TCP flags over all packets; the string may contain C<F>,
+C<S>, C<R>, C<P>, C<A>, C<U>, C<E>, C<C> in upper- or lowercase
+(cf. L</Field Constraints>)
+
+=item sTime,9
+
+starting time of the flow, in the form
+C<YYYY/MM/DD[:hh[:mm[:ss[.sss]]]]>.  A C<T> may be used in place of
+C<:> to separate the day and hour fields.  A floating point value
+between 536870912 and 4294967295 is also allowed and will be treated
+as seconds since the UNIX epoch.
+
+=item duration,10
+
+duration of flow as a floating point value from 0.0 to 4294967.295
+
+=item eTime,11
+
+end time of flow in the same form as C<sTime,9> (cf.
+L</Field Constraints>)
+
+=item sensor,12
+
+router sensor name or ID as given in F<silk.conf>
+
+=item class
+
+class of router at collection point as given in F<silk.conf> (cf.
+L</Field Constraints>)
+
+=item type
+
+type of router at collection point as given in F<silk.conf>
+(cf. L</Field Constraints>)
+
+=back
+
+Many of our packed files do not store the following fields and their
+values will always be 0, but they are listed here for completeness:
+
+=over 4
+
+=item in,13
+
+router SNMP input interface or vlanId if packing tools were configured
+to capture it (see B<sensor.conf(5)>); an integer from 0 to 65535
+
+=item out,14
+
+router SNMP output interface or postVlanId; an integer from 0 to 65535
+
+=item nhIP,15
+
+router next hop IP address in the same format as C<sIP,1>
+
+=back
+
+SiLK can store flows generated by enhanced collection software that
+provides more information than NetFlow v5.  These flows may support
+some or all of these additional fields; for flows without this
+additional information, the field's value is always 0.
+
+=over 4
+
+=item initialFlags,26
+
+TCP flags on first packet in the flow; same form as the C<flags,8>
+field (cf. L</Field Constraints>)
+
+=item sessionFlags,27
+
+bitwise OR of TCP flags over all packets except the first in the flow;
+same form as the C<flags,8> field (cf. L</Field Constraints>)
+
+=item attribute,28
+
+flow attributes set by the flow generator:
+
+=over 4
+
+=item C<S>
+
+all the packets in this flow record are exactly the same size
+
+=item C<F>
+
+flow generator saw additional packets in this flow following a packet
+with a FIN flag (excluding ACK packets)
+
+=item C<T>
+
+flow generator prematurely created a record for a long-running
+connection due to a timeout.  (When the flow generator B<yaf(1)> is
+run with the B<--silk> switch, it will prematurely create a flow and
+mark it with C<T> if the byte count of the flow cannot be stored in a
+32-bit value.)
+
+=item C<C>
+
+flow generator created this flow as a continuation of long-running
+connection, where the previous flow for this connection met a timeout
+(or a byte threshold in the case of B<yaf>).
+
+=back
+
+Consider a long-running ssh session that exceeds the flow generator's
+I<active> timeout.  (This is the active timeout since the flow
+generator creates a flow for a connection that still has activity).
+The flow generator will create multiple flow records for this ssh
+session, each spanning some portion of the total session.  The first
+flow record will be marked with a C<T> indicating that it hit the
+timeout.  The second through next-to-last records will be marked with
+C<TC> indicating that this flow both timed out and is a continuation
+of a flow that timed out.  The final flow will be marked with a C<C>,
+indicating that it was created as a continuation of an active flow.
+
+=item application,29
+
+guess as to the content of the flow, as an integer from 0 to 65535.  Some
+software that generates flow records from packet data, such as B<yaf>,
+will inspect the contents of the packets that make up a flow and use
+traffic signatures to label the content of the flow.  SiLK calls this
+label the I<application>; B<yaf> refers to it as the I<appLabel>.  The
+application is the port number that is traditionally used for that
+type of traffic (see the F</etc/services> file on most UNIX systems).
+For example, traffic that the flow generator recognizes as FTP will
+have a value of 21, even if that traffic is being routed through the
+standard HTTP/web S<port (80)>.
+
+=item iType
+
+ICMP type as an integer from 0 to 255 inclusive (cf.
+L</Field Constraints>)
+
+=item iCode
+
+ICMP code as an integer from 0 to 255 inclusive (cf.
+L</Field Constraints>)
+
+=back
+
+Fields may not be specified more than once.
+
+=item B<--column-separator>=I<CHAR>
+
+Expect the character I<CHAR> to used as the delimiter between columns
+instead of the default 'B<|>'.
+
+=item B<--output-path>=I<FILEPATH>
+
+Write the SiLK Flow records to I<FILEPATH>.  The strings C<stdout> and
+C<stderr> may be used for the standard output and standard error,
+respectively, as long as they are not connected to a terminal.
+
+=item B<--bad-input-lines>=I<FILEPATH>
+
+Copy any lines which could not be parsed to I<FILEPATH>.  The strings
+C<stdout> and C<stderr> may be used for the standard output and
+standard error, respectively.  Each bad line will be prepended by the
+source input file, a colon, the line number, and a colon.  On exit,
+B<rwtuc> will remove I<FILEPATH> if all input lines were successfully
+parsed.
+
+=item B<--verbose>
+
+If an input line fails to parse, print a message describing the error
+to the standard error, and continue to process the input.
+
+=item B<--stop-on-error>
+
+If an input line fails to parse, print a message describing the error
+to the standard error and exit.  The output file will contain any
+records successfully created prior to reading the bad input line.
+
+=item B<--no-titles>
+
+Treat the first line of input as record values to be parsed.  When
+this switch is not provided, B<rwtuc> skips the first line of input if
+it determines that the line contains the names of fields (titles).
+B<rwtuc> exits with an error when B<--no-titles> is given but
+B<--fields> is not.
+
+=item B<--note-add>=I<TEXT>
+
+Add the specified I<TEXT> to the header of the output file as an
+annotation.  This switch may be repeated to add multiple annotations
+to a file.  To view the annotations, use the B<rwfileinfo(1)> tool.
+
+=item B<--note-file-add>=I<FILENAME>
+
+Open I<FILENAME> and add the contents of that file to the header of
+the output file as an annotation.    This switch may be repeated to
+add multiple annotations.  Currently the application makes no effort
+to ensure that I<FILENAME> contains text; be careful that you do not
+attempt to add a SiLK data file as an annotation.
+
+=item B<--compression-method>=I<COMP_METHOD>
+
+Specify how to compress the output.  When this switch is not given,
+output to the standard output or to named pipes is not compressed, and
+output to files is compressed using the default chosen when SiLK was
+compiled.  The valid values for I<COMP_METHOD> are determined by which
+external libraries were found when SiLK was compiled.  To see the
+available compression methods and the default method, use the
+B<--help> or B<--version> switch.  SiLK can support the following
+I<COMP_METHOD> values when the required libraries are available.
+
+=over 4
+
+=item none
+
+Do not compress the output using an external library.
+
+=item zlib
+
+Use the B<zlib(3)> library for compressing the output, and always
+compress the output regardless of the destination.  Using zlib
+produces the smallest output files at the cost of speed.
+
+=item lzo1x
+
+Use the I<lzo1x> algorithm from the LZO real time compression library
+for compression, and always compress the output regardless of the
+destination.  This compression provides good compression with less
+memory and CPU overhead.
+
+=item best
+
+Use lzo1x if available, otherwise use zlib.  Only compress the output
+when writing to a file.
+
+=back
+
+=item B<--site-config-file>=I<FILENAME>
+
+Read the SiLK site configuration from the named file I<FILENAME>.
+When this switch is not provided, B<rwtuc> searches for the site
+configuration file in the locations specified in the L</FILES>
+section.
+
+=item B<--help>
+
+Print the available options and exit.
+
+=item B<--version>
+
+Print the version number and information about how SiLK was
+configured, then exit the application.
+
+=back
+
+=head2 Fixed Values
+
+The following switches can be used to set fields to fixed values.  A
+value specified using one these switches overrides the field when it
+appears in the input, causing that column of input to be completely
+ignored.
+
+=over 4
+
+=item B<--saddress>=I<IPADDR>
+
+Set the source address field to I<IPADDR> for all records.  I<IPADDR>
+can be in canonical notation or an unsigned integer.
+
+=item B<--daddress>=I<IPADDR>
+
+Set the destination address field to I<IPADDR> for all records.
+I<IPADDR> can be in canonical notation or an unsigned integer.
+
+=item B<--sport>=I<NUM>
+
+Set the source port field to I<NUM> for all records; a value between 0
+and 65535.
+
+=item B<--dport>=I<NUM>
+
+Set the destination port field to I<NUM> for all records; a value
+between 0 and 65535. (cf. L</Field Constraints>)
+
+=item B<--protocol>=I<NUM>
+
+Set the protocol field to I<NUM> for all records; a value between 0
+and 255.
+
+=item B<--packets>=I<NUM>
+
+Set the packets field to I<NUM> for all records; the value must be
+non-zero.
+
+=item B<--bytes>=I<NUM>
+
+Set the bytes field to I<NUM> for all records; the value must be
+non-zero.
+
+=item B<--flags-all>=I<TCPFLAGS>
+
+Set the TCP flags field to I<TCPFLAGS> for all records. (cf.
+L</Field Constraints>)
+
+=item B<--stime>=I<TIME>
+
+Set the start time field to I<TIME> for all records.
+
+=item B<--duration>=I<NUM>
+
+Set the duration field to I<NUM> for all records.
+
+=item B<--etime>=I<TIME>
+
+Set the end time field to I<TIME> for all records. (cf.
+L</Field Constraints>)
+
+=item B<--sensor>=I<SID>
+
+Set the sensor field to I<SID> for all records.  This can either be a
+sensor name or sensor ID.
+
+=item B<--input-index>=I<NUM>
+
+Set the SNMP input index field to I<NUM> for all records; a value
+between 0 and 65535.
+
+=item B<--output-index>=I<NUM>
+
+Set the SNMP output index field to I<NUM> for all records; a value
+between 0 and 65535.
+
+=item B<--next-hop-ip>=I<IPADDR>
+
+Set the next-hop-ip field to I<IPADDR> for all records.  I<IPADDR> can
+be in canonical notation or an unsigned integer.
+
+=item B<--flags-initial>=I<TCPFLAGS>
+
+Set the initial TCP flags field to I<TCPFLAGS> for all
+records. (cf. L</Field Constraints>)
+
+=item B<--flags-session>=I<TCPFLAGS>
+
+Set the session TCP flags field to I<TCPFLAGS> for all
+records. (cf. L</Field Constraints>)
+
+=item B<--attributes>=I<ATTR>
+
+Set the attributes field to I<ATTR> for all records.
+
+=item B<--application>=I<NUM>
+
+Set the application field to I<NUM> for all records; a value between 0
+and 65535.
+
+=item B<--class>=I<NAME>
+
+Set the class field to I<NAME> for all records. (cf.
+L</Field Constraints>)
+
+=item B<--type>=I<NAME>
+
+Set the type field to I<NAME> for all records. (cf.
+L</Field Constraints>)
+
+=item B<--icmp-type>=I<NUM>
+
+Set the ICMP type field to I<NUM> for all ICMP or ICMPv6 flow records;
+a value between 0 and 255. (cf. L</Field Constraints>)
+
+=item B<--icmp-code>=I<NUM>
+
+Set the ICMP code field to I<NUM> for all ICMP or ICMPv6 flow records;
+a value between 0 and 255. (cf. L</Field Constraints>)
+
+=item B<--stime+msec>=I<TIME>
+
+An alias for B<--stime>.  This switch is deprecated as of SiLK 3.6.0,
+and it will be removed in the SiLK 4.0 release.
+
+=item B<--etime+msec>=I<TIME>
+
+An alias for B<--etime>.  This switch is deprecated as of SiLK 3.6.0,
+and it will be removed in the SiLK 4.0 release.
+
+=item B<--duration+msec>=I<NUM>
+
+An alias for B<--duration>.  This is is deprecated as of SiLK 3.6.0,
+and it will be removed in the SiLK 4.0 release.
+
+=back
+
+=head1 EXAMPLES
+
+In the following examples, the dollar sign (C<$>) represents the shell
+prompt.  The text after the dollar sign represents the command line.
+Lines have been wrapped for improved readability, and the back slash
+(C<\>) is used to indicate a wrapped line.
+
+Using B<rwtuc> to parse the output of B<rwcut(1)> should produce the
+same output:
+
+ $ rwcut data.rw > cut.txt
+ $ md5 < cut.txt
+ 7e3d693cd2cba2510803935274e1debd
+ $ rwtuc < cut.txt | rwcut | md5
+ 7e3d693cd2cba2510803935274e1debd
+
+To swap the source IP and port with the destination IP and port in
+F<flows.rw> and save the result in F<reverse.rw>:
+
+ $ rwcut --fields=dip,dport,sip,sport,5-15,20-29 flows.rw   \
+   | rwtuc --fields=1-15,20-29 --output-path=reverse.rw
+
+B<rwtuc> can be used to obfuscate the flow data in F<myflows.rw> to
+produce F<obflows.rw>.  Pipe the output from B<rwcut> into a script
+that manipulates the IP addresses, then pipe that into B<rwtuc>.
+Using the B<sed(1)> script in F<priv.sed>, the invocation is:
+
+ $ rwcut --fields=1-10,13-15,26-29 myflows.rw               \
+   | sed -f priv.sed                                        \
+   | rwtuc --sensor=1 > obflows.rw
+
+If the first line of input appears to contain titles, B<rwtuc> will
+ignore it.  In the first invocation below, B<rwtuc> treats C<SP> as an
+abbreviation for C<sPort> and ignores the line.  Use the
+B<--no-titles> switch to force B<rwtuc> to parse the line:
+
+ $ echo 'SP' | rwtuc --fields=flags | rwcut --fields=flags
+    flags|
+ $
+ $ echo 'SP' | rwtuc --fields=flags --no-titles | rwcut --fields=flags
+    flags|
+  S P    |
+ $
+
+By default, B<rwtuc> silently ignores lines that it cannot parse.  Use
+the B<--verbose> flag to see error messages:
+
+ $ echo sport | rwtuc --fields=flags --no-titles --verbose >/dev/null
+ rwtuc: stdin:1: Invalid flags 'sport': Unexpected character 'o'
+
+
+=head1 ENVIRONMENT
+
+=over 4
+
+=item SILK_CLOBBER
+
+The SiLK tools normally refuse to overwrite existing files.  Setting
+SILK_CLOBBER to a non-empty value removes this restriction.
+
+=item SILK_CONFIG_FILE
+
+This environment variable is used as the value for the
+B<--site-config-file> when that switch is not provided.
+
+=item SILK_DATA_ROOTDIR
+
+This environment variable specifies the root directory of data
+repository.  As described in the L</FILES> section, B<rwtuc> may
+use this environment variable when searching for the SiLK site
+configuration file.
+
+=item SILK_PATH
+
+This environment variable gives the root of the install tree.  When
+searching for configuration files, B<rwtuc> may use this environment
+variable.  See the L</FILES> section for details.
+
+=item TZ
+
+When a SiLK installation is built to use the local timezone (to
+determine if this is the case, check the C<Timezone support> value in
+the output from B<rwtuc --version>), the value of the TZ environment
+variable determines the timezone in which B<rwtuc> parses timestamps.
+If the TZ environment variable is not set, the default timezone is
+used.  Setting TZ to 0 or the empty string causes timestamps to be
+parsed as UTC.  The value of the TZ environment variable is ignored
+when the SiLK installation uses utc.  For system information on the TZ
+variable, see B<tzset(3)>.
+
+=back
+
+=head1 FILES
+
+=over 4
+
+=item F<${SILK_CONFIG_FILE}>
+
+=item F<${SILK_DATA_ROOTDIR}/silk.conf>
+
+=item F<@SILK_DATA_ROOTDIR@/silk.conf>
+
+=item F<${SILK_PATH}/share/silk/silk.conf>
+
+=item F<${SILK_PATH}/share/silk.conf>
+
+=item F<@prefix@/share/silk/silk.conf>
+
+=item F<@prefix@/share/silk.conf>
+
+Possible locations for the SiLK site configuration file which are
+checked when the B<--site-config-file> switch is not provided.
+
+=back
+
+=head1 SEE ALSO
+
+B<rwcut(1)>, B<rwfileinfo(1)>, B<rwsiteinfo(1)>, B<sensor.conf(5)>,
+B<silk(7)>, B<yaf(1)>, B<sed(1)>, B<zlib(3)>
+
+=cut
+
+$SiLK: rwtuc.pod 477e54df24bf 2014-07-08 18:02:17Z mthomas $
+
+Local Variables:
+mode:text
+indent-tabs-mode:nil
+End:

@@ -1,0 +1,101 @@
+=pod
+
+=head1 NAME
+
+B<num2dot> - Convert an integer IP to dotted-decimal notation
+
+=head1 SYNOPSIS
+
+  num2dot [--ip-fields=FIELDS] [--delimiter=C]
+
+  num2dot --help
+
+  num2dot --version
+
+=head1 DESCRIPTION
+
+B<num2dot> is a filter to speedup sorting of IP numbers and yet result
+in both a C<natural> order (i.e., 29.23.1.1 will appear before
+192.168.1.1) and readable output (i.e., dotted decimal rather than an
+integer representation of the IP number).
+
+It is designed specifically to deal with the output of B<rwcut(1)>.
+Its job is to read stdin and convert specified fields (default field
+1) separated by a delimiter (default 'B<|>') from an integer number
+into a dotted decimal IP address.  Up to three IP fields can be
+specified via the B<--ip-fields>=I<FIELDS> option.  The B<--delimiter>
+option can be used to specify an alternate delimiter.
+
+=head1 OPTIONS
+
+Option names may be abbreviated if the abbreviation is unique or is an
+exact match for an option.  A parameter to an option may be specified
+as B<--arg>=I<param> or S<B<--arg> I<param>>, though the first form is
+required for options that take optional parameters.
+
+=over 4
+
+=item B<--ip-fields>=I<FIELDS>
+
+Column number of the input that should be considered IP numbers.
+Column numbers start from 1.  If not specified, the default is 1.
+
+=item B<--delimiter>=I<C>
+
+The character that separates the columns of the input.  Default is
+'B<|>'.
+
+=item B<--help>
+
+Print the available options and exit.
+
+=item B<--version>
+
+Print the version number and information about how SiLK was
+configured, then exit the application.
+
+=back
+
+=head1 EXAMPLE
+
+In the following example, the dollar sign (C<$>) represents the shell
+prompt.  The text after the dollar sign represents the command line.
+Lines have been wrapped for improved readability, and the back slash
+(C<\>) is used to indicate a wrapped line.
+
+Suppose in addition to the default fields of 1-12 produced by B<rwcut(1)>, you
+want to prefix each row with an integer form of the destination
+IP and the start time to make processing by another tool (e.g., a
+spreadsheet) easier.  However, within the default B<rwcut> output
+fields of 1-12, you want to see dotted-decimal IP addresses.  You
+could use the following command:
+
+ $ rwfilter ... --pass=stdout                               \
+   | rwcut --fields=dip,stime,1-12 --ip-format=decimal      \
+        --timestamp-format=epoch                            \
+   | num2dot --ip-field=3,4
+
+In the B<rwcut> invocation, you prepend the fields of interest (C<dip>
+and C<stime> before the standard fields.  The first six columns
+produced by B<rwcut> will be dIP, sTime, sIP, dIP, sPort, dPort.  The
+B<--ip-format> switch causes the first, third, and fourth columns to
+be printed as integers, but you only want the first column to have an
+integer representation.  The pipe through B<num2dot> will convert the
+third and fourth columns to dotted-decimal IP numbers.
+
+=head1 SEE ALSO
+
+B<rwcut(1)>, B<silk(7)>
+
+=head1 BUGS
+
+B<num2dot> has no support for IPv6 addresses.
+
+=cut
+
+$SiLK: num2dot.pod cd09f0a5fcc6 2014-06-14 15:43:33Z mthomas $
+
+Local Variables:
+mode:text
+indent-tabs-mode:nil
+End:

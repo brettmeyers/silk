@@ -1,0 +1,428 @@
+=pod
+
+=head1 NAME
+
+B<pmapfilter> - User-defined labels for IPs and protocol/port pairs
+
+=head1 SYNOPSIS
+
+  rwfilter --pmap-file=[MAPNAME:]FILENAME
+        [--pmap-file=[MAPNAME:]FILENAME ...]
+        [--pmap-src-MAPNAME=LABELS] [--pmap-dst-MAPNAME=LABELS]
+        [--pmap-any-MAPNAME=LABELS] ...
+
+  rwcut --pmap-file=[MAPNAME:]FILENAME
+        [--pmap-file=[MAPNAME:]FILENAME ...]
+        --fields=FIELDS [--pmap-column-width=NUM]
+
+  rwgroup --pmap-file=[MAPNAME:]FILENAME
+        [--pmap-file=[MAPNAME:]FILENAME ...]
+        --id-fields=FIELDS
+
+  rwsort --pmap-file=[MAPNAME:]FILENAME
+        [--pmap-file=[MAPNAME:]FILENAME ...]
+        --fields=FIELDS
+
+  rwstats --pmap-file=[MAPNAME:]FILENAME
+        [--pmap-file=[MAPNAME:]FILENAME ...]
+        --fields=FIELDS [--pmap-column-width=NUM]
+
+  rwuniq --pmap-file=[MAPNAME:]FILENAME
+        [--pmap-file=[MAPNAME:]FILENAME ...]
+        --fields=FIELDS [--pmap-column-width=NUM]
+
+
+=head1 DESCRIPTION
+
+Prefix maps provide a mapping from values on a SiLK Flow record to
+string labels.  The binary prefix map file is created from textual
+input with B<rwpmapbuild>.  See the B<rwpmapbuild(1)> manual page for
+the syntax of input file.  This manual page describes how to use a
+prefix map file to augment the features of some commonly used SiLK
+applications.
+
+A prefix map file maps either an IP address or a protocol/port pair to
+a label.  The B<mode> statement in the input to B<rwpmapbuild>
+determines whether the prefix map file is a mapping for IPs or for
+protocol/port pairs.  To see the mode of an existing prefix map, use
+B<rwpmapcat(1)> and specify B<--output-type=type>.
+
+When using the prefix map file as described in this manual page, one
+typically uses the prefix map's B<map-name>.  The B<map-name>
+statement in the input to B<rwpmapbuild> allows one to assign the
+map-name when creating the prefix map.  To see the map-name of an
+existing prefix map, use B<rwpmapcat --output-type=mapname>.  To
+assign a map-name when loading a prefix map file, use the
+B<--pmap-file> switch and specify the map-name you want to use, a
+colon, and the file name.  A map-name provided to the B<--pmap-file>
+switch overrides the map-name in the file (if one exists).
+
+When using a prefix map in B<rwfilter(1)>, the map-name is combined
+with the prefix B<--pmap-src->, B<--pmap-dst->, or B<--pmap-any-> to
+create the partitioning switches.  When using the prefix map to create
+fields in B<rwcut(1)>, B<rwgroup(1)>, B<rwsort(1)>, B<rwstats(1)>, and
+B<rwuniq(1)>, the map-name must be combined with the prefix C<src-> or
+C<dst-> to create the field names.
+
+The applications support using multiple prefix map files in a single
+invocation.  When using multiple prefix map files, each file must have
+a unique map-name (or be assigned a unique map-name on the command
+line).
+
+When a prefix map file does not contain a map-name and no map-name is
+provided on the command line, SiLK processes the prefix map in legacy
+mode.  When in legacy mode, only one prefix map file may be used.  See
+the L</LEGACY> section for details.
+
+Three types of prefix map files are currently implemented:
+
+=over 4
+
+=item proto-port
+
+Maps a protocol/port pair to a label.
+
+=item IPv4-address
+
+Maps an IPv4 address to a label.  When used with IPv6 addresses, an
+IPv6 address in the ::ffff:0:0/96 prefix is converted to IPv4 and
+mapped to the label.  Any other IPv6 address is mapped to the label
+C<UNKNOWN>.
+
+=item IPv6-address
+
+Maps an IPv6 address to a label.  When used with an IPv4 address, the
+IPv4 address is converted to IPv6, mapping the IPv4 address into the
+::ffff:0:0/96 prefix.
+
+=back
+
+For more information on constructing prefix map files, see the
+B<rwpmapbuild(1)> documentation.  To view the contents, type, or
+map-name of a prefix map file, use B<rwpmapcat(1)>.  To map textual
+input to the labels in a prefix map, use B<rwpmaplookup(1)>.
+
+=head1 OPTIONS
+
+The B<--pmap-file> switch is used to load the prefix map into the
+application.  Use of the prefix map varies by application.
+
+To use a prefix map within a supported application, one or more
+B<--pmap-file> switches are required.  Multiple B<--pmap-file>
+switches are allowed as long as each prefix map is associated with a
+unique map-name.  The switch has two forms:
+
+=over 4
+
+=item B<--pmap-file>=I<MAPNAME>:I<FILENAME>
+
+I<FILENAME> refers to a prefix map file generated using
+B<rwpmapbuild>.  I<MAPNAME> is a name that will be used to refer to
+the fields or options specific to that prefix map.
+
+=item B<--pmap-file>=I<FILENAME>
+
+When a I<MAPNAME> is not specified explicitly as part of the argument,
+the prefix map file is checked to determine if a map-name was set when
+the prefix map was created (see B<rwpmapbuild>).  If so, that map-name
+is used.  If not, the prefix map is processed in legacy mode for
+backward compatibility.  See L</LEGACY> below for more information.
+
+=back
+
+=head2 B<rwfilter> Switches
+
+When using the prefix map in B<rwfilter(1)>, the map-name is combined
+with the prefix B<--pmap-src->, B<--pmap-dst->, or B<--pmap-any-> to
+create the partitioning switches; that is, the switch name depends
+I<in part> on the map-name of the prefix map.
+
+=over 4
+
+=item B<--pmap-src-I<MAPNAME>>=I<LABELS>
+
+If the prefix map associated with I<MAPNAME> is an IP prefix map, this
+matches records with a source address that maps to a label contained
+in the list of labels in I<LABELS>.
+
+If the prefix map associated with I<MAPNAME> is a proto-port prefix
+map, this matches records with a protocol and source port combination
+that maps to a label contained in the list of labels in I<LABELS>.
+
+=item B<--pmap-dst-I<MAPNAME>>=I<LABELS>
+
+Similar to B<--pmap-src-I<MAPNAME>>, but uses the destination IP or
+the protocol and destination port.
+
+=item B<--pmap-any-I<MAPNAME>>=I<LABELS>
+
+If the prefix map associated with I<MAPNAME> is an IP prefix map, this
+matches records with a source or destination address that maps to a
+label contained in the list of labels in I<LABELS>.
+
+If the prefix map associated with I<MAPNAME> is a proto-port prefix
+map, this matches records with a protocol and a source or destination
+port combination that maps to a label contained in the list of labels
+in I<LABELS>.
+
+=back
+
+=head2 B<rwcut>, B<rwgroup>, B<rwsort>, B<rwstats>, and B<rwuniq> Switches
+
+When using the prefix map to create fields in B<rwcut(1)>,
+B<rwgroup(1)>, B<rwsort(1)>, B<rwstats(1)>, and B<rwuniq(1)>, the
+map-name must be combined with the prefix C<src-> or C<dst-> to create
+the field names.  The field names depend I<in part> on the map-name of
+the prefix map.
+
+=over 4
+
+=item B<--fields>=I<FIELDS>
+
+I<FIELDS> refers to a list of fields to use for the operation.  Each
+prefix map associated with I<MAPNAME> creates two additional fields,
+C<src-I<MAPNAME>> and C<dst-I<MAPNAME>>, available for display,
+sorting, and counting using the B<rwcut>, B<rwgroup>, B<rwsort>,
+B<rwstats>, and B<rwuniq> tools.
+
+=over 4
+
+=item B<src-I<MAPNAME>>
+
+The value for the source from the prefix map file associated with
+I<MAPNAME>.  For an IP-based prefix map file, this corresponds to the
+source IP.  For a proto-port prefix map, it is the
+protocol/source-port.
+
+=item B<dst-I<MAPNAME>>
+
+As B<src-I<MAPNAME>> for the destination IP address or
+protocol/destination-port.  It I<is> possible to encode type and code
+in a proto-port prefix map, but it will only work when used for the
+protocol/destination-port.
+
+=back
+
+=item B<--pmap-column-width>=I<NUM>
+
+Set the maximum number of characters to use when displaying the
+textual value of any prefix map field in B<rwcut>, B<rwstats>, and
+B<rwuniq> to I<NUM>.  This switch I<must> precede the B<--fields>
+switch.  This switch is useful for prefix map files that have very
+long dictionary values.
+
+=back
+
+=head1 LEGACY
+
+When a prefix map file does not contain a map-name and no map-name is
+specified in the B<--pmap-file> argument, SiLK processes the prefix
+map as it did prior to SiLK 2.0, which is called legacy mode.  When in
+legacy mode, only one prefix map file may be used by the application.
+Legacy mode is deprecated, but it is maintained for backwards
+compatibility.
+
+=head2 Legacy Switches
+
+When a prefix map is loaded into B<rwfilter> in legacy mode, the
+following switches are defined:
+
+=over 4
+
+=item B<--pmap-saddress>=I<LABELS>
+
+Match records with a source IP address that maps to a label contained
+in the list of labels in I<LABELS>.  Only works with IP prefix maps.
+
+=item B<--pmap-daddress>=I<LABELS>
+
+As B<--pmap-saddress> for the destination IP.
+
+=item B<--pmap-any-address>=I<LABELS>
+
+Match records with a source or destination IP address that maps to a
+label contained in the list of labels in I<LABELS>.  Only works with
+IP prefix maps.
+
+=item B<--pmap-sport-proto>=I<LABELS>
+
+Match records with a protocol and source port combination that maps to
+a label contained in the list of labels in I<LABELS>.  Only works with
+proto-port prefix maps.
+
+=item B<--pmap-dport-proto>=I<LABELS>
+
+As B<--pmap-saddress> for the protocol and destination port.
+
+=item B<--pmap-any-port-proto>=I<LABELS>
+
+Match records with a protocol and a source or destination port
+combination that maps to a label contained in the list of labels in
+I<LABELS>.  Only works with proto-port prefix maps.
+
+=back
+
+=head2 Legacy Fields
+
+When a prefix map is loaded into B<rwcut>, B<rwgroup>, B<rwsort>,
+B<rwstats>, or B<rwuniq> in legacy mode, the following fields are made
+available to the B<--fields> switch:
+
+=over 4
+
+=item B<sval>
+
+The value from the prefix map file for the source.  For an IP-based
+prefix map file, this corresponds to the source IP.  For a proto-port
+prefix map, it is the protocol/source-port.
+
+=item B<dval>
+
+As B<sval> for the destination IP address or
+protocol/destination-port.
+
+=back
+
+=head1 EXAMPLES
+
+In the following examples, the dollar sign (C<$>) represents the shell
+prompt.  The text after the dollar sign represents the command line.
+Lines have been wrapped for improved readability, and the back slash
+(C<\>) is used to indicate a wrapped line.
+
+The following examples explicitly specify the map name on the command
+line, ensuring the examples work any prefix map file.  The examples
+use two prefix map files:
+
+=over 4
+
+=item F<carnegiemellon.pmap>
+
+Maps the internal IP space of Carnegie Mellon to labels specifying the
+department that has been assigned that IP space.  (An IPv4 prefix map
+provides a label for every IPv4 address; in this case, any IP outside
+of Carnegie Mellon's IP space is given the label C<external>.)
+
+=item F<service.pmap>
+
+Maps protocol/ports pairs to well-known services associated with those
+pairs (e.g., based the file F</etc/protocols> and F</etc/services>).
+For example, 80/tcp is labeled C<TCP/HTTP>, 25/tcp is C<TCP/SMTP>,
+ephemeral ports in protocol 6 are C<TCP>, protocol 1 is C<ICMP>, etc.
+
+=back
+
+To find today's incoming flow records going to "FineArts":
+
+ $ rwfilter --type=in,inweb --pmap-file=CMU:carnegiemellon.pmap     \
+        --pmap-dst-CMU="FineArts" --pass=fine-arts-in.rw
+
+To find today's outgoing flow records coming from "ChemE":
+
+ $ rwfilter --type=out,outweb --pmap-file=CMU:carnegiemellon.pmap   \
+        --pmap-src-CMU="ChemE" --pass=cheme-out.rw
+
+To find today's internal traffic from "FineArts" to "ChemE":
+
+ $ rwfilter --type=int2int --pmap-file=CMU:carnegiemellon.pmap      \
+        --pmap-src-CMU="FineArts" --pmap-dst-CMU="ChemE"            \
+        --pass=finearts-to-cheme.rw
+
+To find the reverse traffic:
+
+ $ rwfilter --type=int2int --pmap-file=CMU:carnegiemellon.pmap      \
+        --pmap-src-CMU="ChemE" --pmap-dst-CMU="FineArts"            \
+        --pass=cheme-to-finearts.rw
+
+To find today's internal traffic that started or ended at "FineArts"
+and "ChemE" (this will find traffic between them, as well as traffic
+they had with any other university department):
+
+ $ rwfilter --type=int2int --pmap-file=CMU:carnegiemellon.pmap      \
+        --pmap-any-CMU="ChemE,FineArts"                             \
+        --pass=cheme-finearts.rw
+
+Using the F<service.pmap> file with B<rwcut> to print the label for
+the protocol/port pairs:
+
+ $ rwcut --pmap-file=service:service.pmap                           \
+        --fields=protocol,dport,dst-service,sport,src-service       \
+        flow-records.rw
+ pro|dPort|dst-service|sPort|src-service|
+  17|   53|    UDP/DNS|29617|        UDP|
+  17|29617|        UDP|   53|    UDP/DNS|
+   6|   22|    TCP/SSH|29618|        TCP|
+   6|29618|        TCP|   22|    TCP/SSH|
+   1|  771|       ICMP|    0|       ICMP|
+  17|   67|   UDP/DHCP|   68|   UDP/DHCP|
+   6|  443|  TCP/HTTPS|28816|        TCP|
+   6|29897|        TCP|   25|   TCP/SMTP|
+   6|29222|        TCP|   80|   TCP/HTTP|
+  17|29361|        UDP|   53|    UDP/DNS|
+
+Using the F<service.pmap> file with B<rwuniq>:
+
+ $ rwuniq --pmap-file=serv:service.pmap --fields=dst-serv           \
+        --values=bytes flow-records.rw
+    dst-serv|               Bytes|
+     TCP/SSH|          3443906999|
+    TCP/SMTP|           780000305|
+         TCP|        114397570896|
+   TCP/HTTPS|           387741258|
+    TCP/HTTP|          1526975653|
+     UDP/NTP|             1176632|
+         UDP|            14404581|
+    UDP/DHCP|             5121392|
+     UDP/DNS|             3797474|
+        ICMP|            10695328|
+
+Using the F<service.pmap> file with B<rwstats>:
+
+ $ rwstats --pmap-file=srvc:service.pmap --fields=dst-srvc  \
+        --values=bytes --count=5 flow-records.rw
+ INPUT: 501876 Records for 10 Bins and 120571390518 Total Bytes
+ OUTPUT: Top 5 Bins by Bytes
+    dst-srvc|               Bytes|    %Bytes|   cumul_%|
+         TCP|        114397570896| 94.879532| 94.879532|
+     TCP/SSH|          3443906999|  2.856322| 97.735854|
+    TCP/HTTP|          1526975653|  1.266449| 99.002303|
+    TCP/SMTP|           780000305|  0.646920| 99.649223|
+   TCP/HTTPS|           387741258|  0.321586| 99.970809|
+
+Using B<rwsort> with two prefix maps, where the records are first
+sorted by the originating department and then by the service they are
+requesting:
+
+ $ rwsort --pmap-file=service:service.pmap                  \
+        --pmap-file=cmu:carnegiemellon.pmap                 \
+        --fields=src-cmu,dst-service flow-records.rw
+
+To see the partitioning switches that a prefix map adds to
+B<rwfilter>, load the prefix map file prior to specifying the
+B<--help> switch.
+
+ $ rwfilter --pmap-file=carnegiemellon.pmap --help          \
+   | sed -n '/^--pmap-/p'
+
+To see the fields that a prefix map file adds to B<rwcut>, B<rwgroup>,
+B<rwsort>, B<rwstats>, or B<rwuniq>, load the prefix map file prior to
+specifying B<--help>, and then view the description of the B<--fields>
+switch.
+
+ $ rwsort --pmap-file=service.pmap --help                   \
+   | sed -n '/^--fields/,/^--/p'
+
+=head1 SEE ALSO
+
+B<rwcut(1)>, B<rwfilter(1)>, B<rwgroup(1)>, B<rwpmapbuild(1)>,
+B<rwpmapcat(1)>, B<rwpmaplookup(1)>, B<rwsort(1)>, B<rwstats(1)>,
+B<rwuniq(1)>, B<silk(7)>
+
+=cut
+
+$SiLK: pmapfilter.pod cd09f0a5fcc6 2014-06-14 15:43:33Z mthomas $
+
+Local Variables:
+mode:text
+indent-tabs-mode:nil
+End:

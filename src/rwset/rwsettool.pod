@@ -1,0 +1,363 @@
+=pod
+
+=head1 NAME
+
+B<rwsettool> - Operate on IPset files to produce a new IPset
+
+=head1 SYNOPSIS
+
+  rwsettool { --union | --intersect | --difference
+              | --mask=NET_BLOCK_SIZE | --fill-blocks=NET_BLOCK_SIZE
+              | --sample {--size=SIZE | --ratio=RATIO} [--seed=SEED] }
+        [--output-path=OUTPUT_PATH] [--record-version=VERSION]
+        [--invocation-strip]
+        [--note-strip] [--note-add=TEXT] [--note-file-add=FILE]
+        [--compression-method=COMP_METHOD] [INPUT_SET ...]
+
+  rwsettool --help
+
+  rwsettool --version
+
+=head1 DESCRIPTION
+
+B<rwsettool> performs a single operation on one or more IPset file(s)
+to produce a new IPset file.  The operations that B<rwsettool>
+provides are union, intersection, difference, masking, and sampling.
+Details are provided in the L</OPTIONS> section.
+
+B<rwsettool> reads the IPsets specified on the command line; when no
+IPsets are listed, B<rwsettool> attempts to read an IPset from the
+standard input.  The strings C<stdin> or C<-> can be used as the name
+of an input file to force B<rwsettool> to read from the standard
+input.  The resulting IPset is written to the location specified by
+the B<--output-path> switch or to the standard output if that switch
+is not provided.  Using the strings C<stdout> or C<-> as the argument
+to B<--output-path> causes B<rwsettool> to write the IPset to the
+standard output.  B<rwsettool> will exit with an error if an attempt
+is made to read an IPset from the terminal or write an IPset to the
+terminal.
+
+=head1 OPTIONS
+
+Option names may be abbreviated if the abbreviation is unique or is an
+exact match for an option.  A parameter to an option may be specified
+as B<--arg>=I<param> or B<--arg> I<param>, though the first form is
+required for options that take optional parameters.
+
+=head2 Operation Switches
+
+At least one of the following operation switches must be provided:
+
+=over 4
+
+=item B<--union>
+
+Perform the set union operation: The resulting IPset will contain an
+IP if that IP was present in I<any> of the input IPsets.
+
+=item B<--intersect>
+
+Perform the set intersection operation: The resulting IPset will
+contain an IP if that IP was present in I<all> of the input IPsets.
+
+=item B<--difference>
+
+Perform the set difference (relative complement) operation: The
+resulting IPset will contain an IP if that IP was present in first
+IPset and not present in any of the subsequent IPsets.
+
+=item B<--mask>=I<NET_BLOCK_SIZE>
+
+Perform a (sparse) masking operation: The least significant
+32-I<NET_BLOCK_SIZE> or 128-I<NET_BLOCK_SIZE> bits of each IP in every
+input IPset is set to zero, and the resulting IPset contains the union
+of these IPs.  That is, the result contains one IP for each CIDR block
+of size I<NET_BLOCK_SIZE>.  I<NET_BLOCK_SIZE> should be value between
+1 and 32 for IPv4 sets, and between 1 and 128 for IPv6 sets.  Contrast
+with B<--fill-blocks>.
+
+=item B<--fill-blocks>=I<NET_BLOCK_SIZE>
+
+Perform a masking operation that produces completely full blocks: The
+least significant 32-I<NET_BLOCK_SIZE> or 128-I<NET_BLOCK_SIZE> bits
+of each IP in every input IPset is set to zero.  To create the output,
+each IP is modified to be a completely full I<NET_BLOCK_SIZE> CIDR
+block.
+
+=item B<--sample>
+
+Select a random sample of IPs from the input IPsets.  The size of the
+subset must be specified by either the B<--size> or B<--ratio>
+switches described below.  In the case of multiple input IPsets, the
+resulting IPset is the union of all IP addresses sampled from B<each>
+of the input IPsets.
+
+=back
+
+=head2 Sampling Switches
+
+These switches control how records are sampled by the B<--sample>
+operation.
+
+=over 4
+
+=item B<--size>=I<SIZE>
+
+Select a random sample containing I<SIZE> randomly selected records
+from I<each> input IPset. If the input set is smaller than I<SIZE>,
+all input IPs will be selected from that IPset.
+
+=item B<--ratio>=I<RATIO>
+
+Select a random sample where the selection probability for each record
+of each input set is I<RATIO>, specified as a decimal number between
+0.0 and 1.0.  The exact size of the subset selected from each file will
+vary between different runs with the same data.
+
+=item B<--seed>=I<SEED>
+
+Seed the pseudo-random number generator with value I<SEED>.  By
+default, the seed will vary between runs.  Seeding with specific
+values will produce repeatable results given the same input sets.
+
+=back
+
+=head2 Output Switches
+
+These switches control the output:
+
+=over 4
+
+=item B<--output-path>=I<OUTPUT_PATH>
+
+Write the resulting IPset to I<OUTPUT_PATH>.  If this switch is not
+provided, B<rwsettool> will attempt to write the IPset to the standard
+output, unless it is connected to a terminal.
+
+=item B<--record-version>=I<VERSION>
+
+Specify the format of the IPset records that are written to the
+output.  Valid values are 0, 2, 3, and 4.  When the switch is not
+provided, the SILK_IPSET_RECORD_VERSION environment variable is
+checked for a version.  A I<VERSION> of 2 creates a file compatible
+with S<SiLK 2.x>, and it can only be used for IPsets containing IPv4
+addresses.  A I<VERSION> of 3 creates a file that can only be read by
+S<SiLK 3.0> or later.  A I<VERSION> of 4 creates a file that can only
+be read by S<SiLK 3.7> or later.  Version 4 files are smaller than
+version 3 files.  The default I<VERSION> is 0, which uses version 2
+for IPv4 IPsets and version 3 for IPv6 IPsets.
+
+=item B<--invocation-strip>
+
+Do not record any command line history; that is, do not copy the
+invocation history from the input files to the output file, and do not
+record the current command line invocation in the output.
+
+=item B<--note-strip>
+
+Do not copy the notes (annotations) from the input files to the output
+file.  Normally notes from the input files are copied to the output.
+
+=item B<--note-add>=I<TEXT>
+
+Add the specified I<TEXT> to the header of the output file as an
+annotation.  This switch may be repeated to add multiple annotations
+to a file.  To view the annotations, use the B<rwfileinfo(1)> tool.
+
+=item B<--note-file-add>=I<FILENAME>
+
+Open I<FILENAME> and add the contents of that file to the header of
+the output file as an annotation.    This switch may be repeated to
+add multiple annotations.  Currently the application makes no effort
+to ensure that I<FILENAME> contains text; be careful that you do not
+attempt to add a SiLK data file as an annotation.
+
+=item B<--compression-method>=I<COMP_METHOD>
+
+Specify how to compress the output.  When this switch is not given,
+output to the standard output or to named pipes is not compressed, and
+output to files is compressed using the default chosen when SiLK was
+compiled.  The valid values for I<COMP_METHOD> are determined by which
+external libraries were found when SiLK was compiled.  To see the
+available compression methods and the default method, use the
+B<--help> or B<--version> switch.  SiLK can support the following
+I<COMP_METHOD> values when the required libraries are available.
+
+=over 4
+
+=item none
+
+Do not compress the output using an external library.
+
+=item zlib
+
+Use the B<zlib(3)> library for compressing the output, and always
+compress the output regardless of the destination.  Using zlib
+produces the smallest output files at the cost of speed.
+
+=item lzo1x
+
+Use the I<lzo1x> algorithm from the LZO real time compression library
+for compression, and always compress the output regardless of the
+destination.  This compression provides good compression with less
+memory and CPU overhead.
+
+=item best
+
+Use lzo1x if available, otherwise use zlib.  Only compress the output
+when writing to a file.
+
+=back
+
+=item B<--help>
+
+Print the available options and exit.
+
+=item B<--version>
+
+Print the version number and information about how SiLK was
+configured, then exit the application.
+
+=back
+
+=head1 EXAMPLES
+
+In the following examples, the dollar sign (C<$>) represents the shell
+prompt.  The text after the dollar sign represents the command line.
+
+=for comment
+Lines have been wrapped for improved readability, and the back slash
+(C<\>) is used to indicate a wrapped line.
+
+Assume the following IPsets:
+
+ A.set = { 1, 2, 4, 6 }
+ B.set = { 1, 3, 5, 7 }
+ C.set = { 1, 3, 6, 8 }
+ D.set = { } (empty set)
+
+Then the following commands will produce the following result IPsets:
+
+ +---------------------------------+----------------------------+
+ | OPTIONS                         | RESULT                     |
+ +---------------------------------+----------------------------+
+ | --union A.set B.set             | { 1, 2, 3, 4, 5, 6, 7 }    |
+ | --union A.set C.set             | { 1, 2, 3, 4, 6, 8 }       |
+ | --union A.set B.set C.set       | { 1, 2, 3, 4, 5, 6, 7, 8 } |
+ | --union C.set D.set             | { 1, 3, 6, 8 }             |
+ | --intersect A.set B.set         | { 1 }                      |
+ | --intersect A.set C.set         | { 1, 6 }                   |
+ | --intersect A.set B.set C.set   | { 1 }                      |
+ | --intersect A.set D.set         | { }                        |
+ | --difference A.set B.set        | { 2, 4, 6 }                |
+ | --difference B.set A.set        | { 3, 5, 7 }                |
+ | --difference A.set B.set C.set  | { 2, 4 }                   |
+ | --difference C.set B.set A.set  | { 8 }                      |
+ | --difference C.set D.set        | { 1, 3, 6, 8 }             |
+ | --difference D.set C.set        | { }                        |
+ +---------------------------------+----------------------------+
+
+Sampling yields variable results, but here some example runs:
+
+ +---------------------------------+----------------------------+
+ | COMMAND                         | RESULT                     |
+ +---------------------------------+----------------------------+
+ | --sample -size 2 A.set          | { 1, 4 }                   |
+ | --sample -size 2 A.set          | { 1, 6 }                   |
+ | --sample -size 3 A.set          | { 2, 4, 6 }                |
+ | --sample -size 2 A.set B.set    | { 1, 2, 5, 7 }             |
+ | --sample -size 2 A.set B.set    | { 3, 4, 5, 6 }             |
+ | --sample -size 2 A.set B.set    | { 1, 4, 5 }                |
+ | --sample -ratio 0.5 A.set       | { 2, 6 }                   |
+ | --sample -ratio 0.5 A.set       | { 4 }                      |
+ | --sample -ratio 0.5 A.set B.set | { 1 }                      |
+ | --sample -ratio 0.5 A.set B.set | { 2, 3, 5, 6, 7 }          |
+ +---------------------------------+----------------------------+
+
+These examples demonstrate some important points about sampling from IPsets:
+
+=over 4
+
+=item *
+
+When using B<--size>, an exact number of items is selected from each
+input set.
+
+=item *
+
+When using B<--size> with multiple input sets, the number of records
+in the output set may not be (num_input_sets*size) in all cases.
+
+=item *
+
+When using B<--ratio>, the number of items sampled is not stable
+between runs.
+
+=back
+
+Given an IPset containing the three IPs
+
+ 10.1.1.1
+ 10.1.1.2
+ 10.1.3.1
+
+specifying B<--mask=24> will produce an IPset containing two IPs:
+
+ 10.1.1.0
+ 10.1.3.0
+
+while specifying B<--fill-blocks=24> will produce an IPset containing
+512 IPs:
+
+ 10.1.1.0/24
+ 10.1.3.0/24
+
+Suppose the IPset file F<mixed.set> contains IPv4 and IPv6 addresses.
+To create an IPset file that contains only the IPv4 addresses,
+intersect F<mixed.set> with an IPset that contains ::ffff:0:0/96.
+
+ $ echo '::ffff:0:0/96' | rwsetbuild - all-v4.set
+
+ $ rwsettool --intersect mixed.set all-v4.set > subset-v4.set
+
+To create an IPset file that contains only the IPv6 addresses,
+subtract an IPset that contains ::ffff:0:0 from F<mixed.set>:
+
+ $ rwsettool --difference mixed.set all-v4.set > subset-v6.set
+
+=head1 ENVIRONMENT
+
+=over 4
+
+=item SILK_IPSET_RECORD_VERSION
+
+This environment variable is used as the value for the
+B<--record-version> when that switch is not provided.
+
+=item SILK_CLOBBER
+
+The SiLK tools normally refuse to overwrite existing files.  Setting
+SILK_CLOBBER to a non-empty value removes this restriction.
+
+=back
+
+=head1 SEE ALSO
+
+B<rwset(1)>, B<rwsetbuild(1)>, B<rwsetcat(1)>, B<rwfileinfo(1)>,
+B<silk(7)>, B<zlib(3)>
+
+=head1 NOTES
+
+The B<--record-version> switch was added in S<SiLK 3.0>.  Prior to
+S<SiLK 3.6>, the only supported arguments for the switch were 2 and 3,
+with the default being 3.  As of S<SiLK 3.6>, the default is 0.
+Version 4 was added in S<SiLK 3.7>.
+
+=cut
+
+$SiLK: rwsettool.pod c6826b896c9b 2014-09-10 15:39:02Z mthomas $
+
+Local Variables:
+mode:text
+indent-tabs-mode:nil
+End:

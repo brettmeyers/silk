@@ -1,0 +1,584 @@
+=pod
+
+=head1 NAME
+
+B<rwcombine> - Combine flows denoting a long-lived session into a single flow
+
+=head1 SYNOPSIS
+
+  rwcombine [--actions=ACTIONS] [--ignore-fields=FIELDS]
+        [--max-idle-time=NUM]
+        [{--print-statistics | --print-statistics=FILENAME}]
+        [--temp-directory=DIR_PATH] [--buffer-size=SIZE]
+        [--note-add=TEXT] [--note-file-add=FILE]
+        [--compression-method=COMP_METHOD] [--print-filenames]
+        [--output-path=PATH] [--site-config-file=FILENAME]
+        {[--xargs] | [--xargs=FILENAME] | [FILE [FILE ...]]}
+
+  rwcombine --help
+
+  rwcombine --help-fields
+
+  rwcombine --version
+
+=head1 DESCRIPTION
+
+B<rwcombine> reads SiLK Flow records from one or more input sources,
+searches for flow records where the I<attributes> field denotes
+records that were prematurely created or were continuations of
+prematurely created flows, and attempts to combine those records into
+a single record.  All the unmodified SiLK records and the combined
+records are written to the file specified by the B<--output-path>
+switch or to the standard output when the B<--output-path> switch is
+not provided and the standard output is not connected to a terminal.
+
+Some flow exporters, such as B<yaf(1)>, provide fields that describe
+characteristics about the flow record, and these characteristics are
+stored in the I<attributes> field of SiLK Flow records.  The two flags
+that B<rwcombine> considers are:
+
+=over 4
+
+=item C<T>
+
+The flow generator prematurely created a record for a long-lived
+session due to the connection's lifetime reaching the I<active
+timeout> of the flow generator.  (Also, when B<yaf> is run with the
+B<--silk> switch, it prematurely creates a flow and marks it with
+C<T> if the byte count of the flow cannot be stored in a 32-bit
+value.)
+
+=item C<C>
+
+The flow generator created this flow as a continuation of long-running
+connection, where the previous flow for this connection met a timeout.
+(B<yaf> only sets this flag when it is invoked with the B<--silk>
+switch.)
+
+=back
+
+A very long-running session may be represented by multiple flow
+records, where the first record is marked with the C<T> flag, the
+final record is marked with the C<C> flag, and intermediate records
+are marked with both C<C> (this record continues an earlier flow) and
+C<T> (this record also met the active time-out).  B<rwcombine>
+attempts to combine these multiple flow records into a single record.
+
+The input to B<rwcombine> does not need to be sorted.  As part of its
+processing, B<rwcombine> may re-order the records before writing them.
+
+B<rwcombine> reads SiLK Flow records from the files named on the
+command line or from the standard input when no file names are
+specified and B<--xargs> is not present.  To read the standard input
+in addition to the named files, use C<-> or C<stdin> as a file name.
+If an input file name ends in C<.gz>, the file will be uncompressed as
+it is read.  When the B<--xargs> switch is provided, B<rwcombine> will
+read the names of the files to process from the named text file, or
+from the standard input if no file name argument is provided to the
+switch.  The input to B<--xargs> must contain one file name per line.
+
+=head2 Algorithm
+
+The algorithm B<rwcombine> uses to combine records is
+
+=over 4
+
+=item 1
+
+B<rwcombine> reads SiLK flow records, examines the I<attributes> field
+on each record, and immediately writes to the destination stream all
+records where both the time-out flag (C<T>) and the continuation flag
+(C<C>) are not set.  Records where one or both of those flags are set
+are stored until all input records have been read.
+
+=item 2
+
+B<rwcombine> groups the stored records into bins where the following
+fields for each record in each bin are identical: I<sIP>, I<dIP>,
+I<sPort>, I<dPort>, I<protocol>, I<sensor>, I<in>, I<out>, I<nhIP>,
+I<application>, I<class>, and I<type>.
+
+=item 3
+
+For each bin, the records are stored by time (I<sTime> and
+I<elapsed>).
+
+=item 4
+
+Within a bin, B<rwcombine> combines two records into a single record
+when the I<attributes> field of the first record has the C<T>
+(time-out) flag set and the second record has the C<C> (continuation)
+flag set.  When combining records, the I<bytes> field and I<packets>
+fields are summed, the I<initialFlags> from the first record is used,
+the I<sessionFlags> field becomes the bit-wise OR of both
+I<sessionFlags> fields and the second record's I<initialFlags> field,
+and the I<eTime> is set to that of the second flow.
+
+=item 5
+
+If the second record's C<T> flag was set, B<rwcombine> checks to see if
+the third record's C<C> flag is set.  If it is, the third record
+becomes part of the new record.
+
+=item 6
+
+The previous step repeats for the records in the bin until the bin
+contains a single record, the most recently added record did not have
+the C<T> flag set, or the next record in the bin does not have the
+C<C> flag set.
+
+=item 7
+
+After examining a bin, B<rwcombine> writes the record(s) the bin
+contains to the destination stream.
+
+=item 8
+
+Steps 3 through 7 are repeated for each bin.
+
+=back
+
+The B<--ignore-fields> switch allows the user to remove fields from
+the set that B<rwcombine> uses when grouping records in Step 2.
+
+When combining two records into one (Step 4), B<rwcombine> completely
+disregards the difference between the first record's end-time and the
+second record's start-time (the I<idle time>).  To tell B<rwcombine>
+not to combine those records when the difference is greater than a
+limit, specify that value as the argument to the B<--max-idle-time>
+switch.
+
+To see information on the number of flows combined and the minimum and
+maximum idle times, specify the B<--print-statistics> switch.
+
+During its processing, B<rwcombine> will try to allocate a large (near
+2GB) in-memory array to hold the records.  (You may use the
+B<--buffer-size> switch to change this maximum buffer size.)  If more
+records are read than will fit into memory, the in-core records are
+temporarily stored on disk as described by the B<--temp-directory>
+switch.  When all records have been read, the on-disk files are merged
+to produce the output.
+
+By default, the temporary files are stored in the F</tmp> directory.
+Because the sizes of the temporary files may be large, it is strongly
+recommended that F</tmp> I<not> be used as the temporary directory,
+and B<rwcombine> will print a warning when F</tmp> is used.  To modify
+the temporary directory used by B<rwcombine>, provide the
+B<--temp-directory> switch, set the SILK_TMPDIR environment variable,
+or set the TMPDIR environment variable.
+
+=head1 OPTIONS
+
+Option names may be abbreviated if the abbreviation is unique or is an
+exact match for an option.  A parameter to an option may be specified
+as B<--arg>=I<param> or B<--arg> I<param>, though the first form is
+required for options that take optional parameters.
+
+=over 4
+
+=item B<--actions>=I<ACTIONS>
+
+Select the type of action(s) that B<rwcombine> should take to combine
+the input records.  The default action is C<all>, and the following
+actions are supported:
+
+=over 4
+
+=item all
+
+Perform all the actions described below.
+
+=item timeout
+
+Combine into a single flow record those records where the timeout
+flags in the I<attributes> field indicate that the flow exporter has
+divided a long-lived session into multiple flow records.
+
+=back
+
+This switch is provided for future expansion of B<rwcombine>, since at
+present B<rwcombine> supports a single action.  When writing a script
+that uses B<rwcombine>, specify B<--action=timeout> for compatibility
+with future versions of B<rwcombine>.
+
+=item B<--ignore-fields>=I<FIELDS>
+
+Ignore the fields listed in I<FIELDS> when determining if two flow
+records should be grouped into the same bin; that is, treat I<FIELDS>
+as being identical across all flows.  By default, B<rwcombine> puts
+records into a bin when the records have identical values for the
+following fields: sIP, dIP, sPort, dPort, protocol, sensor, in, out,
+nhIP, application, class, and type.
+
+I<FIELDS> is a comma separated list of field-names, field-integers,
+and ranges of field-integers; a range is specified by separating the
+start and end of the range with a hyphen (B<->).  Field-names are
+case-insensitive.  Example:
+
+ --ignore-fields=sensor,12-15
+
+The list of supported fields are:
+
+=over 4
+
+=item sIP,1
+
+source IP address
+
+=item dIP,2
+
+destination IP address
+
+=item sPort,3
+
+source port for TCP and UDP, or equivalent
+
+=item dPort,4
+
+destination port for TCP and UDP, or equivalent
+
+=item protocol,5
+
+IP protocol
+
+=item sensor,12
+
+name or ID of sensor at the collection point
+
+=item in,13
+
+router SNMP input interface or vlanId if packing tools were
+configured to capture it (see B<sensor.conf(5)>)
+
+=item out,14
+
+router SNMP output interface or postVlanId
+
+=item nhIP,15
+
+router next hop IP
+
+=item class,20,type,21
+
+class and type of sensor at the collection point (represented
+internally by a single value)
+
+=item application,29
+
+guess as to the content of the flow.  Some software that generates flow
+records from packet data, such as B<yaf(1)>, will inspect the contents
+of the packets that make up a flow and use traffic signatures to label
+the content of the flow.  SiLK calls this label the I<application>;
+B<yaf> refers to it as the I<appLabel>.  The application is the port
+number that is traditionally used for that type of traffic (see the
+F</etc/services> file on most UNIX systems).  For example, traffic
+that the flow generator recognizes as FTP will have a value of 21,
+even if that traffic is being routed through the standard HTTP/web
+S<port (80)>.
+
+=back
+
+=for comment
+##########################################################################
+# Whew!  We've finally reached the end of the --fields help
+
+=item B<--max-idle-time>=I<NUM>
+
+Do not combine flow records when the start time of the second flow
+record begins I<NUM> seconds after the end time of the first flow
+record.  I<NUM> may be fractional.  If not specified, the maximum idle
+time may be considered infinite.
+
+=item B<--print-statistics>
+
+=item B<--print-statistics>=I<FILENAME>
+
+Print to the standard error or to the specified I<FILENAME> the number
+of flows records read and written, the number of flows that did not
+require combining, the number of flows combined, the number that could
+not be combined, and minimum and maximum idle time between combined
+flow records.
+
+=item B<--temp-directory>=I<DIR_PATH>
+
+Specify the name of the directory in which to store data files
+temporarily when more records have been read that will fit into RAM.
+This switch overrides the directory specified in the SILK_TMPDIR
+environment variable, which overrides the directory specified in the
+TMPDIR variable, which overrides the default, F</tmp>.
+
+=item B<--buffer-size>=I<SIZE>
+
+Set the maximum size of the buffer to use for holding the records, in
+bytes.  A larger buffer means fewer temporary files need to be
+created, reducing the I/O wait times.  The default maximum for this
+buffer is near 2GB.  The I<SIZE> may be given as an ordinary integer,
+or as a real number followed by a suffix C<K>, C<M> or C<G>, which
+represents the numerical value multiplied by 1,024 (kilo), 1,048,576
+(mega), and 1,073,741,824 (giga), respectively.  For example, 1.5K
+represents 1,536 bytes, or one and one-half kilobytes.  (This value
+does B<not> represent the absolute maximum amount of RAM that
+B<rwcombine> will allocate, since additional buffers will be allocated
+for reading the input and writing the output.)
+
+=item B<--output-path>=I<PATH>
+
+Write the SiLK Flow records to the specified file or named pipe.  When
+the standard output is not a terminal and this switch is not provided
+or its argument is C<-> or C<stdout>, the records are written to the
+standard output.
+
+=item B<--note-add>=I<TEXT>
+
+Add the specified I<TEXT> to the header of the output file as an
+annotation.  This switch may be repeated to add multiple annotations
+to a file.  To view the annotations, use the B<rwfileinfo(1)> tool.
+
+=item B<--note-file-add>=I<FILENAME>
+
+Open I<FILENAME> and add the contents of that file to the header of
+the output file as an annotation.    This switch may be repeated to
+add multiple annotations.  Currently the application makes no effort
+to ensure that I<FILENAME> contains text; be careful that you do not
+attempt to add a SiLK data file as an annotation.
+
+=item B<--compression-method>=I<COMP_METHOD>
+
+Specify how to compress the output.  When this switch is not given,
+output to the standard output or to named pipes is not compressed, and
+output to files is compressed using the default chosen when SiLK was
+compiled.  The valid values for I<COMP_METHOD> are determined by which
+external libraries were found when SiLK was compiled.  To see the
+available compression methods and the default method, use the
+B<--help> or B<--version> switch.  SiLK can support the following
+I<COMP_METHOD> values when the required libraries are available.
+
+=over 4
+
+=item none
+
+Do not compress the output using an external library.
+
+=item zlib
+
+Use the B<zlib(3)> library for compressing the output, and always
+compress the output regardless of the destination.  Using zlib
+produces the smallest output files at the cost of speed.
+
+=item lzo1x
+
+Use the I<lzo1x> algorithm from the LZO real time compression library
+for compression, and always compress the output regardless of the
+destination.  This compression provides good compression with less
+memory and CPU overhead.
+
+=item best
+
+Use lzo1x if available, otherwise use zlib.  Only compress the output
+when writing to a file.
+
+=back
+
+=item B<--print-filenames>
+
+Print to the standard error the names of input files as they are
+opened.
+
+=item B<--site-config-file>=I<FILENAME>
+
+Read the SiLK site configuration from the named file I<FILENAME>.
+When this switch is not provided, B<rwcombine> searches for the site
+configuration file in the locations specified in the L</FILES>
+section.
+
+=item B<--xargs>
+
+=item B<--xargs>=I<FILENAME>
+
+Causes B<rwcombine> to read file names from I<FILENAME> or from the
+standard input if I<FILENAME> is not provided.  The input should have
+one file name per line.  B<rwcombine> will open each file in turn and
+read records from it, as if the files had been listed on the command
+line.
+
+=item B<--help>
+
+Print the available options and exit.
+
+=item B<--help-fields>
+
+Print the description and alias(es) of each field and exit.
+
+=item B<--version>
+
+Print the version number and information about how SiLK was
+configured, then exit the application.
+
+=back
+
+=head1 EXAMPLES
+
+In the following examples, the dollar sign (C<$>) represents the shell
+prompt.  The text after the dollar sign represents the command line.
+Lines have been wrapped for improved readability, and the back slash
+(C<\>) is used to indicate a wrapped line.
+
+The output from B<rwcut(1)> shows the flow exporter split this
+long-lived B<ssh> session into multiple flow records:
+
+ $ rwfilter --saddr=192.168.126.252 --dport=22 --pass=- data.rw \
+   | rwcut --fields=flags,attributes,stime,etime 
+    flags|attribut|                  sTime|                  eTime|
+  S PA   |T       |2009/02/13T00:29:59.563|2009/02/13T00:59:39.668|
+    PA   |TC      |2009/02/13T00:59:39.668|2009/02/13T01:29:19.478|
+    PA   |TC      |2009/02/13T01:29:19.478|2009/02/13T01:58:48.890|
+    PA   |TC      |2009/02/13T01:58:48.891|2009/02/13T02:28:43.599|
+ F  PA   | C      |2009/02/13T02:28:43.600|2009/02/13T02:32:58.272|
+
+Here is the other half of that conversation:
+
+ $ rwfilter --daddr=192.168.126.252 --sport=22 --pass=- data.rw \
+   | rwcut --fields=flags,attributes,stime,etime
+    flags|attribut|                  sTime|                  eTime|
+  S PA   |T       |2009/02/13T00:30:00.060|2009/02/13T00:59:39.667|
+    PA   |TC      |2009/02/13T00:59:39.670|2009/02/13T01:29:19.478|
+    PA   |TC      |2009/02/13T01:29:19.481|2009/02/13T01:58:48.890|
+    PA   |TC      |2009/02/13T01:58:48.893|2009/02/13T02:28:43.599|
+ F  PA   | C      |2009/02/13T02:28:43.600|2009/02/13T02:32:58.271|
+
+Use B<rwuniq(1)> to compute the byte and packet counts for that B<ssh>
+session:
+
+ $ rwfilter --any-addr=192.168.126.252 --aport=22 --pass=- data.rw \
+   | rwuniq --fields=sip,dip,sport,dport --values=records,byte,packets
+             sIP|            dIP|sPort|dPort|Records|  Bytes|Packets|
+   10.11.156.107|192.168.126.252|   22|28975|      5|4677240|   3881|
+ 192.168.126.252|  10.11.156.107|28975|   22|      5| 281939|   3891|
+
+Invoke B<rwcombine> on these records and store the result in the file
+F<combined.rw>:
+
+ $ rwfilter --any-addr=192.168.126.252 --aport=22 --pass=- data.rw \
+   | rwcombine --print-statistics --output-path=combined.rw
+ FLOW RECORD COUNTS:
+ Read:                                    10
+ Initially Complete:           -           0 *
+ Sorted & Examined:            =          10
+ Missing end:                  -           0 *
+ Missing start & end:          -           0 *
+ Missing start:                -           0 *
+ Prior to combining:           =          10
+ Eliminated:                   -           8
+ Made complete:                =           2 *
+ Written:                                  2 (sum of *)
+
+ IDLE TIMES:
+ Minimum:        0:00:00:00.000
+ Penultimate:    0:00:00:00.000
+ Maximum:        0:00:00:00.003
+
+View the resulting records:
+
+ $ rwcut --fields=sip,dip,sport,dport,bytes,packets,flags combined.rw
+             sIP|            dIP|sPort|dPort|  bytes|packets|   flags|
+   10.11.156.107|192.168.126.252|   22|28975|4677240|   3881|FS PA   |
+ 192.168.126.252|  10.11.156.107|28975|   22| 281939|   3891|FS PA   |
+
+ $ rwcut --fields=sip,attributes,stime,etime combined.rw
+             sIP|attribut|                  sTime|                  eTime|
+   10.11.156.107|        |2009/02/13T00:30:00.060|2009/02/13T02:32:58.271|
+ 192.168.126.252|        |2009/02/13T00:29:59.563|2009/02/13T02:32:58.272|
+
+=head1 ENVIRONMENT
+
+=over 4
+
+=item SILK_TMPDIR
+
+When set and B<--temp-directory> is not specified, B<rwcombine> writes
+the temporary files it creates to this directory.  SILK_TMPDIR
+overrides the value of TMPDIR.
+
+=item TMPDIR
+
+When set and SILK_TMPDIR is not set, B<rwcombine> writes the temporary
+files it creates to this directory.
+
+=item SILK_CLOBBER
+
+The SiLK tools normally refuse to overwrite existing files.  Setting
+SILK_CLOBBER to a non-empty value removes this restriction.
+
+=item SILK_CONFIG_FILE
+
+This environment variable is used as the value for the
+B<--site-config-file> when that switch is not provided.
+
+=item SILK_DATA_ROOTDIR
+
+This environment variable specifies the root directory of data
+repository.  As described in the L</FILES> section, B<rwcombine> may
+use this environment variable when searching for the SiLK site
+configuration file.
+
+=item SILK_PATH
+
+This environment variable gives the root of the install tree.  When
+searching for configuration files, B<rwcombine> may use this
+environment variable.  See the L</FILES> section for details.
+
+=item SILK_TEMPFILE_DEBUG
+
+When set to 1, B<rwcombine> prints debugging messages to the standard
+error as it creates, re-opens, and removes temporary files.
+
+=back
+
+=head1 FILES
+
+=over 4
+
+=item F<${SILK_CONFIG_FILE}>
+
+=item F<${SILK_DATA_ROOTDIR}/silk.conf>
+
+=item F<@SILK_DATA_ROOTDIR@/silk.conf>
+
+=item F<${SILK_PATH}/share/silk/silk.conf>
+
+=item F<${SILK_PATH}/share/silk.conf>
+
+=item F<@prefix@/share/silk/silk.conf>
+
+=item F<@prefix@/share/silk.conf>
+
+Possible locations for the SiLK site configuration file which are
+checked when the B<--site-config-file> switch is not provided.
+
+=item F<${SILK_TMPDIR}/>
+
+=item F<${TMPDIR}/>
+
+=item F</tmp/>
+
+Directory in which to create temporary files.
+
+=back
+
+=head1 SEE ALSO
+
+B<rwfilter(1)>, B<rwcut(1)>, B<rwuniq(1)>, B<rwfileinfo(1)>,
+B<sensor.conf(5)>, B<silk(7)>, B<yaf(1)>, B<zlib(3)>
+
+=head1 NOTES
+
+The first release of B<rwcombine> occurred in SiLK 3.9.0.
+
+=cut
+
+$SiLK: rwcombine.pod d85feea768f3 2014-09-24 22:02:33Z mthomas $
+
+Local Variables:
+mode:text
+indent-tabs-mode:nil
+End:

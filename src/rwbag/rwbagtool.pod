@@ -1,0 +1,507 @@
+=pod
+
+=head1 NAME
+
+B<rwbagtool> - Perform high-level operations on binary Bag files
+
+=head1 SYNOPSIS
+
+  rwbagtool { --add | --subtract | --minimize | --maximize
+              | --divide | --scalar-multiply=VALUE
+              | --compare={lt | le | eq | ge | gt} }
+        [--intersect=SETFILE | --complement-intersect=SETFILE]
+        [--mincounter=VALUE] [--maxcounter=VALUE]
+        [--minkey=VALUE] [--maxkey=VALUE]
+        [--invert] [--coverset] [--output-path=OUTPUTFILE]
+        [--note-strip] [--note-add=TEXT] [--note-file-add=FILE]
+        [--compression-method=COMP_METHOD]
+        [BAGFILE[ BAGFILE...]]
+
+  rwbagtool --help
+
+  rwbagtool --version
+
+=head1 DESCRIPTION
+
+B<rwbagtool> performs various operations on Bags.  It can add Bags
+together, subtract a subset of data from a Bag, perform key
+intersection of a Bag with an IP set, extract the key list of a Bag as
+an IP set, or filter Bag records based on their counter value.
+
+I<BAGFILE> is a the name of a file or a named pipe, or the names
+C<stdin> or C<-> to have B<rwbagtool> read from the standard input.
+If no Bag file names are given on the command line, B<rwbagtool>
+attempts to read a Bag from the standard input.  If I<BAGFILE> does
+not contain a Bag, B<rwbagtool> prints an error to stderr and exits
+abnormally.
+
+=head1 OPTIONS
+
+Option names may be abbreviated if the abbreviation is unique or is an
+exact match for an option.  A parameter to an option may be specified
+as B<--arg>=I<param> or S<B<--arg> I<param>>, though the first form is
+required for options that take optional parameters.
+
+=head2 Operation switches
+
+The first set of options are mutually exclusive; only one may be
+specified.  If none are specified, the counters in the Bag files are
+summed.
+
+=over 4
+
+=item B<--add>
+
+Sum the counters for each key for all Bag files given on the command
+line.  If a key does not exist, it has a counter of zero.  If no other
+operation is specified, the add operation is the default.
+
+=item B<--subtract>
+
+Subtract from the first Bag file all subsequent Bag files.  If a key
+does not appear in the first Bag file, B<rwbagtool> assumes it has a
+value of 0.  If any counter subtraction results in a negative number,
+the key will not appear in the resulting Bag file.
+
+=item B<--minimize>
+
+Cause the output to contain the minimum counter seen for each key.
+Keys that do not appear in all input Bags will not appear in the
+output.
+
+=item B<--maximize>
+
+Cause the output to contain the maximum counter seen for each key.
+The output will contain each key that appears in any input Bag.
+
+=item B<--divide>
+
+Divide the first Bag file by the second Bag file.  It is an error if
+more than two Bag files are specified.  Every key in the first Bag
+file must appear in the second file; the second Bag may have keys that
+do not appear in the first, and those keys will not appear in the
+output.  Since Bags do not support floating point numbers, the result
+of the division is rounded to the nearest integer (values ending in
+C<.5> are rounded up).  If the result of the division is less than
+0.5, the key will not appear in the output.
+
+=item B<--scalar-multiply>=I<VALUE>
+
+Multiply each counter in the Bag file by the scalar I<VALUE>, where
+I<VALUE> is an integer in the range 1 to 18446744073709551615.  This
+switch accepts a single Bag as input.
+
+=item B<--compare>=I<OPERATION>
+
+Compare the key/counter pairs in exactly two Bag files.  It is an
+error if more than two Bag files are specified.  The keys in the
+output Bag will only be those whose counter in the first Bag is
+I<OPERATION> the counter in the second Bag.  The counters for all keys
+in the output will be 1.  Any key that does not appear in both input
+Bag files will not appear in the result.  The possible I<OPERATION>
+values are the strings:
+
+=over 4
+
+=item C<lt>
+
+GetCounter(Bag1, key) E<lt> GetCounter(Bag2, key)
+
+=item C<le>
+
+GetCounter(Bag1, key) E<lt>= GetCounter(Bag2, key)
+
+=item C<eq>
+
+GetCounter(Bag1, key) == GetCounter(Bag2, key)
+
+=item C<ge>
+
+GetCounter(Bag1, key) E<gt>= GetCounter(Bag2, key)
+
+=item C<gt>
+
+GetCounter(Bag1, key) E<gt> GetCounter(Bag2, key)
+
+=back
+
+=back
+
+=head2 Masking/Limiting switches
+
+The result of the above operation is an intermediate Bag file.  The
+following switches are applied next to remove entries from the
+intermediate Bag:
+
+=over 4
+
+=item B<--intersect>=I<SETFILE>
+
+Mask the keys in the intermediate Bag using the set in I<SETFILE>.
+I<SETFILE> is the name of a file or a named pipe containing an IPset,
+or the name C<stdin> or C<-> to have B<rwbagtool> read the IPset from
+the standard input.  If I<SETFILE> does not contain an IPset,
+B<rwbagtool> prints an error to stderr and exits abnormally.  Only
+key/counter pairs where the key matches an entry in I<SETFILE> are
+written to the output.  (IPsets are typically created by B<rwset(1)>
+or B<rwsetbuild(1)>.)
+
+=item B<--complement-intersect>=I<SETFILE>
+
+As B<--intersect>, but only writes key/counter pairs for keys which do
+B<not> match an entry in I<SETFILE>.
+
+=item B<--mincounter>=I<VALUE>
+
+Cause the output to contain only those records whose counter value is
+I<VALUE> or higher.  The allowable range is 1 to the maximum counter
+value; the default is 1.
+
+=item B<--maxcounter>=I<VALUE>
+
+Cause the output to contain only those records whose counter value is
+I<VALUE> or lower.  The allowable range is 1 to the maximum counter
+value; the default is the maximum counter value.
+
+=item B<--minkey>=I<VALUE>
+
+Cause the output to contain only those records whose key value is
+I<VALUE> or higher.  Default is 0 (or 0.0.0.0).  Accepts input as an
+integer or as an IP address in dotted decimal notation.
+
+=item B<--maxkey>=I<VALUE>
+
+Cause the output to contain only those records whose key value is
+I<VALUE> or higher.  Default is 4294967295 (or 255.255.255.255).
+Accepts input as an integer or as an IP address in dotted decimal
+notation.
+
+=back
+
+=head2 Output switches
+
+The following switches control the output.
+
+=over 4
+
+=item B<--invert>
+
+Generate a new Bag whose keys are the counters in the intermediate Bag
+and whose counter is the number of times the counter was seen.  For
+example, this turns the Bag {sip:flow} into the Bag {flow:count(sip)}.
+Any counter in the intermediate Bag that is larger than the maximum
+possible key will be attributed to the maximum key; to prevent this,
+specify C<--maxcounter=4294967295>.
+
+=item B<--coverset>
+
+Instead of creating a Bag file as the output, write an IPset which
+contains the keys contained in the intermediate Bag.
+
+=item B<--output-path>=I<OUTPUTFILE>
+
+Redirect output to I<OUTPUTFILE>.  I<OUTPUTFILE> is the name of a file
+or a named pipe, or the name C<stdout> or C<-> to write the result to
+the standard output.
+
+=item B<--note-strip>
+
+Do not copy the notes (annotations) from the input files to the output
+file.  Normally notes from the input files are copied to the output.
+
+=item B<--note-add>=I<TEXT>
+
+Add the specified I<TEXT> to the header of the output file as an
+annotation.  This switch may be repeated to add multiple annotations
+to a file.  To view the annotations, use the B<rwfileinfo(1)> tool.
+
+=item B<--note-file-add>=I<FILENAME>
+
+Open I<FILENAME> and add the contents of that file to the header of
+the output file as an annotation.    This switch may be repeated to
+add multiple annotations.  Currently the application makes no effort
+to ensure that I<FILENAME> contains text; be careful that you do not
+attempt to add a SiLK data file as an annotation.
+
+=item B<--compression-method>=I<COMP_METHOD>
+
+Specify how to compress the output.  When this switch is not given,
+output to the standard output or to named pipes is not compressed, and
+output to files is compressed using the default chosen when SiLK was
+compiled.  The valid values for I<COMP_METHOD> are determined by which
+external libraries were found when SiLK was compiled.  To see the
+available compression methods and the default method, use the
+B<--help> or B<--version> switch.  SiLK can support the following
+I<COMP_METHOD> values when the required libraries are available.
+
+=over 4
+
+=item none
+
+Do not compress the output using an external library.
+
+=item zlib
+
+Use the B<zlib(3)> library for compressing the output, and always
+compress the output regardless of the destination.  Using zlib
+produces the smallest output files at the cost of speed.
+
+=item lzo1x
+
+Use the I<lzo1x> algorithm from the LZO real time compression library
+for compression, and always compress the output regardless of the
+destination.  This compression provides good compression with less
+memory and CPU overhead.
+
+=item best
+
+Use lzo1x if available, otherwise use zlib.  Only compress the output
+when writing to a file.
+
+=back
+
+=item B<--help>
+
+Print the available options and exit.
+
+=item B<--version>
+
+Print the version number and information about how SiLK was
+configured, then exit the application.
+
+=back
+
+=head1 EXAMPLES
+
+In the following examples, the dollar sign (C<$>) represents the shell
+prompt.  The text after the dollar sign represents the command line.
+Lines have been wrapped for improved readability, and the back slash
+(C<\>) is used to indicate a wrapped line.
+
+The examples assume the following contents for the files:
+
+ Bag1.bag    Bag2.bag    Bag3.bag    Bag4.bag    Mask.set
+  3|  10|     1|   1|     2|   8|     1|   1|          2
+  4|   7|     4|   2|     4|  10|     4|   3|          4
+  6|  14|     7|  32|     6|  14|     6|   4|          6
+  7|  23|     8|   2|     7|  12|     7|   4|          8
+  8|   2|                 9|   8|     8|   6|
+
+=head2 Adding Bag files
+
+ $ rwbagtool --add Bag1.bag Bag2.bag > Bag-sum.bag
+ $ rwbagcat --integer-keys Bag-sum.bag
+  1|   1|
+  3|  10|
+  4|   9|
+  6|  14|
+  7|  55|
+  8|   4|
+
+ $ rwbagtool --add Bag1.bag Bag2.bag Bag3.bag > Bag-sum2.bag
+ $ rwbagcat --integer-keys Bag-sum2.bag
+  1|   1|
+  2|   8|
+  3|  10|
+  4|  19|
+  6|  28|
+  7|  67|
+  8|   4|
+  9|   8|
+
+=head2 Subtracting Bag Files
+
+ $ rwbagtool --sub Bag1.bag Bag2.bag > Bag-diff.bag
+ $ rwbagcat --integer-keys Bag-diff.bag
+  3|  10|
+  4|   5|
+  6|  14|
+
+ $ rwbagtool --sub Bag2.bag Bag1.bag > Bag-diff2.bag
+ $ rwbagcat --integer-keys Bag-diff2.bag
+  1|   1|
+  7|   9|
+
+=head2 Getting the Minimum Value
+
+ $ rwbagtool --minimize Bag1.bag Bag2.bag Bag3.bag > Bag-min.bag
+ $ rwbagcat --integer-keys Bag-min.bag
+  4|   2|
+  7|  12|
+
+=head2 Getting the Maximum Value
+
+ $ rwbagtool --maximize Bag1.bag Bag2.bag Bag3.bag > Bag-max.bag
+ $ rwbagcat --integer-keys Bag-max.bag
+  1|   1|
+  2|   8|
+  3|  10|
+  4|  10|
+  6|  14|
+  7|  32|
+  8|   2|
+  9|   8|
+
+=head2 Dividing Bag Files
+
+ $ rwbagtool --divide Bag2.bag Bag4.bag > Bag-div1.bag
+ $ rwbagcat --integer-keys Bag-div1.bag
+   1|   1|
+   4|   1|
+   7|   8|
+
+However, when the order is reversed:
+
+ $ rwbagtool --divide Bag4.bag Bag2.bag > Bag-div2.bag
+ rwbagtool: Error dividing bags; key 6 not in divisor bag
+
+To work around this issue, use the B<--coverset> switch to create a
+copy of F<Bag4.bag> that contains only the keys in F<Bag2.bag>
+
+ $ rwbagtool --coverset Bag2.bag > Bag2-keys.set
+ $ rwbagtool --intersect=Bag2-keys.set  Bag4.bag  > Bag4-small.bag
+ $ rwbagtool --divide Bag4-small.bag Bag2.bag > Bag-div2.bag
+ $ rwbagcat --integer-keys Bag-div2.bag
+   1|   1|
+   4|   2|
+   8|   3|
+
+Or, in a single piped command without writing the IPset to disk:
+
+ $ rwbagtool --coverset Bag2.bag                \
+   | rwbagtool --intersect=-  Bag4.bag          \
+   | rwbagtool --divide -  Bag2.bag             \
+   | rwbagcat --integer-keys
+   1|   1|
+   4|   2|
+   8|   3|
+
+=head2 Scalar Multiplication
+
+ $ rwbagtool --scalar-multiply=7 Bag1.bag > Bag-multiply.bag
+ $ rwbagcat --integer-keys Bag-multiply.bag
+  3|  70|
+  4|  49|
+  6|  98|
+  7| 161|
+  8|  14|
+
+=head2 Comparing Bag Files
+
+ $ rwbagtool --compare=lt Bag1.bag Bag2.bag > Bag-lt.bag
+ $ rwbagcat --integer-keys Bag-lt.bag
+  7|   1|
+
+ $ rwbagtool --compare=le Bag1.bag Bag2.bag > Bag-le.bag
+ $ rwbagcat --integer-keys Bag-le.bag
+  7|   1|
+  8|   1|
+
+ $ rwbagtool --compare=eq Bag1.bag Bag2.bag > Bag-eq.bag
+ $ rwbagcat --integer-keys Bag-eq.bag
+  8|   1|
+
+ $ rwbagtool --compare=ge Bag1.bag Bag2.bag > Bag-ge.bag
+ $ rwbagcat --integer-keys Bag-ge.bag
+  4|   1|
+  8|   1|
+
+ $ rwbagtool --compare=gt Bag1.bag Bag2.bag > Bag-gt.bag
+ $ rwbagcat --integer-keys Bag-gt.bag
+  4|   1|
+
+=head2 Making a Cover Set
+
+ $ rwbagtool --coverset Bag1.bag Bag2.bag Bag3.bag > Cover.set
+ $ rwsetcat --integer-keys Cover.set
+  1
+  2
+  3
+  4
+  6
+  7
+  8
+  9
+
+=head2 Inverting a Bag
+
+ $ rwbagtool --invert Bag1.bag > Bag-inv1.bag
+ $ rwbagcat --integer-keys Bag-inv1.bag
+  2|   1|
+  7|   1|
+ 10|   1|
+ 14|   1|
+ 23|   1|
+
+ $ rwbagtool --invert Bag2.bag > Bag-inv2.bag
+ $ rwbagcat --integer-keys Bag-inv2.bag
+  1|   1|
+  2|   2|
+ 32|   1|
+
+ $ rwbagtool --invert Bag3.bag > Bag-inv3.bag
+ $ rwbagcat --integer-keys Bag-inv3.bag
+  8|   2|
+ 10|   1|
+ 12|   1|
+ 14|   1|
+
+=head2 Masking Bag Files
+
+ $ rwbagtool --intersect=Mask.set Bag1.bag > Bag-mask.bag
+ $ rwbagcat --integer-keys Bag-mask.bag
+  4|   7|
+  6|  14|
+  8|   2|
+
+ $ rwbagtool --complement-intersect=Mask.set Bag1.bag > Bag-mask2.bag
+ $ rwbagcat --integer-keys Bag-mask2.bag
+  3|  10|
+  7|  23|
+
+=head2 Restricting the Output
+
+ $ rwbagtool --add --maxkey=5 Bag1.bag Bag2.bag > Bag-res1.bag
+ $ rwbagcat --integer-keys Bag-res1.bag
+  1|   1|
+  3|  10|
+  4|   9|
+
+ $ rwbagtool --minkey=3 --maxkey=6 Bag1.bag > Bag-res2.bag
+ $ rwbagcat --integer-keys Bag-res2.bag
+  3|  10|
+  4|   9|
+  6|  14|
+
+ $ rwbagtool --mincounter=20 Bag1.bag Bag2.bag > Bag-res3.bag
+ $ rwbagcat --integer-keys Bag-res3.bag
+  7|  55|
+
+ $ rwbagtool --sub --maxcounter=9 Bag1.bag Bag2.bag > Bag-res4.bag
+ $ rwbagcat --integer-keys Bag-res4.bag
+  4|   5|
+
+=head1 ENVIRONMENT
+
+=over 4
+
+=item SILK_CLOBBER
+
+The SiLK tools normally refuse to overwrite existing files.  Setting
+SILK_CLOBBER to a non-empty value removes this restriction.
+
+=back
+
+=head1 SEE ALSO
+
+B<rwbag(1)>, B<rwbagbuild(1)>, B<rwbagcat(1)>, B<rwfileinfo(1)>,
+B<rwset(1)>, B<rwsetbuild(1)>, B<rwsetcat(1)>, B<silk(7)>, B<zlib(3)>
+
+=cut
+
+$SiLK: rwbagtool.pod cd09f0a5fcc6 2014-06-14 15:43:33Z mthomas $
+
+Local Variables:
+mode:text
+indent-tabs-mode:nil
+End:
