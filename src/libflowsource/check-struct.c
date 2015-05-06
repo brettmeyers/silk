@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2008-2014 by Carnegie Mellon University.
+** Copyright (C) 2008-2015 by Carnegie Mellon University.
 **
 ** @OPENSOURCE_HEADER_START@
 **
@@ -58,7 +58,7 @@
 #define LIBFLOWSOURCE_SOURCE 1
 #include <silk/silk.h>
 
-RCSIDENT("$SiLK: check-struct.c 1c87fe1a22f7 2014-01-06 15:24:30Z mthomas $");
+RCSIDENT("$SiLK: check-struct.c b7b8edebba12 2015-01-05 18:05:21Z mthomas $");
 
 #include <silk/skipfix.h>
 #include <silk/utils.h>

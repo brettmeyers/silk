@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2003-2014 by Carnegie Mellon University.
+** Copyright (C) 2003-2015 by Carnegie Mellon University.
 **
 ** @OPENSOURCE_HEADER_START@
 **
@@ -52,7 +52,7 @@
 
 #include <silk/silk.h>
 
-RCSIDENT("$SiLK: flowcap.c 37fd860c358b 2014-09-23 13:19:15Z mthomas $");
+RCSIDENT("$SiLK: flowcap.c b7b8edebba12 2015-01-05 18:05:21Z mthomas $");
 
 #include <silk/libflowsource.h>
 #include <silk/rwrec.h>

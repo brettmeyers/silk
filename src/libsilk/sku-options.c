@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2001-2014 by Carnegie Mellon University.
+** Copyright (C) 2001-2015 by Carnegie Mellon University.
 **
 ** @OPENSOURCE_HEADER_START@
 **
@@ -92,7 +92,7 @@
 
 #include <silk/silk.h>
 
-RCSIDENT("$SiLK: sku-options.c cd598eff62b9 2014-09-21 19:31:29Z mthomas $");
+RCSIDENT("$SiLK: sku-options.c b7b8edebba12 2015-01-05 18:05:21Z mthomas $");
 
 #include <silk/utils.h>
 #include <silk/sksite.h>
@@ -215,7 +215,7 @@ printVersion(
     void)
 {
 #define COPYRIGHT_LICENSE                                       \
-    ("Copyright (C) 2001-2014 by Carnegie Mellon University\n"  \
+    ("Copyright (C) 2001-2015 by Carnegie Mellon University\n"  \
      "GNU General Public License (GPL) Rights"                  \
      " pursuant to Version 2, June 1991.\n"                     \
      "Some included library code covered by LGPL 2.1;"          \
@@ -300,9 +300,13 @@ printVersion(
 #endif
 
     fprintf(VERS_FH, "    * %-32s  %s\n",
-            "IPFIX/NetFlow9 collection:",
+            "IPFIX/NetFlow9/sFlow collection:",
 #if   SK_ENABLE_IPFIX
+#if   SK_ENABLE_IPFIX_SFLOW
+            "ipfix,netflow9,sflow"
+#else
             "ipfix,netflow9"
+#endif
 #else
             "no"
 #endif

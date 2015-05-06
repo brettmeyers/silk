@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2006-2014 by Carnegie Mellon University.
+** Copyright (C) 2006-2015 by Carnegie Mellon University.
 **
 ** @OPENSOURCE_HEADER_START@
 **
@@ -64,7 +64,7 @@
 #define SKSITE_SOURCE 1
 #include <silk/silk.h>
 
-RCSIDENT("$SiLK: sksite.c cd598eff62b9 2014-09-21 19:31:29Z mthomas $");
+RCSIDENT("$SiLK: sksite.c b7b8edebba12 2015-01-05 18:05:21Z mthomas $");
 
 #include <silk/sksite.h>
 #include <silk/skstream.h>
@@ -481,7 +481,7 @@ siteFindConfigPath(
     size_t              bufsize)
 {
     const char *silk_config_file_env;
-    int len;
+    ssize_t len;
 
     /* use environment variable if set; do not check for existence */
     silk_config_file_env = getenv(SILK_CONFIG_FILE_ENVAR);
@@ -517,7 +517,9 @@ siteFindConfigPath(
     /* it is not anywhere; return SILK_DATA_ROOTDIR/silk.conf */
     len = snprintf(buffer, bufsize, "%s/%s",
                    data_rootdir, SILK_CONFIG_FILE_NAME);
-    assert((size_t)len < bufsize);
+    if ((size_t)len > bufsize) {
+        return NULL;
+    }
     return buffer;
 }
 

@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2001-2014 by Carnegie Mellon University.
+** Copyright (C) 2001-2015 by Carnegie Mellon University.
 **
 ** @OPENSOURCE_HEADER_START@
 **
@@ -402,8 +402,10 @@ extern "C" {
 /* Wrap UNUSED() around unused parameters to silence gcc -W */
 #ifndef __GNUC__
 #define UNUSED(var) /*@unused@*/ var
+#define NORETURN
 #else
 #define UNUSED(var) /*@unused@*/ var __attribute__((__unused__))
+#define NORETURN  __attribute__((__noreturn__))
 #endif
 
 /*  Allow gcc to check parameters to printf-style functions and
@@ -510,7 +512,7 @@ extern "C" {
 #define RCSIDENT(id) RCSIDENTVAR(_rcsID, (id))
 
 
-RCSIDENTVAR(rcsID_SILK_H, "$SiLK: silk.h cd598eff62b9 2014-09-21 19:31:29Z mthomas $");
+RCSIDENTVAR(rcsID_SILK_H, "$SiLK: silk.h b7b8edebba12 2015-01-05 18:05:21Z mthomas $");
 
 
 /* Name of environment variable pointing to the root of install */

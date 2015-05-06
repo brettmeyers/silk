@@ -1,7 +1,7 @@
 #! /usr/bin/perl -w
 #
 #
-# RCSIDENT("$SiLK: flowcap-ipfix-any-v4.pl 40a363507ed0 2014-04-01 14:09:52Z mthomas $")
+# RCSIDENT("$SiLK: flowcap-ipfix-any-v4.pl 2b1355d69f79 2015-02-13 23:12:41Z mthomas $")
 
 use strict;
 use SiLKTests;
@@ -37,7 +37,7 @@ my $sensor_conf_text = <<EOF;
 probe P0 ipfix
     protocol tcp
     listen-on-port $port
-    accept-from-host $host
+    accept-from-host 127.127.127.127 $host
 end probe
 EOF
 make_config_file($sensor_conf, \$sensor_conf_text);

@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2006-2014 by Carnegie Mellon University.
+** Copyright (C) 2006-2015 by Carnegie Mellon University.
 **
 ** @OPENSOURCE_HEADER_START@
 **
@@ -70,7 +70,7 @@
 
 #include <silk/silk.h>
 
-RCSIDENT("$SiLK: rwsplit.c cd598eff62b9 2014-09-21 19:31:29Z mthomas $");
+RCSIDENT("$SiLK: rwsplit.c b7b8edebba12 2015-01-05 18:05:21Z mthomas $");
 
 #include <silk/rwrec.h>
 #include <silk/skipset.h>
@@ -163,7 +163,7 @@ typedef enum {
 } appOptionsEnum;
 
 /* value to subtract from appOptionsEnum to get a aggmode_t */
-static int opt2agg_offset = OPT_IP_LIMIT;
+static unsigned int opt2agg_offset = OPT_IP_LIMIT;
 
 static struct option appOptions[] = {
     {"ip-limit",     REQUIRED_ARG, 0, OPT_IP_LIMIT},
@@ -228,7 +228,7 @@ appUsageLong(
      "\teach contain a subset of the records.\n")
 
     FILE *fh = USAGE_FH;
-    int i;
+    unsigned int i;
 
     fprintf(fh, "%s %s", skAppName(), USAGE_MSG);
     fprintf(fh, "\nSPLITTING CRITERION:\n");

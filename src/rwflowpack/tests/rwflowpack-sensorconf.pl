@@ -5,6 +5,21 @@
 use strict;
 use SiLKTests;
 
+my $NAME = $0;
+$NAME =~ s,.*/,,;
+
+my %file;
+$file{v4set1} = get_data_or_exit77('v4set1');
+$file{v4set2} = get_data_or_exit77('v4set2');
+
+if ($SiLKTests::SK_ENABLE_IPV6) {
+    $file{v6set1} = get_data_or_exit77('v6set1');
+    $file{v6set2} = get_data_or_exit77('v6set2');
+}
+else {
+    $file{v6set1} = $file{v4set1};
+    $file{v6set2} = $file{v4set2};
+}
 
 my $rwflowpack = check_silk_app('rwflowpack');
 
@@ -17,12 +32,26 @@ check_exit_status("$rwflowpack --sensor-conf=$srcdir/tests/sensor77.conf"
                   ." --verify-sensor-conf")
     or skip_test("Cannot load packing logic");
 
+# MD5 of /dev/null (no output)
+my $md5_no_output = "d41d8cd98f00b204e9800998ecf8427e";
+
 # create our tempdir
 my $tmpdir = make_tempdir();
 
+# move IPset files into tempdir
+for my $f (keys %file) {
+    my $basename = $file{$f};
+    $basename =~ s,.*/,,;
+    my $dest = "$tmpdir/$basename";
+    unless (-f $dest) {
+        check_md5_output($md5_no_output, "cp $file{$f} $dest");
+    }
+    $file{$f} = $dest;
+}
+
 
 # list of probe types
-my @probe_types = qw(netflow-v5 ipfix silk netflow-v9);
+my @probe_types = qw(netflow-v5 ipfix silk netflow-v9 sflow);
 
 # valid ways to get data into SiLK, though not every probe type
 # supports each of these sources
@@ -35,7 +64,7 @@ my @sources_valid = (
     ["protocol udp", "listen-on-port 9902",
      "accept-from-host 127.0.0.1"],
     ["protocol udp", "listen-on-port 9903",
-     "listen-as-host 127.0.0.1", "accept-from-host 127.0.0.1"],
+     "listen-as-host 127.0.0.1", "accept-from-host 127.0.0.1 127.0.0.2"],
 
     ["protocol tcp", "listen-on-port 9900"],
     ["protocol tcp", "listen-on-port 9901",
@@ -64,6 +93,8 @@ my @sources_bad = (
     # cannot have port as part of host
     ["protocol udp", "listen-as-host 127.0.0.1:9900"],
     ["protocol udp", "listen-on-port 9900"],
+    # cannot have list as argument to listen-as-host
+#    ["protocol udp", "listen-on-port 9900", "listen-as-host 10.0.0.1 10.0.0.2"],
     # invalid accept-from-host
     ["protocol udp", "listen-on-port 9900", "accept-from-host 127.0.0.1:8888"],
     ["protocol udp", "listen-on-port 9900", "accept-from-host 8888"],
@@ -162,6 +193,17 @@ my @probe_interface_values = (
     ["interface-values junk"],
     );
 
+# valid and invalid quirks
+my @quirks_flags = (
+    ["quirks none"],
+    ["quirks firewall-event"],
+    ["quirks missing-ips"],
+    ["quirks zero-packets"],
+    ["quirks missing-ips zero-packets"],
+    ["quirks none, zero-packets"],
+    ["quirks all"],
+    ["quirks junk"],
+    );
 
 # The following are used to create groups and sensors
 my @sensor_networks = qw(internal external null);
@@ -180,6 +222,16 @@ my @ipblocks_v6 = (
      '2001:db8:172:16::22:22/127',
      '2001:db8:172:16::22:22 2001:db8:172:16::22:23',
      'remainder');
+
+my @ipsets_v4 = (
+    $file{v4set1},
+    $file{v4set2},
+    'remainder');
+
+my @ipsets_v6 = (
+    $file{v6set1},
+    $file{v6set2},
+    'remainder');
 
 
 ###########################################################################
@@ -228,7 +280,7 @@ for my $pt (@probe_types) {
     }
     elsif ($pt eq 'ipfix') {
         $md5_sums{$sensor_conf} = (($SiLKTests::SK_ENABLE_IPFIX)
-                                   ? "d41d8cd98f00b204e9800998ecf8427e"
+                                   ? $md5_no_output
                                    : "93891f9c46feceacb7cba963862a98e4");
     }
     elsif ($pt eq 'netflow-v9') {
@@ -236,8 +288,13 @@ for my $pt (@probe_types) {
                                    ? "6491c4f7bcbe5e28920b4afa636285d2"
                                    : "99e0e5ff7eb0035f53f9a95b5d833b2b");
     }
+    elsif ($pt eq 'sflow') {
+        $md5_sums{$sensor_conf} = (($SiLKTests::SK_ENABLE_IPFIX_SFLOW)
+                                   ? "fb56bd4d7f417e6854afde7087fa653a"
+                                   : "4fc5994d24440cf8a6ad5d08a68237d3");
+    }
     else {
-        die "Unexpected probe_type '$pt'\n";
+        die "$NAME: Unexpected probe_type '$pt'";
     }
 
     for my $lines (@sources_valid) {
@@ -261,7 +318,7 @@ EOF
 # using a netflow probe, create a sensor.conf file that uses each
 # invalid source
 $sensor_conf = open_sensorconf("badsource", *SENSOR);
-$md5_sums{$sensor_conf} = "c2dae935312e0580eaae30ffa7feae86";
+$md5_sums{$sensor_conf} = "3a5ec7e73127ccd14998f5b36020c83e";
 for my $lines (@sources_bad) {
     my $name = sprintf("PROBE-%04d", ++$probe);
 
@@ -281,8 +338,8 @@ close_sensorconf($sensor_conf, *SENSOR);
 # additional invalid sources; these tests require IPFIX
 $sensor_conf = open_sensorconf("badsource-ipfix", *SENSOR);
 $md5_sums{$sensor_conf} = (($SiLKTests::SK_ENABLE_IPFIX)
-                           ? "74822606cb208a39f4beddde9c106f4a"
-                           : "372bfd6e302ffbbcf4b36a1aec1fdb8d");
+                           ? "e287169ca89490e576ed079ff5054847"
+                           : "ce081eba13c51f7cffde0c168504c2ef");
 for my $lines (@sources_bad_ipfix) {
     my $name = sprintf("PROBE-%04d", ++$probe);
 
@@ -308,18 +365,18 @@ for my $key (sort keys %probe_host) {
 
     $sensor_conf = open_sensorconf("netflow-host-$key", *SENSOR);
     if ($key eq 'ipv4') {
-        $md5_sums{$sensor_conf} = "d41d8cd98f00b204e9800998ecf8427e";
+        $md5_sums{$sensor_conf} = $md5_no_output;
     }
     elsif ($key eq 'ipv6') {
         $md5_sums{$sensor_conf} = (($SiLKTests::SK_ENABLE_INET6_NETWORKING)
-                                   ? "d41d8cd98f00b204e9800998ecf8427e"
-                                   : "620b7bfdac50f3024b994d3b73ccab6b");
+                                   ? $md5_no_output
+                                   : "53b9dbfe28c70657e881b6d789baede5");
     }
     elsif ($key eq 'name') {
-        $md5_sums{$sensor_conf} = "d41d8cd98f00b204e9800998ecf8427e";
+        $md5_sums{$sensor_conf} = $md5_no_output;
     }
     else {
-        die "Invalid value in \%probe_host: '$key'\n";
+        die "$NAME: Unexpected value in \%probe_host: '$key'";
     }
 
     # modify port for each probe
@@ -348,9 +405,11 @@ EOF
 
 # add various statements to valid NetFlow v5 probes
 $sensor_conf = open_sensorconf("netflow-extras", *SENSOR);
-$md5_sums{$sensor_conf} = "7e86ea57da5920862d6ad0d03d7960af";
+$md5_sums{$sensor_conf} = "5f93cf6c0fab82c72ef69c21685b9afd";
 $port = 9900;
-for my $lines (@probe_priorities, @probe_log_flags, @probe_interface_values) {
+for my $lines (@probe_priorities, @probe_log_flags,
+               @probe_interface_values, @quirks_flags)
+{
     my $name = sprintf("PROBE-%04d", ++$probe);
     ++$port;
 
@@ -373,8 +432,8 @@ close_sensorconf($sensor_conf, *SENSOR);
 # add the interface-value statements to an IPFIX probe
 $sensor_conf = open_sensorconf("ipfix-iface-values", *SENSOR);
 $md5_sums{$sensor_conf} = (($SiLKTests::SK_ENABLE_IPFIX)
-                           ? "35cfe3c4edeb78a31cc1c55a456e841a"
-                           : "e5bfc968e97ab68ef24d717eacb9a2cb");
+                           ? "37875a828df890726def606fea8ec26a"
+                           : "ae917614177fe5dfb1a1e09ff9c41ef1");
 $port = 9900;
 for my $lines (@probe_interface_values) {
     my $name = sprintf("PROBE-%04d", ++$probe);
@@ -399,50 +458,50 @@ close_sensorconf($sensor_conf, *SENSOR);
 # create a file to hold the main group definitions, and remember this
 # file's name
 $sensor_conf = open_sensorconf("groups-main", *SENSOR);
-$md5_sums{$sensor_conf} = "d41d8cd98f00b204e9800998ecf8427e";
+$md5_sums{$sensor_conf} = $md5_no_output;
 my $group_file = $sensor_conf;
 
-for my $i (@interfaces) {
-    next if $i eq 'remainder';
-
-    my $name = sprintf("GROUP-%04d", ++$group);
-    if ($i eq $interfaces[0]) {
-        # this allows this group name to be used in the future
-        push @interfaces, '@'.$name;
+for my $list_type (qw(interfaces ipblocks ipsets)) {
+    my $list;
+    if ($list_type eq 'interfaces') {
+        $list = \@interfaces;
+    }
+    elsif ($list_type eq 'ipblocks') {
+        $list = \@ipblocks_v4;
+    }
+    elsif ($list_type eq 'ipsets') {
+        $list = \@ipsets_v4;
+    }
+    else {
+        die "$NAME: Unexpected \$list_type '$list_type'";
     }
 
-    print SENSOR <<EOF;
+    for my $i (@$list) {
+        next if $i eq 'remainder';
+
+        my $name = sprintf("GROUP-%04d", ++$group);
+        if ($i eq $list->[0]) {
+            # this allows this group name to be used in the future
+            push @$list, '@'.$name;
+        }
+
+        print SENSOR <<EOF;
 group $name
-    interfaces $i
+    $list_type $i
 end group
 EOF
-}
-for my $i (@ipblocks_v4) {
-    next if $i eq 'remainder';
-
-    my $name = sprintf("GROUP-%04d", ++$group);
-    if ($i eq $ipblocks_v4[0]) {
-        # this allows this group name to be used in the future
-        push @ipblocks_v4, '@'.$name;
     }
-
-    print SENSOR <<EOF;
-group $name
-    ipblocks $i
-end group
-EOF
 }
 close_sensorconf($sensor_conf, *SENSOR);
-
 
 
 # use the @GROUP-* names we added to make some valid and invalid group
 # names
 $sensor_conf = open_sensorconf("sensors-groups-invalid", *SENSOR);
-$md5_sums{$sensor_conf} = "29543acba9a57d4296daf9eb9ffff8e4";
+$md5_sums{$sensor_conf} = "2865fd875708602dc39aef3ab595244c";
 print SENSOR "include \"$group_file\"\n";
-for my $g ($interfaces[-1], $ipblocks_v4[-1], '@NOT_EXIST') {
-    for my $i ('interfaces 0', 'ipblocks 64.0.0.0/8') {
+for my $g ($interfaces[-1], $ipblocks_v4[-1], $ipsets_v4[-1], '@NOT_EXIST') {
+    for my $i ('interfaces 0', 'ipblocks 64.0.0.0/8', "ipsets $file{v4set1}") {
 
         my $name = sprintf("GROUP-%04d", ++$group);
 
@@ -461,22 +520,33 @@ close_sensorconf($sensor_conf, *SENSOR);
 # create a another file to hold only the groups of IPv6 addresses
 $sensor_conf = open_sensorconf("groups-ipv6", *SENSOR);
 $md5_sums{$sensor_conf} = (($SiLKTests::SK_ENABLE_IPV6)
-                           ? "d41d8cd98f00b204e9800998ecf8427e"
-                           : "f357c0f8c17481abb31a02df37f44ab8");
-for my $i (@ipblocks_v6) {
-    next if $i eq 'remainder';
+                           ? $md5_no_output
+                           : "947ce664fa0299c3dcafb6fc304d92f0");
+for my $list_type (qw(ipblocks ipsets)) {
+    my $list;
+    if ($list_type eq 'ipblocks') {
+        $list = \@ipblocks_v6;
+    }
+    elsif ($list_type eq 'ipsets') {
+        $list = \@ipsets_v6;
+    }
+    else {
+        die "$NAME: Unexpected \$list_type '$list_type'";
+    }
 
-    my $name = sprintf("GROUP-%04d", ++$group);
-    #if ($i eq $ipblocks_v6[0]) {
-    #    # this allows this group name to be used in the future
-    #    push @ipblocks_v6, '@'.$name;
-    #}
+    for my $i (@$list) {
+        next if $i eq 'remainder';
 
-    print SENSOR <<EOF;
+        my $name = sprintf("GROUP-%04d", ++$group);
+        # we never reference these IPv6 groups, so no need to cache
+        # the name
+
+        print SENSOR <<EOF;
 group $name
-    ipblocks $i
+    $list_type $i
 end group
 EOF
+    }
 }
 close_sensorconf($sensor_conf, *SENSOR);
 
@@ -488,7 +558,7 @@ for my $pt (@probe_types) {
     $sensor_conf = open_sensorconf("sensors-network-$pt", *SENSOR);
 
     # currently supported by all probe types
-    $md5_sums{$sensor_conf} = "d41d8cd98f00b204e9800998ecf8427e";
+    $md5_sums{$sensor_conf} = $md5_no_output;
 
     for my $src (@sensor_networks) {
         for my $dst (@sensor_networks) {
@@ -510,11 +580,11 @@ EOF
 
 
 
-# create sensors that use ipblocks or interfaces.  some of these are
-# valid and some are not
+# create sensors that use ipblocks, ipsets, or interfaces.  some of
+# these are valid and some are not
 srand(627389505);
 $sensor_conf = open_sensorconf("sensors-ip-interface", *SENSOR);
-$md5_sums{$sensor_conf} = "1af225f3858de7b7345346cf3f540c07";
+$md5_sums{$sensor_conf} = "2f51f895857623bb3fa487f4d3d36fa6";
 print SENSOR "include \"$group_file\"\n";
 for my $nw (@sensor_networks) {
     # this block only uses the networks $src_nw and $dst_nw, and they
@@ -529,15 +599,22 @@ for my $nw (@sensor_networks) {
         @null_interface = ("", "\n    null-interface 0");
     }
 
-    for my $if_type (qw(interfaces ipblocks)) {
+    for my $if_type (qw(interfaces ipblocks ipsets)) {
         my ($src_if_list, $dst_if_list);
         if ($if_type eq 'interfaces') {
             $src_if_list = \@interfaces;
             $dst_if_list = \@interfaces;
         }
-        else {
+        elsif ($if_type eq 'ipblocks') {
             $src_if_list = \@ipblocks_v4;
             $dst_if_list = \@ipblocks_v4;
+        }
+        elsif ($if_type eq 'ipsets') {
+            $src_if_list = \@ipsets_v4;
+            $dst_if_list = \@ipsets_v4;
+        }
+        else {
+            die "$NAME: Unexpected \$if_type '$if_type'";
         }
 
         for my $src_if (@$src_if_list) {
@@ -552,9 +629,12 @@ for my $nw (@sensor_networks) {
                                         'any-ipblocks '.$ipblocks_v4[-1],
                                         'source-interfaces 10',
                                         'destination-interfaces 11',
-                                        'any-interfaces '.$interfaces[-1])
+                                        'any-interfaces '.$interfaces[-1],
+                                        'source-ipsets '.$file{v4set1},
+                                        'destination-ipsets '.$file{v4set1},
+                                        'any-ipsets '.$ipsets_v4[-1],)
                     {
-                        my $chance = rand 10;
+                        my $chance = rand 20;
                         if ($chance < 2) {
                             $discard .= "\n    discard-when $dis_phrase";
                         }
@@ -587,8 +667,8 @@ close_sensorconf($sensor_conf, *SENSOR);
 # Much less is checked here.
 $sensor_conf = open_sensorconf("sensors-ipv6", *SENSOR);
 $md5_sums{$sensor_conf} = (($SiLKTests::SK_ENABLE_IPV6)
-                           ? "c8d5278c4125f16980f42c61ffbdd655"
-                           : "bae9032c3e7f146424e536c2e064ccb0");
+                           ? "62ad94cce7b4f5741d84880d0b2f0248"
+                           : "dce8971fe918cc0e28924234d00e3344");
 print SENSOR "include \"$group_file\"\n";
 
 for my $nw (@sensor_networks) {
@@ -604,23 +684,35 @@ for my $nw (@sensor_networks) {
         @null_interface = ("", "\n    null-interface 0");
     }
 
-    my $src_if_list = \@ipblocks_v6;
-    my $dst_if_list = \@ipblocks_v6;
+    for my $if_type (qw(ipblocks ipsets)) {
+        my ($src_if_list, $dst_if_list);
+        if ($if_type eq 'ipblocks') {
+            $src_if_list = \@ipblocks_v6;
+            $dst_if_list = \@ipblocks_v6;
+        }
+        elsif ($if_type eq 'ipsets') {
+            $src_if_list = \@ipsets_v6;
+            $dst_if_list = \@ipsets_v6;
+        }
+        else {
+            die "$NAME: Unexpected \$if_type '$if_type'";
+        }
 
-    for my $src_if (@$src_if_list) {
-        for my $dst_if (@$dst_if_list) {
-            for my $null_stmt (@null_interface) {
+        for my $src_if (@$src_if_list) {
+            for my $dst_if (@$dst_if_list) {
+                for my $null_stmt (@null_interface) {
 
-                my $name = sprintf("SENSOR-%04d", ++$sensor);
-                push @sensor_list, $name;
+                    my $name = sprintf("SENSOR-%04d", ++$sensor);
+                    push @sensor_list, $name;
 
-                print SENSOR <<EOF;
+                    print SENSOR <<EOF;
 sensor $name
     $probe_types[0]-probes PROBE-$probe_types[0]
-    $src_nw-ipblocks $src_if
-    $dst_nw-ipblocks $dst_if$null_stmt
+    $src_nw-$if_type $src_if
+    $dst_nw-$if_type $dst_if$null_stmt
 end sensor
 EOF
+                }
             }
         }
     }
@@ -631,7 +723,7 @@ close_sensorconf($sensor_conf, *SENSOR);
 
 # check handling of duplicate source/destination
 $sensor_conf = open_sensorconf("sensors-duplicate", *SENSOR);
-$md5_sums{$sensor_conf} = "dbea7b5e58fe68c937586703a76d24ef";
+$md5_sums{$sensor_conf} = "e0d426e5c404e99b2d43df044363ec8d";
 for my $sd (qw/source destination/) {
     my $name = sprintf("SENSOR-%04d", ++$sensor);
     push @sensor_list, $name;
@@ -667,7 +759,7 @@ close_sensorconf($sensor_conf, *SENSOR);
 # created.
 my $silk_conf = "$tmpdir/silk.conf";
 open SILK, ">$silk_conf"
-    or die "ERROR: Cannot open $silk_conf: $!\n";
+    or die "$NAME: Cannot open $silk_conf: $!\n";
 push @sensor_list, @valid_sensors;
 
 for (my $i = 0, my $j = 1; $i < @sensor_list; ++$i, ++$j) {
@@ -703,7 +795,7 @@ packing-logic "packlogic-twoway.so"
 EOF
 
 close SILK
-    or die "ERROR: Cannot close $silk_conf: $!\n";
+    or die "$NAME: Cannot close $silk_conf: $!\n";
 
 # run rwflowpack on each sensor.conf file
 for $sensor_conf (@sensor_files) {
@@ -719,11 +811,11 @@ for $sensor_conf (@sensor_files) {
 # or different OSes.
 for $sensor_conf (@sensor_files) {
     open RAWOUT, "$sensor_conf.RAWOUT"
-        or die "Cannot open '$sensor_conf.RAWOUT': $!\n";
+        or die "$NAME: Cannot open '$sensor_conf.RAWOUT': $!\n";
     open OUT, ">$sensor_conf.OUT"
-        or die "Cannot open '$sensor_conf.OUT': $!\n";
+        or die "$NAME: Cannot open '$sensor_conf.OUT': $!\n";
     while (<RAWOUT>) {
-        # replace test-specify sensor config file name with "sensor.conf"
+        # replace test-specific sensor config file name with "sensor.conf"
         s/\Q$sensor_conf\E/sensor.conf/g;
 
         # remove any error message from gai_error() since it may
@@ -735,18 +827,41 @@ for $sensor_conf (@sensor_files) {
     }
     close RAWOUT;
     close OUT
-        or die "Cannot close '$sensor_conf.OUT': $!\n";
+        or die "$NAME: Cannot close '$sensor_conf.OUT': $!\n";
 }
 
 if ($ENV{SK_TESTS_SAVEOUTPUT}) {
-    # when savinng the output, write a file that combines each probe,
+    # when saving the output, write a file that combines each probe,
     # sensor, or group block with the errors it generated (if any)
     combine_sensor_and_error();
 }
 
-# compare MD5 of each clean-up output with the expected value
+# compute MD5 of each file and compare to expected value; if there is
+# no match, put name into @mismatch.
+my @mismatch;
 for $sensor_conf (@sensor_files) {
-    check_md5_file($md5_sums{$sensor_conf}, "$sensor_conf.OUT");
+    my $md5;
+    compute_md5(\$md5, "cat $sensor_conf.OUT", 0);
+    if ($md5_sums{$sensor_conf} ne $md5) {
+        my $tail_name = "$sensor_conf.OUT";
+        $tail_name =~ s,.*/,,;
+        push @mismatch, $tail_name;
+    }
+}
+
+# print names of first few files that don't match
+if (@mismatch) {
+    if (@mismatch == 1) {
+        die "$NAME: Found 1 checksum miss: @mismatch\n";
+    }
+    elsif (@mismatch <= 5) {
+        die("$NAME: Found ", scalar(@mismatch), " checksum misses: ",
+            join(", ", @mismatch), "\n");
+    }
+    else {
+        die("$NAME: Found ", scalar(@mismatch), " checksum misses: ",
+            join(", ", @mismatch[0..4], "..."), "\n");
+    }
 }
 
 exit 0;
@@ -771,7 +886,7 @@ sub open_sensorconf
     push @sensor_files, $conf;
 
     open $glob, ">$conf"
-        or die "ERROR: Cannot open '$conf': $!\n";
+        or die "$NAME: Cannot open '$conf': $!\n";
 
     print $glob <<EOF;
 # open_sensorconf("$description") called from line $src_line
@@ -801,7 +916,7 @@ end sensor
 EOF
 
     close $glob
-        or die "Cannot close '$file': $!\n";
+        or die "$NAME: Cannot close '$file': $!\n";
 }
 
 
@@ -843,6 +958,7 @@ sub combine_sensor_and_error
     my $combined = "$tmpdir/COMBINED.txt";
     open COMBINED, ">$combined"
         or return;
+    print COMBINED "TMPDIR=$tmpdir\n";
 
     # create a copy of the sensor file list
     our @input_files = (@sensor_files);
@@ -907,7 +1023,8 @@ sub combine_get_block
             }
             $sen_file = shift @input_files;
             open $sen_fh, $sen_file
-                or die "Cannot open '$sen_file': $!\n";
+                or die "$NAME: Cannot open '$sen_file': $!\n";
+            $sen_file =~ s|^\Q$tmpdir\E|\$TMPDIR|;
             $sen_lc = 1;
             $block->{preamble} = ("#" x 70)."\n#include \"$sen_file\"\n";
         }
@@ -922,7 +1039,7 @@ sub combine_get_block
                 ++$sen_lc;
                 next;
             }
-            die "Bad line $sen_file:$sen_lc: '$sen_line'\n"
+            die "$NAME: Bad line $sen_file:$sen_lc: '$sen_line'\n"
                 unless $sen_line =~ /^(probe|group|sensor) (\S+)/;
             $block->{name} = $2;
             $block->{line} = "#line $sen_lc \"$sen_file\"";
@@ -968,7 +1085,7 @@ sub combine_get_error
             }
             my $f = shift @error_files;
             open $err_fh, $f
-                or die "Cannot open '$f': $!\n";
+                or die "$NAME: Cannot open '$f': $!\n";
         }
 
         while (defined(my $e = <$err_fh>)) {

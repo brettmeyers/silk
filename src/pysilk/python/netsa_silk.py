@@ -1,4 +1,4 @@
-# Copyright 2008-2014 by Carnegie Mellon University
+# Copyright 2008-2015 by Carnegie Mellon University
 
 # @OPENSOURCE_HEADER_START@
 # Use of the netsa_silk support library and related source code is

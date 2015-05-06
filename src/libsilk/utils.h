@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2001-2014 by Carnegie Mellon University.
+** Copyright (C) 2001-2015 by Carnegie Mellon University.
 **
 ** @OPENSOURCE_HEADER_START@
 **
@@ -65,7 +65,7 @@ extern "C" {
 
 #include <silk/silk.h>
 
-RCSIDENTVAR(rcsID_UTILS_H, "$SiLK: utils.h cd598eff62b9 2014-09-21 19:31:29Z mthomas $");
+RCSIDENTVAR(rcsID_UTILS_H, "$SiLK: utils.h 68603dc525b7 2015-02-17 15:50:48Z mthomas $");
 
 #include <silk/silk_types.h>
 
@@ -821,7 +821,8 @@ skAppDirParentDir(
  */
 void
 skAppUsage(
-    void);
+    void)
+    NORETURN;
 
 /**
  *    Print, to the 'fh' file handle, the current application's name,
@@ -1359,7 +1360,7 @@ skOptionsTempDirUsage(
  *    in skipaddr_flags_t.
  *
  *    The variable at 'var_location' is only modified if the user
- *    specifies the --temp-directory switch,
+ *    specifies the --ip-format switch.
  */
 int
 skOptionsIPFormatRegister(
@@ -1506,7 +1507,8 @@ skOptionsCtxCreate(
 /**
  *    Destroy the options context object.  If the copy-input stream
  *    has not been closed yet, this function closes it.  Returns the
- *    status of closing the copy-input stream, or 0.
+ *    status of closing the copy-input stream, or 0.  Does nothing and
+ *    returns 0 if 'arg_ctx' or the location it points to is NULL.
  */
 int
 skOptionsCtxDestroy(
@@ -1914,38 +1916,60 @@ skDirname_r(
 
 
 /**
- *    Returns 1 if name exists and is a FIFO; returns 0 otherwise.
+ *    Return 1 if 'path_name' exists and is a FIFO.
+ *
+ *    Return 0 and set errno if calling stat() on 'path_name' fails.
+ *
+ *    Return 0 when stat() succeeds but 'path_name' is not a FIFO.
+ *
+ *    See also skFileExists().
  */
 int
 isFIFO(
-    const char         *name);
+    const char         *path_name);
 
 
 /**
- *    Returns 1 if dName exists and is a directory; returns 0
- *    otherwise.
+ *    Return 1 if 'path_name' exists and is a directory.
+ *
+ *    Return 0 and set errno if calling stat() on 'path_name' fails.
+ *
+ *    Return 0 when stat() succeeds but 'path_name' is not a
+ *    directory.
  */
 int
 skDirExists(
-    const char         *dName);
+    const char         *path_name);
 
 
 /**
- *    Returns 1 if fName exists and is a regular file; returns 0
- *    otherwise.
+ *    Return 1 if 'path_name' exists and is either a regular file or a
+ *    FIFO.
+ *
+ *    Return 0 and set errno if calling stat() on 'path_name' fails.
+ *
+ *    Return 0 when stat() succeeds but 'path_name' is neither a
+ *    regular file nor a FIFO.
+ *
+ *    See also skDirExists() and isFIFO().
  */
 int
 skFileExists(
-    const char         *fName);
+    const char         *path_name);
 
 
 /**
- *    Returns the size of the file fName.  Returns 0 if file is empty
- *    or if it does not exist; use skFileExists() to check for existence
+ *    Return the size of 'path_name' if it exists.
+ *
+ *    Return 0 if 'path_name' exists and is an empty file.
+ *
+ *    Return 0 and set errno if calling stat() on 'path_name' fails.
+ *
+ *    See also skFileExists().
  */
 off_t
 skFileSize(
-    const char         *fName);
+    const char         *path_name);
 
 
 /**
@@ -3014,6 +3038,11 @@ skStringParseCIDR(
  *    Returns the size of sk_sockaddr_t object, suitable for passing
  *    as the addrlen in functions such as connect(2) and bind(2).
  */
+#if 0
+size_t
+skSockaddrLen(
+    const sk_sockaddr_t    *s);
+#endif  /* 0 */
 #define skSockaddrLen(s)                                                \
     (((s)->sa.sa_family == AF_INET) ? sizeof((s)->v4) :                 \
      (((s)->sa.sa_family == AF_INET6) ? sizeof((s)->v6) :               \
@@ -3021,53 +3050,93 @@ skStringParseCIDR(
 
 
 /**
- *    Returns the port portion of a sk_sockaddr_t object, in
- *    host-byte-order.  Returns -1 for sockaddr types without ports.
+ *    Returns the port portion of a sk_sockaddr_t object, as an
+ *    integer in host-byte-order.  Returns -1 for sockaddr types
+ *    without ports.
  */
+#if 0
+int
+skSockaddrPort(
+    const sk_sockaddr_t    *s);
+#endif  /* 0 */
 #define skSockaddrPort(s)                                               \
     (((s)->sa.sa_family == AF_INET) ? ntohs((s)->v4.sin_port) :         \
      (((s)->sa.sa_family == AF_INET6) ? ntohs((s)->v6.sin6_port) : -1))
 
 
 /**
- *    Destroys a sk_sockaddr_array_t structure.  The parameter must
- *    not be NULL.
+ *    Destroys a sk_sockaddr_array_t structure allocated by
+ *    skStringParseHostPortPair().  Does nothing if the parameter is
+ *    NULL.
  */
+#if 0
+void
+skSockaddrArrayDestroy(
+    sk_sockaddr_array_t    *s);
+#endif  /* 0 */
 #define skSockaddrArrayDestroy(s)               \
     do {                                        \
-        if ((s)->name) {                        \
-            free((s)->name);                    \
+        if (s) {                                \
+            if ((s)->name) {                    \
+                free((s)->name);                \
+            }                                   \
+            if ((s)->addrs) {                   \
+                free((s)->addrs);               \
+            }                                   \
+            free(s);                            \
         }                                       \
-        if ((s)->addrs) {                       \
-            free((s)->addrs);                   \
-        }                                       \
-        free(s);                                \
     } while (0)
 
 /**
- *    Returns the name of a sk_sockaddr_array_t structure.  May return
- *    NULL.
+ *    Returns the name of a sk_sockaddr_array_t structure.
+ *    Specifically, returns the host or IP address portion of the
+ *    'host_port' parameter of skStringParseHostPortPair().  May
+ *    return NULL.  See also skSockaddrArrayNameSafe() and
+ *    skSockaddrString().
  */
+#if 0
+const char *
+skSockaddrArrayName(
+    const sk_sockaddr_array_t  *s);
+#endif  /* 0 */
 #define skSockaddrArrayName(s)     ((s)->name)
 
 /**
- *    Returns the name of a sk_sockaddr_array_t structure.  Will not
- *    return NULL.
+ *    Returns the name of a sk_sockaddr_array_t structure.  Does not
+ *    return NULL.  See also skSockaddrArrayName() and
+ *    skSockaddrString().
  */
+#if 0
+const char *
+skSockaddrArrayNameSafe(
+    const sk_sockaddr_array_t  *s);
+#endif  /* 0 */
 #define skSockaddrArrayNameSafe(s) ((s)->name ? (s)->name : "*")
 
 /**
  *    Returns the number of addresses in a sk_sockaddr_array_t
  *    structure.
  */
+#if 0
+uint32_t
+skSockaddrArraySize(
+    const sk_sockaddr_array_t  *s);
+#endif  /* 0 */
 #define skSockaddrArraySize(s)     ((s)->num_addrs)
 
 
 /**
  *    Returns the address (sk_sockaddr_t *) at position 'n' in the
- *    sk_sockaddr_array_t structure.  The first address is at position
- *    0.  The value 'n' must be less than skSockaddrArraySize(s).
+ *    sk_sockaddr_array_t structure 's'.  The first address is at position
+ *    0.  The value 'n' must be less than skSockaddrArraySize(s),
+ *    otherwise the return value is indeterminate.
  */
+#if 0
+const sk_sockaddr_t *
+skSockaddrArrayGet(
+    const sk_sockaddr_array_t  *s,
+    uint32_t                    n);
+#endif  /* 0 */
 #define skSockaddrArrayGet(s, n)   (&((s)->addrs[n]))
 
 
@@ -3117,12 +3186,20 @@ skSockaddrString(
 /**
  *    Compares two sk_sockaddr_t objects.
  *
- *    Returns -1 if a is "less than" b, 1 if a is "greater than" b,
- *    and 0 if the two are equal.
+ *    Returns -1 if 'a' is "less than" 'b', 1 if 'a' is "greater than"
+ *    'b', and 0 if the two are equal.
  *
- *    If flags contains SK_SOCKADDRCOMP_NOPORT, the port portions of
- *    the sk_sockaddr_t's are ignored.  If flags contains
- *    SK_SOCKADDRCOMP_NOADDR, the address portions are ignored
+ *    The 'flags' parameter may contain any of the following bits:
+ *
+ *    SK_SOCKADDRCOMP_NOPORT -- ignore the port portions when
+ *    comparing
+ *
+ *    SK_SOCKADDRCOMP_NOADDR -- ignore the address potions when
+ *    comparing
+ *
+ *    SK_SOCKADDRCOMP_NOT_V4_AS_V6 -- do not map IPv4 addresses into
+ *    the ::ffff:0:0/96 IPv6 netblock when comparing an AF_INET and an
+ *    AF_INET6 sk_sockaddr_t.
  */
 int
 skSockaddrCompare(
@@ -3149,12 +3226,12 @@ skSockaddrArrayContains(
  *    Determines whether two sk_sockaddr_array_t objects are
  *    identical, according to 'flags'.
  *
- *    Two sk_sockaddr_array_t objects are considered to match if they
+ *    Two sk_sockaddr_array_t objects are considered equal if they
  *    have the same number of addresses, and each address in 'a' is
  *    contained in 'b'.  Two NULL arrays are considered equal.  It is
- *    assumes that the two arrays contain no duplicate addresses.
+ *    assumed that the two arrays contain no duplicate addresses.
  *    Addresses are compared with the skSockaddrCompare() function,
- *    which will use the 'flags; argument.
+ *    which will use the 'flags' argument.
  */
 int
 skSockaddrArrayEqual(
@@ -3193,25 +3270,30 @@ skSockaddrArrayMatches(
 /**
  *    Parse a host:port pair, or a host, or a port number.
  *
- *    The host can be a dotted decimal IPv4 address, a hex string IPv6
- *    address, or a hostname.  The host can be enclosed in '[' and
- *    ']', and it must be so enclosed when an IPv6 hex string includes
- *    a port number, for example "[::]:80"
+ *    Allocate a new sk_sockaddr_array_t object, store the resulting
+ *    set of addresses and ports as 'sk_sockaddr_t' objects in the
+ *    sk_sockaddr_array_t object, and store the array in the location
+ *    referenced by 'sockaddr'.
+ *
+ *    The number of sk_sockaddr_t's in the sk_sockaddr_array_t is
+ *    given by skSockaddrArraySize().  The caller may obtain an
+ *    individual sk_sockaddr_t by calling skSockaddrArrayGet().  The
+ *    caller must destroy the array by calling
+ *    skSockaddrArrayDestroy().
+ *
+ *    The host portion of 'host_port' may be a dotted decimal IPv4
+ *    address, a hex string IPv6 address, or a hostname.  The host may
+ *    be enclosed in '[' and ']', and it must be so enclosed when an
+ *    IPv6 hex string includes a port number, for example "[::]:80"
  *
  *    The flags are a bitwise combination of
  *    {PORT,HOST,IPV6}_{REQUIRED,PROHIBITED}.  Four of these flags
  *    specify whether the host portion and/or port portion of the
- *    host_port string is required or prohibited.  The default is to
- *    allow their existence or absence.  The other two flags specify
- *    whether IPv6 addresses should be resolved, or whether only IPv6
- *    addresses should be resolved.  The default is to resolve to both
- *    IPv6 and IPv4 addresses.
- *
- *    The resulting set of addresses and ports will be represented as
- *    an sk_sockaddr_array_t object, and pointer to that will returned
- *    at the location of the sockaddr pointer.  The
- *    sk_sockaddr_array_t is allocated by skStringParseHostPortPair(),
- *    and must be freed by the user.
+ *    host_port string is required or prohibited.  By default there
+ *    are no requirements/prohibitions on the content of 'host_port'.
+ *    The other two flags specify whether IPv6 addresses should be
+ *    resolved, or whether only IPv6 addresses should be resolved.
+ *    The default is to resolve to both IPv6 and IPv4 addresses.
  */
 int
 skStringParseHostPortPair(
@@ -3221,28 +3303,109 @@ skStringParseHostPortPair(
 
 
 /**
- *    Attempts to parse the 'time_string' as a date in the form
- *    YYYY/MM/DD[:HH[:MM[:SS[.sss]]]].  Sets *time_val to that time in
- *    milliseconds since the UNIX epoch.  Assumes the time in UTC
+ *    skStringParseDatetime() sets the lower three bits of its
+ *    'out_flags' parameter to this value when only a year was parsed.
+ *    The 'out_flags' value should never contain this value.
+ */
+#define SK_PARSED_DATETIME_YEAR             1
+
+/**
+ *    skStringParseDatetime() sets the lower three bits of its
+ *    'out_flags' parameter to this value when a year and month were
+ *    parsed.  The 'out_flags' value should never contain this value.
+ */
+#define SK_PARSED_DATETIME_MONTH            2
+
+/**
+ *    skStringParseDatetime() sets the lower three bits of its
+ *    'out_flags' parameter to this value when a year, month, and day
+ *    were parsed or when an epoch time was parsed and the value is a
+ *    multiple of 86400.
+ */
+#define SK_PARSED_DATETIME_DAY              3
+
+/**
+ *    skStringParseDatetime() sets the lower three bits of its
+ *    'out_flags' parameter to this value when a year, month, day, and
+ *    hour were parsed or when an epoch time was parsed and the value
+ *    is a multiple of 3600.
+ */
+#define SK_PARSED_DATETIME_HOUR             4
+
+/**
+ *    skStringParseDatetime() sets the lower three bits of its
+ *    'out_flags' parameter to this value when a year, month, day,
+ *    hour, and minute were parsed or when an epoch time was parsed
+ *    and the value is a multiple of 60.
+ */
+#define SK_PARSED_DATETIME_MINUTE           5
+
+/**
+ *    skStringParseDatetime() sets the lower three bits of its
+ *    'out_flags' parameter to this value when a year, month, day,
+ *    hour, minute, and second were parsed or when an epoch time was
+ *    parsed and no fractional seconds value was present.
+ */
+#define SK_PARSED_DATETIME_SECOND           6
+
+/**
+ *    skStringParseDatetime() sets the lower three bits of its
+ *    'out_flags' parameter to this value when a year, month, day,
+ *    hour, minute, second, and fractional second were parsed or when
+ *    an epoch time was parsed and a fractional seconds value was
+ *    present.
+ */
+#define SK_PARSED_DATETIME_FRACSEC          7
+
+/**
+ *    A mask to apply to the 'out_flags' value set by
+ *    skStringParseDatetime() to determine the precision.
+ */
+#define SK_PARSED_DATETIME_MASK_PRECISION   0x7
+
+/**
+ *    Return the precision portion of the 'out_flags' value that is
+ *    set by calling skStringParseDatetime().
+ */
+#define SK_PARSED_DATETIME_GET_PRECISION(pdgp_flags)    \
+    (SK_PARSED_DATETIME_MASK_PRECISION & (pdgp_flags))
+
+/**
+ *    skStringParseDatetime() sets this bit in its 'out_flags'
+ *    parameter when the parsed string contained seconds since the
+ *    UNIX epoch.
+ */
+#define SK_PARSED_DATETIME_EPOCH            0x8
+
+/**
+ *    Attempt to parse the 'time_string' as a date in the form
+ *    YYYY/MM/DD[:HH[:MM[:SS[.sss]]]] and set *time_val to that time in
+ *    milliseconds since the UNIX epoch.  Assume the time in UTC
  *    unless SiLK was configured with the --enable-local-timezone
  *    switch, in which case the time is assumed to be in the local
  *    timezone.
  *
- *    If 'resulting_precision' is non-null, it is filled with the
- *    index of the last "section" of date parsed.  If it is NULL, the
- *    precision is not recorded, but parsing still occurs.
+ *    A fractional seconds value with more precision that milliseconds
+ *    is truncated.  NOTE: Prior to SiLK 3.10.0, fractional seconds
+ *    were rounded to the nearest millisecond value.
  *
- *    The "sections" are:
- *        1. Years parsed
- *        2. Months parsed
- *        3. Days parsed
- *        4. Hours parsed
- *        5. Minutes parsed
- *        6. Seconds parsed
- *        7. Fractional seconds parsed
+ *    When the input string contains only digits and decimal points
+ *    (".") and is at least eight characters in length, parse the
+ *    value before the decimal point as seconds since the UNIX epoch,
+ *    and the value after the decimal point as fractional seconds.
+ *    Return an error if more than one decimal point is present.
+ *
+ *    If the 'out_flags' parameter is non-null, set the location it
+ *    references with SK_PARSED_DATETIME_* values to indicate what was
+ *    parsed.
+ *
+ *    The SK_PARSED_DATEDTIME_EPOCH bit of 'out_flags' is set when the
+ *    value parsed was in epoch seconds.  The lower three bits are
+ *    still set to reflect the precision of the value.
  *
  *    Note that skStringParseDatetime() will return -1 if the
- *    time_string does not contain at least Day precision.
+ *    time_string is not an epoch time and does not contain at least
+ *    Day precision.
  *
  *    Return 0 on success.  Returns a silk_utils_errcode_t value on an
  *    error; error conditions include an empty string, malformed date,
@@ -3253,29 +3416,24 @@ int
 skStringParseDatetime(
     sktime_t           *time_val,
     const char         *time_string,
-    int                *resulting_precision);
+    unsigned int       *out_flags);
 
 
 /**
- *    Attempts to parse 's_datetime' as a datetime or a range of
- *    datetimes.  If only one date is found, it is stored in 'start'
- *    and the value of the end date is set to INT64_MAX.
+ *    Attempt to parse 'datetime_range' as a datetime or a range of
+ *    datetimes.  When two hyphen-separated datetimes are found, store
+ *    the first in 'start' and the second in 'end'.  When only one
+ *    datetime is found, store that time in 'start' and set 'end' to
+ *    INT64_MAX.
  *
- *    If two dash-separated dates are found, the first is stored in
- *    'start' and the second is stored in 'end'.
+ *    This function uses skStringParseDatetime() internally, and the
+ *    'start_flags' and 'end_flags' values are set by that function
+ *    when parsing the starting datetime and ending datetime,
+ *    respectively.  See skStringParseDatetime() for more information.
  *
- *    If 'start_precision' is not NULL, it is filled with the index of
- *    the last "section" of date parsed.  If it is NULL, the precision
- *    is not recorded, but parsing still occurs.
+ *    Return 0 when the datetimes are parsed correctly.
  *
- *    Similarly, if 'end_precision' is not NULL and a second date was
- *    parsed, it is filled with the index of the last "section" of
- *    date parsed.  If it is NULL, the precision is not recorded.  See
- *    skStringParseDatetime() for a description of "sections" of a date.
- *
- *    Returns 0 if dates are parsed correctly.
- *
- *    Returns an silk_utils_errcode_t value on error, including
+ *    Return an silk_utils_errcode_t value on error, including
  *    SKUTILS_ERR_SHORT if the either date does not have at least day
  *    precision, and SKUTILS_ERR_BAD_RANGE if the end-date is earlier
  *    than the start-date.
@@ -3284,13 +3442,13 @@ int
 skStringParseDatetimeRange(
     sktime_t           *start,
     sktime_t           *end,
-    const char         *s_datetime,
-    int                *start_precision,
-    int                *end_precision);
+    const char         *datetime_range,
+    unsigned int       *start_flags,
+    unsigned int       *end_flags);
 
 
 /**
- *    Takes the time 't' and a 'precision' to which it was
+ *    Take the time 't' and a 'precision' to which it was
  *    parsed---see skStringParseDatetime() for a description of
  *    "sections" of a date---and puts into 'ceiling_time' the
  *    latest-possible timestamp that meets the precision.  't' and
@@ -3303,19 +3461,23 @@ skStringParseDatetimeRange(
  *    timestamp for "1990/12/25:05:59:59.999".
  *
  *    skDatetimeCeiling() is commonly used to calculate the endpoint
- *    for a range of dates.  For example, "2004/12/25-2004/12/26:3"
- *    should represent everything between "2004/12/25:00:00:00.000"
- *    and "2004/12/26:03:59:59.999".
+ *    for a range of dates parsed by skStringParseDatetimeRange().
+ *    For example, "2004/12/25-2004/12/26:3" should represent
+ *    everything between "2004/12/25:00:00:00.000" and
+ *    "2004/12/26:03:59:59.999".
  *
  *    The time is assumed to be in UTC unless SiLK was configured with
  *    the --enable-local-timezone switch.  The timezone is only a
  *    factor for times that are coarser than hour precision.
+ *
+ *    skDatetimeCeiling() ignores whether SK_PARSED_DATETIME_EPOCH is
+ *    set in the 'precision' parameter.
  */
 int
 skDatetimeCeiling(
     sktime_t           *ceiling_time,
     const sktime_t     *t,
-    int                 precision);
+    unsigned int        precision);
 
 
 /**

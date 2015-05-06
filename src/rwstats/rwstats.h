@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2001-2014 by Carnegie Mellon University.
+** Copyright (C) 2001-2015 by Carnegie Mellon University.
 **
 ** @OPENSOURCE_HEADER_START@
 **
@@ -57,7 +57,7 @@ extern "C" {
 
 #include <silk/silk.h>
 
-RCSIDENTVAR(rcsID_RWSTATS_H, "$SiLK: rwstats.h cd598eff62b9 2014-09-21 19:31:29Z mthomas $");
+RCSIDENTVAR(rcsID_RWSTATS_H, "$SiLK: rwstats.h c19d64b322b8 2015-02-09 22:11:47Z mthomas $");
 
 
 /*
@@ -79,9 +79,6 @@ RCSIDENTVAR(rcsID_RWSTATS_H, "$SiLK: rwstats.h cd598eff62b9 2014-09-21 19:31:29Z
 
 
 /* TYPEDEFS AND DEFINES */
-
-/* Value to use as exit code when we run out of memory */
-#define RWSTATS_NO_MEMORY_EXIT_CODE 16
 
 /* default sTime bin size to use when --bin-time is requested */
 #define DEFAULT_TIME_BIN  60
@@ -308,7 +305,8 @@ appTeardown(
     void);
 void
 appExit(
-    int                 status);
+    int                 status)
+    NORETURN;
 int
 readRecord(
     skstream_t         *rwios,

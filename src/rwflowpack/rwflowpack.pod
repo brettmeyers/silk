@@ -971,6 +971,14 @@ private enterprise number and the information element number,
 separated by a slash (/).  (Requires libfixbuf 1.4.0 or later.)
 I<Since SiLK 3.8.2.>
 
+=item SILK_LIBFIXBUF_SUPPRESS_WARNINGS
+
+When set to 1, B<rwflowpack> disables all warning messages generated
+by libfixbuf.  These warning messages include out-of-sequence packets,
+data records not having a corresponding template, record count
+discrepancies, and issues decoding list elements.  I<Since SiLK
+3.10.0.>
+
 =item SILK_CONFIG_FILE
 
 This environment variable is used as the value for the
@@ -1100,7 +1108,7 @@ attempt to write to the same hourly file simultaneously.
 
 =cut
 
-$SiLK: rwflowpack.pod 37fd860c358b 2014-09-23 13:19:15Z mthomas $
+$SiLK: rwflowpack.pod 1b61c87d5945 2014-12-11 22:26:18Z mthomas $
 
 Local variables:
 mode:text

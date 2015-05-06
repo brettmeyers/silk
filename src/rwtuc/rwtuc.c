@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2006-2014 by Carnegie Mellon University.
+** Copyright (C) 2006-2015 by Carnegie Mellon University.
 **
 ** @OPENSOURCE_HEADER_START@
 **
@@ -62,7 +62,7 @@
 
 #include <silk/silk.h>
 
-RCSIDENT("$SiLK: rwtuc.c cd598eff62b9 2014-09-21 19:31:29Z mthomas $");
+RCSIDENT("$SiLK: rwtuc.c b7b8edebba12 2015-01-05 18:05:21Z mthomas $");
 
 #include <silk/rwascii.h>
 #include <silk/rwrec.h>
@@ -1164,6 +1164,7 @@ processFields(
           case RWREC_FIELD_PKTS:
             rv = skStringParseUint32(&tmp32, cp, 1, 0);
             if (rv) {
+                /* FIXME: Clamp value to max instead of rejecting */
                 goto PARSE_ERROR;
             }
             rwRecSetPkts(&val->rec, tmp32);
@@ -1172,6 +1173,7 @@ processFields(
           case RWREC_FIELD_BYTES:
             rv = skStringParseUint32(&tmp32, cp, 1, 0);
             if (rv) {
+                /* FIXME: Clamp value to max instead of rejecting */
                 goto PARSE_ERROR;
             }
             rwRecSetBytes(&val->rec, tmp32);
@@ -1192,6 +1194,7 @@ processFields(
             }
             rv = skStringParseDatetime(&t, cp, NULL);
             if (rv) {
+                /* FIXME: Allow small integers as epoch times? */
                 goto PARSE_ERROR;
             }
             rwRecSetStartTime(&val->rec, t);
@@ -1204,6 +1207,7 @@ processFields(
                 rv = skStringParseDouble(&dur, cp, 0.0,
                                          ((double)UINT32_MAX / 1e3));
                 if (rv) {
+                    /* FIXME: Clamp value to max instead of rejecting */
                     goto PARSE_ERROR;
                 }
                 /* add a bit of slop since doubles aren't exact */
@@ -1218,6 +1222,7 @@ processFields(
             }
             rv = skStringParseDatetime(&(val->eTime), cp, NULL);
             if (rv) {
+                /* FIXME: Allow small integers as epoch times? */
                 goto PARSE_ERROR;
             }
             break;
@@ -1237,6 +1242,7 @@ processFields(
           case RWREC_FIELD_INPUT:
             rv = skStringParseUint32(&tmp32, cp, 0, UINT16_MAX);
             if (rv) {
+                /* FIXME: Clamp value to max instead of rejecting */
                 goto PARSE_ERROR;
             }
             rwRecSetInput(&val->rec, (uint16_t)tmp32);
@@ -1245,6 +1251,7 @@ processFields(
           case RWREC_FIELD_OUTPUT:
             rv = skStringParseUint32(&tmp32, cp, 0, UINT16_MAX);
             if (rv) {
+                /* FIXME: Clamp value to max instead of rejecting */
                 goto PARSE_ERROR;
             }
             rwRecSetOutput(&val->rec, (uint16_t)tmp32);
@@ -1476,6 +1483,20 @@ processFile(
             break;
 
           case CALC_ELAPSED:
+            if (rwRecGetStartTime(&currents.rec) > currents.eTime) {
+                BAD_LINE(("%s:%d: End time less than start time",
+                          skStreamGetPathname(curline->stream),
+                          curline->lineno));
+                goto NEXT_LINE;
+            }
+            if (currents.eTime - rwRecGetStartTime(&currents.rec) > UINT32_MAX)
+            {
+                /* FIXME: Clamp value to max instead of rejecting */
+                BAD_LINE(("%s:%d: Computed duration too large",
+                          skStreamGetPathname(curline->stream),
+                          curline->lineno));
+                goto NEXT_LINE;
+            }
             rwRecSetElapsed(&currents.rec,
                             (currents.eTime-rwRecGetStartTime(&currents.rec)));
             break;

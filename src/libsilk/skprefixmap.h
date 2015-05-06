@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2004-2014 by Carnegie Mellon University.
+** Copyright (C) 2004-2015 by Carnegie Mellon University.
 **
 ** @OPENSOURCE_HEADER_START@
 **
@@ -57,7 +57,7 @@ extern "C" {
 
 #include <silk/silk.h>
 
-RCSIDENTVAR(rcsID_SKPREFIXMAP_H, "$SiLK: skprefixmap.h cd598eff62b9 2014-09-21 19:31:29Z mthomas $");
+RCSIDENTVAR(rcsID_SKPREFIXMAP_H, "$SiLK: skprefixmap.h b7b8edebba12 2015-01-05 18:05:21Z mthomas $");
 
 #include <silk/silk_types.h>
 #include <silk/skplugin.h>
@@ -188,8 +188,9 @@ skPrefixMapCreate(
 
 
 /**
- *   Frees the resources used by the prefixmap pointed to by map, then
- *   frees map itself.  After calling, map is an invalid pointer.
+ *    Frees the resources used by the prefixmap pointed to by map, then
+ *    frees map itself.  After calling, map is an invalid pointer.
+ *    Does nothing if 'map' is NULL.
  */
 void
 skPrefixMapDelete(
@@ -437,7 +438,8 @@ skPrefixMapIteratorCreate(
 
 
 /**
- *    Destroys the iterator pointed to by 'out_iter'.
+ *    Destroys the iterator pointed to by 'out_iter'.  Does nothing if
+ *    'out_iter' or the location it points to is NULL.
  */
 void
 skPrefixMapIteratorDestroy(

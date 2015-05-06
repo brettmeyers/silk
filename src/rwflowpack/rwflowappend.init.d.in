@@ -1,7 +1,7 @@
 #!/bin/sh
 
 #######################################################################
-# RCSIDENT("$SiLK: rwflowappend.init.d.in 7f4317c4a2a1 2014-05-22 21:38:41Z mthomas $")
+# RCSIDENT("$SiLK: rwflowappend.init.d.in f2d4deeba366 2014-11-06 20:27:08Z mthomas $")
 #######################################################################
 
 # rwflowappend start/control script
@@ -151,6 +151,9 @@ if [ "x${REJECT_HOURS_PAST}" != "x" ]; then
 fi
 if [ "x${REJECT_HOURS_FUTURE}" != "x" ]; then
     PROG_OPTIONS="${PROG_OPTIONS} --reject-hours-future='${REJECT_HOURS_FUTURE}'"
+fi
+if [ "x${APPEND_THREADS}" != "x" ] ; then
+    PROG_OPTIONS="${PROG_OPTIONS} --threads=${APPEND_THREADS}"
 fi
 if [ "x${COMPRESSION_TYPE}" != "x" ] ; then
     PROG_OPTIONS="${PROG_OPTIONS} --compression-method=${COMPRESSION_TYPE}"

@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2005-2014 by Carnegie Mellon University.
+** Copyright (C) 2005-2015 by Carnegie Mellon University.
 **
 ** @OPENSOURCE_HEADER_START@
 **
@@ -122,7 +122,7 @@
 
 #include <silk/silk.h>
 
-RCSIDENT("$SiLK: rwmatch.c 65738150d26d 2014-09-25 15:49:39Z mthomas $");
+RCSIDENT("$SiLK: rwmatch.c b7b8edebba12 2015-01-05 18:05:21Z mthomas $");
 
 #include <silk/rwascii.h>
 #include <silk/rwrec.h>
@@ -230,8 +230,8 @@ static struct option appOptions[] = {
 static const char *appHelp[] = {
     "Describe potential fields for --relate and exit. Def. no",
     NULL,  /* generate dynamically */
-    ("Permit this time difference (in seconds) between two records\n"
-     "\twhen creating a match. May be fractional. Def. 0.000"),
+    ("Permit this time difference (in seconds) between two\n"
+     "\trecords when creating a match. May be fractional. Def. 0.000"),
     ("Also match response records that precede query records\n"
      "\tby up to time-delta seconds. Def. No"),
     ("Do not include potentially matching flows that start\n"

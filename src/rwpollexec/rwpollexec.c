@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2010-2014 by Carnegie Mellon University.
+** Copyright (C) 2010-2015 by Carnegie Mellon University.
 **
 ** @OPENSOURCE_HEADER_START@
 **
@@ -59,7 +59,7 @@
 
 #include <silk/silk.h>
 
-RCSIDENT("$SiLK: rwpollexec.c cd598eff62b9 2014-09-21 19:31:29Z mthomas $");
+RCSIDENT("$SiLK: rwpollexec.c b7b8edebba12 2015-01-05 18:05:21Z mthomas $");
 
 #include <silk/utils.h>
 #include <silk/skthread.h>
@@ -225,9 +225,9 @@ static const char *appHelp[] = {
      "\texits with a non-zero return value."),
     ("Move files to this directory tree when the command\n"
      "\texits with a zero return value. Def. No archive"),
-    ("Store incremental files in the root of the archive\n"
-     "\tdirectory.  When not given, incremental files are stored in\n"
-     "\tsubdirectories of the archive-directory. Def. Use subdirectories"),
+    ("Store files in the root of the archive directory.\n"
+     "\tWhen not given, files are stored in subdirectories of the\n"
+     "\tarchive-directory. Def. Use subdirectories"),
     ("Allow at most this many commands to run simultaneously.\n"
      "\tMax: " MAX_SIMULTANEOUS_STRING " Def. 1"),
     ("Send SIGNAL after SECS seconds to command if it is still\n"
@@ -925,7 +925,7 @@ archive_file(
     if (archive_dir == NULL) {
         DEBUGMSG("Removing %s", file);
         rv = unlink(file);
-        if (rv != 0) {
+        if (rv != 0 && errno != ENOENT) {
             WARNINGMSG("Could not remove %s: %s", file, strerror(errno));
             return -1;
         }
@@ -1265,13 +1265,13 @@ handle_new_file(
 
         free(cmd_data->path);
 
-        simultaneous--;
+        --simultaneous;
         if (simultaneous < 1) {
             CRITMSG("Cannot fork at all");
             MUTEX_UNLOCK(&sim_mutex);
             threadExit(EXIT_FAILURE, NULL);
         }
-        ERRMSG("Failed to fork().  Reducing asynchronous calls to %d",
+        ERRMSG("Failed to fork().  Reducing simultaneous calls to %d",
                simultaneous);
         err = skPollDirPutBackFile(polldir, name);
         if (err != PDERR_NONE) {

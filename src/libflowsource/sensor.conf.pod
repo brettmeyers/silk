@@ -37,11 +37,12 @@ you must specify a unique name for the probe and the probe's type.
 
 =item group
 
-A group is a named list that contains either CIDR blocks or integers.
-The use of groups is optional; the primary purpose of a group is to
-allow the administrator to specify a commonly used list (such as the
-IP space of the network being monitored) in a single location.  Groups
-were introduced in SiLK 2.1.
+A group is a named list that contains one of the following: CIDR
+blocks, the names of IPset files, or integers representing SNMP
+interfaces or VLAN identifiers.  The use of groups is optional; the
+primary purpose of a group is to allow the administrator to specify a
+commonly used list (such as the IP space of the network being
+monitored) in a single location.
 
 =item sensor
 
@@ -166,8 +167,8 @@ libfixbuf, version 1.3.0 or later.
 
 This probe processes sFlow v5 records that the daemon reads from a UDP
 port.  To support sFlow probes, SiLK must be built with support for
-the external library libfixbuf, version 1.6.0 or later.  I<Available
-since SiLK 3.9.0.>
+the external library libfixbuf, version 1.6.0 or later.  I<Since SiLK
+3.9.0.>
 
 =item B<silk>
 
@@ -197,30 +198,29 @@ This command specifies the network port where the probe should collect
 flow data.  When listening to NetFlow from a Cisco router, this is the
 I<port> that was specified to the Cisco ISO command
 
-  ip flow-export [ip-address] [port]
+ ip flow-export [ip-address] [port]
+
+When listening to IPFIX data from B<yaf>, this is the value specified
+to B<yaf>'s B<--ipfix-port> switch.
 
 =item B<protocol> { B<tcp> | B<udp> }
 
 This command, required when B<listen-on-port> is given, specifies
 whether the port is a C<tcp> or C<udp> port.  IPFIX probes support
 both types; the only permitted value for all other probe types is
-C<udp>.
+C<udp>.  When listening to IPFIX data from B<yaf>, this is the value
+specified to B<yaf>'s B<--ipfix> switch.
 
-=item B<accept-from-host> I<host-name>
+=item B<accept-from-host> I<host-name> [I<host-name>...]
 
-This optional command specifies the IP or name of the host that is
+This optional command specifies the IPs or names of the hosts that are
 allowed to connect to the port where the probe is listening.  When
 this command is not present, any host may connect.  The command may
 only be specified when the B<listen-on-port> command is also present.
 When listening for NetFlow, this attribute would be the IP address of
 the router as seen from the machine running B<rwflowpack> or
-B<flowcap>.
-
-This paragraph applies only when using versions of SiLK and libfixbuf
-prior to 3.4.0 and 1.2.0, respectively: The B<accept-from-host>
-command cannot be used with UDP-based IPFIX probes or NetFlow v9
-probes.  If multiple probes of these types are needed, they should
-have different B<listen-on-port> values.
+B<flowcap>.  (Prior to SiLK 3.10.1, the B<accept-from-host> command
+accepted only a single argument.)
 
 =item B<listen-as-host> I<host-name>
 
@@ -232,7 +232,7 @@ specified when the B<listen-on-port> command is also present.  For
 listening to NetFlow, the value would be the I<ip-address> that was
 specified to the Cisco ISO command
 
-  ip flow-export [ip-address] [port]
+ ip flow-export [ip-address] [port]
 
 =item B<listen-on-unix-socket> I<path-to-unix-socket>
 
@@ -247,8 +247,8 @@ I<directory-path> to look for files to process.  B<flowcap> will exit
 with an error if you attempt to use probes that contain this command
 since B<flowcap> does not support reading data from files.  When
 polling the directory, zero length files and files whose name begin
-with a dot (C<.>) are ignored.  This command may be with the following
-probe types:
+with a dot (C<.>) are ignored.  This command may be used with the
+following probe types:
 
 =over 4
 
@@ -283,7 +283,7 @@ header and space for thirty 48-byte flow records, even if fewer
 NetFlow records are valid.  B<rwflowpack> will accept NetFlow v5 files
 that have been compressed with the B<gzip(1)> program.
 
-=item B<log-flags> { B<none> | B<all> | { B<bad> | B<missing> | B<sampling> | B<firewall-event> ... } }
+=item B<log-flags> { B<none> | { B<all> | B<bad> | B<default> | B<firewall-event> | B<missing> | B<record-timestamps> | B<sampling> | ... } }
 
 This optional command gives specific logging instructions for the
 probe.  If you wish to reduce the verbosity of the log, you may use
@@ -292,28 +292,45 @@ possible values are:
 
 =over 4
 
-=item I<none>
-
-Log nothing.
-
 =item I<all>
 
-Log all the conditions listed below; this is the default.
+Log everything.
 
 =item I<bad>
 
-Write messages about bad NetFlow v5 packets.  An example of a bad
-packet is a NetFlow v5 PDU that reports no flow records.
+Write messages about an individual NetFlow v5 record where the packet
+or octet count is zero, the packet count is larger than the octet
+count, or the duration of the flow is larger than 45 days.
+
+=item I<default>
+
+Enable the following values: B<bad>, B<missing>, B<sampling>.  This is
+the default value.  I<Since SiLK 3.10.0>.  (Prior to SiLK 3.10.0,
+B<all> was the default.)
+
+=item I<firewall-event>
+
+When the C<firewall-event> quirks flag is set and the probe is
+processing NetFlow v9 or IPFIX, write messages about records that are
+ignored because the firewall event information element on the record
+is something other than flow deleted or flow denied.  I<Since SiLK
+3.8.1>.
 
 =item I<missing>
 
 Examine the sequence numbers of NetFlow v5 packets and write messages
-about missing packets.  The netflow-v5 probe keeps track of the
-sequence numbers in the PDUs it processes (whether read from the
-network or from a file).  By default, when the probe determines that
-PDUs are missing or invalid, it will write a message to the log; note
-that an out-of-order UDP packet will also cause a message about
-missing records.
+about missing and out-of-sequence packets.  (Currently it is not
+possible to suppress messages regarding out-of-sequence NetFlow v9 or
+IPFIX packets.)
+
+=item I<none>
+
+Log nothing.  It is an error to combine this value with any other.
+
+=item I<record-timestamps>
+
+Log the timestamps that appear on each record.  This produces a lot of
+output, and it is primarily used for debugging.  I<Since SiLK 3.10.0.>
 
 =item I<sampling>
 
@@ -321,13 +338,7 @@ Write messages constructed by parsing the NetFlow v9 Options Templates
 that specify the sampling algorithm (when samplingAlgorithm and
 samplingInterval IEs are present) or flow sampler mode (when
 flowSamplerMode and flowSamplerRandomInterval IEs are present).
-Requires libfixbuf-1.4.0 or later.
-
-=item I<firewall-event>
-
-When the C<firewall-event> quirks flag is set, write messages about
-records that are ignored because the firewall event is something other
-than flow deleted or flow denied.  I<Since SiLK 3.8.1>.
+Requires libfixbuf-1.4.0 or later.  I<Since SiLK 3.8.0>.
 
 =back
 
@@ -353,12 +364,17 @@ that value and C<output> is set to 0.
 
 =back
 
+This setting does not affect whether B<rwflowpack(8)> stores the
+C<input> and C<output> fields to its output files.  Storage of those
+fields is controlled by B<rwflowpack>'s B<--pack-interfaces> switch.
+
 =item B<quirks> { B<none> | { B<firewall-event> | B<zero-packets> | B<missing-ips> ... } }
 
 This optional command is used to indicate that special (or quirky)
 handling of the incoming data is desired.  The value B<none> disables
 all quirks, and that is the default setting.  If the value is not
-B<none>, it may be a list of one or more of the following values:
+B<none>, it may be a list of one or more of the values specified
+below.  I<Since SiLK 3.8.0>.
 
 =over 4
 
@@ -374,7 +390,7 @@ usually put into one of non-routed types (e.g., B<innull>, B<outnull>,
 see B<packlogic-twoway(3)> and B<packlogic-generic(3)> for details),
 and all other firewall events values are dropped.  (Note that a log
 message is generated for these dropped records; to suppress these
-messages, use the B<log-flags> statement.)  When this quirk is not
+messages, use the B<log-flags> command.)  When this quirk is not
 provided, SiLK handles these records normally, which may result in
 duplicate flow records.  (Prior to SiLK 3.8, SiLK dropped all flow
 records that contained a firewall event IE.)
@@ -424,15 +440,21 @@ To summarize the probe types and the input they can accept:
 =head2 Group Block
 
 The use of group blocks is optional.  They are a convenience to define
-a list of commonly used CIDR blocks or integer values that are treated
-as SNMP interfaces or VLAN identifiers.  Groups are used in sensor
-blocks as described in the descriptions for the B<discard-when>,
-B<discard-unless>, I<network-name>B<-ipblocks>, and
-I<network-name>B<-interfaces> statements, below.
+a list of commonly used CIDR blocks, IPset files, or integer values
+that are treated as SNMP interfaces or VLAN identifiers.  Groups are
+used in sensor blocks as described in the descriptions for the
+B<discard-when>, B<discard-unless>, I<network-name>B<-ipblocks>,
+I<network-name>B<-ipsets> and I<network-name>B<-interfaces>
+commands, below.
 
-The statements in a group definition must all be of the same type.
-That is, you cannot mix B<interfaces> and B<ipblocks> statements in a
-single group definition.
+The commands in a group definition must all be of the same type.
+For example, you cannot mix B<ipblocks> and B<ipsets> commands in a
+single group definition, even though both contain IP addresses.
+
+The contents of an existing group may be added to the current group
+block by using a group reference after the appropriate keyword.  A
+I<group reference> is the name of the group prefixed by the at (C<@>)
+character.
 
 The B<group> command is used at top-level to begin a group definition
 block, and the remaining commands are accepted within the group block.
@@ -453,28 +475,40 @@ character (C</>).
 The B<end group> command ends the definition of a group.  Following an
 B<end group> command, top-level commands are again accepted.
 
-=item B<interfaces> I<integer-or-group-ref> [I<integer-or-group-ref>...]
+=item B<interfaces> {I<integer> | I<group-ref>} [I<integer> I<group-ref>...]
 
-Interfaces values are added to a group by means of the B<interfaces>
-command within a group block.  Existing interface groups may be added
-by prefixing each group's name with an at (C<@>) character.  When you
-add an interface group, it is the same as individually adding each
-interface to the group being defined.  It is an error to add an
-ipblock group to an interface group.  The B<interfaces> command may
-appear multiple times in a group block.
+The B<interfaces> command adds integer values to a group, where each
+integer is treated as an SNMP interface number or VLAN identifier.
+The B<interfaces> command may appear multiple times in a group block.
+Each integer value may be between 0 and 65535 inclusive.
 
-=item B<ipblocks> I<cidr-block-or-group-ref> [I<cidr-block-or-group-ref>...]
+=item B<ipblocks> {I<cidr-block> | I<group-ref>} [I<cidr-block> I<group-ref>...]
 
-CIDR block values are added to a group by means of the B<ipblocks>
-command within a group block.  Existing ipblock groups may be added by
-prefixing each group's name with an at (C<@>) character.  When you add
-an ipblock group, it is the same as individually adding each CIDR
-block to the group being defined.  It is an error to add an interface
-group to an ipblock group.  The B<ipblocks> command may appear
-multiple times in a group block.
+The B<ipblocks> command adds CIDR block values to a group.  The
+B<ipblocks> command may appear multiple times in a group block.  For
+groups containing more than a couple of CIDR blocks, consider using an
+IPset instead.
+
+=item B<ipsets> {I<filename> | I<group-ref>} [I<filename> I<group-ref>...]
+
+The B<ipset> command adds the IP addresses specified in an IPset file
+(such as that created by B<rwsetbuild(1)>) a group.  The B<ipsets>
+command may appear multiple times in a group block.  When multiple
+IPset files are specified, the group maintains a single IPset that is
+the union of files.  B<rwflowpack> exits with an error if the IPset
+file does not exist or does not contain any IP addresses.  I<Since
+SiLK 3.10.0>.
 
 =back
 
+Specifying the at (C<@>) character and the name of an existing group
+within an B<interfaces>, B<ipblocks>, or B<ipsets> command causes the
+contents of the existing group to be added to the current group as
+long as the existing group contains interfaces, ipblocks, or ipsets,
+respectively.  A group does not reference other groups; the contents
+of the existing groups are copied into the current group.
+
+For example group blocks, see L</Group definitions> below.
 
 =head2 Sensor Block
 
@@ -497,22 +531,22 @@ to network being monitored, null are flows that were blocked by the
 router's access control list, and external is everything else.
 
 Several of the commands in the sensor block require as an argument a
-list of CIDR blocks or a list of integers.  These are defined as
+list of CIDR blocks, a list of IPset files, or a list of integers.
+Instead of specifying a list of values, you may specify a group
+reference to a group (see L</Group Block>) containing ipblocks,
+ipsets, or interfaces, respectively.  (A group reference the at (C<@>)
+character followed by group's name.)  These lists are defined as
 follows:
 
 =over 4
 
 =item I<cidr-block-list>
 
-A cidr-block-list contains one or more CIDR blocks that represent an
-address space.  As part of determining how to process a flow record,
-B<rwflowpack> may check whether the record's source or destination IP
-address is in the list.  The cidr-block-list can be created by
-specifying CIDR blocks and/or references to groups (see L</Group
-Block>) containing CIDR blocks (ipblocks).  To add a reference to a
-group, prefix the group's name with an at (C<@>) character.  It is an
-error to add an interface group to a cidr-block-list.  When comparing
-an IP address to a cidr-block-list, note the following:
+A cidr-block-list contains one or more CIDR blocks or group references
+that represent an address space.  As part of determining how to
+process a flow record, B<rwflowpack> may check whether the record's
+source or destination IP address is in the list.  When comparing an IP
+address to a cidr-block-list, note the following:
 
 =over 4
 
@@ -536,19 +570,27 @@ fail the comparison
 
 =back
 
+=item I<ipset-list>
+
+An ipset-list contains the names of one or more IPset files or group
+references.  These files represent an address space, and B<rwflowpack>
+may check whether a flow record's source or destination IP address is
+in this address space.  When multiple IPset files are specified, the
+contents of the files are merged into a single IPset.  B<rwflowpack>
+exits with an error if the IPset file does not exist or does not
+contain any IP addresses.  The rules for comparing IPv4 and IPv6
+addresses are the same as those for the cidr-block-list.  I<Since SiLK
+3.10.0>.
+
 =item I<interface-list>
 
-An interface-list contains one or more non-negative integers ranging
-from 0 to 65535 that represent SNMP interface index(es) or VLAN
+An interface-list contains one or more group references or integers
+(ranging from 0 to 65535) that represent SNMP interface index(es) or VLAN
 identifiers.  As part of determining how to process a flow record,
 B<rwflowpack> may check whether the record's C<input> or C<output>
 fields are in the list.  Whether the C<input> and C<output> fields
 contain SNMP interfaces or VLAN identifiers is determined by the
 B<interface-values> command in the probe block (c.f. L</Probe Block>).
-The interface-list can be creating by specifying numbers and/or
-references to groups containing interfaces.  To add a reference to a
-group, prefix the group's name with an at (C<@>) character.  It is an
-error to add an ipblock group to an interface-list.
 
 =back
 
@@ -583,79 +625,6 @@ netflow-v5 probe; whenever flow data arrives on the S1 probe, the
 sensor associated with the probe notices that data is available and
 processes it.
 
-=item B<discard-when> B<source>-B<interfaces> I<interface-list>
-
-This optional command instructs B<rwflowpack> to discard a flow record
-when the value in the C<input> field is listed in I<interface-list>.
-When a match is found, B<rwflowpack> immediately stops processing that
-record and it will not pack the flow for this sensor.  When this
-command is present, no other B<discard-* source-interfaces> commands
-may be specified on this sensor, but you may specify a B<discard-*
-source-ipblocks> statement.  When paired with VLAN tagging (see the
-B<interface-values> statement in the probe block), this allows the
-administrator to discard flows that have a specific VLAN tag.
-
-=item B<discard-when> B<destination>-B<interfaces> I<interface-list>
-
-As above, but discards a flow when the value in the record's C<output>
-field matches a value in I<interface-list>.
-
-=item B<discard-when> B<any>-B<interfaces> I<interface-list>
-
-As above, but discards a flow when either its C<input> or C<output>
-field matches a value in I<interface-list>.
-
-=item B<discard-when> B<source>-B<ipblocks> I<cidr-block-list>
-
-=item B<discard-when> B<destination>-B<ipblocks> I<cidr-block-list>
-
-=item B<discard-when> B<any>-B<ipblocks> I<cidr-block-list>
-
-These optional commands are similar to the
-S<B<discard-when> I<*>-B<interfaces>> commands above except they
-operate on IP addresses.  That is, the first discards a flow when its
-source IP address is in I<cidr-block-list>, the second ignores a flow
-when its destination IP address is in I<cidr-block-list>, and the
-third discards a flow when either its source IP or destination IP
-address is in I<cidr-block-list>.
-
-=item B<discard-unless> B<source>-B<interfaces> I<interface-list>
-
-This optional command is similar to the B<discard-when> command
-described above, except this command instructs B<rwflowpack> to
-discard the flow record I<unless> its C<input> field is in
-I<interface-list>.  That is, the flow record will be packed only when
-all the B<discard-unless> statements are matched.  When this command
-is present, no other B<discard-* source-interfaces> commands may be
-specified on this sensor, but you may specify a B<discard-*
-source-ipblocks> statement.  When paired with VLAN tagging (see the
-B<interface-values> statement in the probe block), this allows one to
-discard flows that do not have a specific VLAN tag.
-
-=item B<discard-unless> B<destination>-B<interfaces> I<interface-list>
-
-As above, but discards a flow unless its C<output> field matches a
-value in I<interface-list>.
-
-=item B<discard-unless> B<any>-B<interfaces> I<interface-list>
-
-As above, but discards a flow unless either its C<input> or C<output>
-field matches a value in I<interface-list>.
-
-=item B<discard-unless> B<source>-B<ipblocks> I<cidr-block-list>
-
-=item B<discard-unless> B<destination>-B<ipblocks> I<cidr-block-list>
-
-=item B<discard-unless> B<any>-B<ipblocks> I<cidr-block-list>
-
-These optional commands are similar to the
-S<B<discard-unless> I<*>-B<interfaces>> commands above, except they
-operate on IP addresses.  That is, the first discards a flow unless
-its source IP address is in I<cidr-block-list>, the second discards a
-flow unless its destination IP address is in I<cidr-block-list>, and
-the third discards a flow unless either the source IP or destination
-IP address is in I<cidr-block-list>.
-
 =item B<source-network> I<network-name>
 
 This command causes the sensor to assume that all flows originated
@@ -673,22 +642,33 @@ the network named I<network-name>.
 
 This command specifies the IP-space that is assigned to the network
 named I<network-name>.  The value of the command can be the keyword
-B<remainder> or a list containing CIDR blocks and/or group references.
-When the value is the keyword B<remainder>, the IP-space for
-I<network-name> is computed by finding all IPs not assigned to other
-networks on this sensor.  The B<remainder> keyword may only appear one
-time within a sensor block.
+B<remainder> or a list containing CIDR blocks and/or group references
+to groups containing CIDR blocks.  When the value is the keyword
+B<remainder>, the IP-space for I<network-name> is conceptually all IPs
+not assigned to other networks on this sensor.  The B<remainder>
+keyword may only appear one time within a sensor block.
+
+=item I<network-name>B<-ipsets> {I<ipset-list> | B<remainder>}
+
+This command specifies the IP-space that is assigned to the network
+named I<network-name>.  The value of the command can be the keyword
+B<remainder> or a list containing the names of IPset files and/or
+group references to groups containing IPset files.  When the value is
+the keyword B<remainder>, the IP-space for I<network-name> is
+conceptually all IPs not assigned to other networks on this sensor.
+The B<remainder> keyword may only appear one time within a sensor
+block.
 
 =item I<network-name>B<-interfaces> {I<interface-list> | B<remainder>}
 
 This command specifies the SNMP interface index(es) or VLAN
 identifiers that are assigned to the network named I<network-name>.
 The value of the command can be the keyword B<remainder> or a list
-containing interface numbers and/or group references.  When the value
-is the keyword B<remainder>, the interface list is computed by finding
-all interface values not assigned to other networks on this sensor.
-The B<remainder> keyword may only appear one time within a sensor
-block.
+containing interface numbers and/or group references to groups
+containing interfaces.  When the value is the keyword B<remainder>,
+the interface list is computed by finding all interface values not
+assigned to other networks on this sensor.  The B<remainder> keyword
+may only appear one time within a sensor block.
 
 =item B<isp-ip> I<ip-address> [I<ip-address> ...]
 
@@ -704,25 +684,226 @@ list) from traffic that violated the router's access control list
 
 =back
 
+The following optional sensor block commands provide a way to filter
+the flow records that B<rwflowpack> packs for a sensor.  Each filter
+begins with either B<discard-when> or B<discard-unless>, mentions a
+flow record field, and ends with a list of values.
+
+The B<discard-when> command causes the sensor to ignore the flow
+record if the property matches any of the elements in the list.  When
+a match is found, B<rwflowpack> immediately stops processing the
+record for the current sensor and the flow is not packed for this
+sensor.
+
+The B<discard-unless> command causes the sensor to ignore the flow
+record I<unless> the property matches one of the elements in the list.
+That is, the flow record is packed only if its property matches one of
+the values specified in the list, and, when multiple B<discard-unless>
+commands are present, if the flow record matches the values
+specified in each.
+
+For each individual property, only one of B<discard-when> or
+B<discard-unless> may be specified.
+
+=over 4
+
+=item B<discard-when> B<source>-B<interfaces> I<interface-list>
+
+Instructs B<rwflowpack> to discard a flow record for this sensor if
+the value in the flow's C<input> field is listed in
+I<interface-list>.  When paired with VLAN tagging (see the
+B<interface-values> command in the probe block), this allows the
+administrator to discard flows that have a specific VLAN tag.  The
+commands B<discard-when source-interfaces> and B<discard-unless
+source-interfaces> may not be specified on the same sensor, but other
+B<discard-> commands are permitted.
+
+=item B<discard-unless> B<source>-B<interfaces> I<interface-list>
+
+Instructs B<rwflowpack> to discard the flow record for this sensor
+unless the flow's C<input> field is in I<interface-list>.  That is,
+the flow record may be packed only if its C<input> field matches one
+of the values specified in I<interface-list>.  When paired with VLAN
+tagging, this allows one to discard flows that do not have a specific
+VLAN tag.  The commands B<discard-when source-interfaces> and
+B<discard-unless source-interfaces> may not be specified on the same
+sensor, but other B<discard-> commands are permitted.
+
+=item B<discard-when> B<destination>-B<interfaces> I<interface-list>
+
+Discards a flow for this sensor when the flow's C<output> field
+matches a value in I<interface-list>.  May not appear in the same
+sensor block with B<discard-unless destination-interfaces>.
+
+=item B<discard-unless> B<destination>-B<interfaces> I<interface-list>
+
+Discards a flow for this sensor unless the flow's C<output> field
+matches a value in I<interface-list>.  May not appear in the same
+sensor block with B<discard-when destination-interfaces>.
+
+=item B<discard-when> B<any>-B<interfaces> I<interface-list>
+
+Discards a flow for this sensor when either the flow's C<input> or its
+C<output> field matches a value in I<interface-list>.  May not appear
+in the same sensor block with B<discard-unless any-interfaces>.
+
+=item B<discard-unless> B<any>-B<interfaces> I<interface-list>
+
+Discards a flow for this sensor unless either the flow's C<input> or
+its C<output> field matches a value in I<interface-list>.  May not
+appear in the same sensor block with B<discard-unless any-interfaces>.
+
+=item B<discard-when> B<source>-B<ipblocks> I<cidr-block-list>
+
+Discards a flow for this sensor when the flow's source IP address,
+C<sIP>, matches one of the CIDR blocks in I<cidr-block-list>.  May not
+appear in the same sensor block with B<discard-unless
+source-ipblocks>.
+
+=item B<discard-unless> B<source>-B<ipblocks> I<cidr-block-list>
+
+Discards a flow for this sensor unless the flow's source IP address,
+C<sIP>, matches one of the CIDR blocks in I<cidr-block-list>.  May not
+appear in the same sensor block with B<discard-when source-ipblocks>.
+
+=item B<discard-when> B<destination>-B<ipblocks> I<cidr-block-list>
+
+Discards a flow for this sensor when the flow's destination IP
+address, C<dIP>, matches one of the CIDR blocks in I<cidr-block-list>.
+May not appear in the same sensor block with B<discard-unless
+destination-ipblocks>.
+
+=item B<discard-unless> B<destination>-B<ipblocks> I<cidr-block-list>
+
+Discards a flow for this sensor unless the flow's destination IP
+address, C<dIP>, matches one of the CIDR blocks in I<cidr-block-list>.
+May not appear in the same sensor block with B<discard-when
+destination-ipblocks>.
+
+=item B<discard-when> B<any>-B<ipblocks> I<cidr-block-list>
+
+Discards a flow for this sensor when either the flow's source IP or
+its destination IP address matches one of the CIDR blocks in
+I<cidr-block-list>.  May not appear in the same sensor block with
+B<discard-unless any-ipblocks>.
+
+=item B<discard-unless> B<any>-B<ipblocks> I<cidr-block-list>
+
+Discards a flow for this sensor unless either the flow's source IP or
+its destination IP address matches one of the CIDR blocks in
+I<cidr-block-list>.  May not appear in the same sensor block with
+B<discard-when any-ipblocks>.
+
+=item B<discard-when> B<source>-B<ipsets> I<ipset-list>
+
+Discards a flow for this sensor when the flow's source IP address,
+C<sIP>, is in one of IPset files in I<ipset-list>.  May not
+appear in the same sensor block with B<discard-unless source-ipsets>.
+I<Since SiLK 3.10.0>.
+
+=item B<discard-unless> B<source>-B<ipsets> I<ipset-list>
+
+Discards a flow for this sensor unless the flow's source IP address,
+C<sIP>, is in one of IPset files in I<ipset-list>.  May not appear in
+the same sensor block with B<discard-when source-ipsets>.  I<Since
+SiLK 3.10.0>.
+
+=item B<discard-when> B<destination>-B<ipsets> I<ipset-list>
+
+Discards a flow for this sensor when the flow's destination IP
+address, C<dIP>, is in one of the IPset files in I<ipset-list>.  May
+not appear in the same sensor block with B<discard-unless
+destination-ipsets>.  I<Since SiLK 3.10.0>.
+
+=item B<discard-unless> B<destination>-B<ipsets> I<ipset-list>
+
+Discards a flow for this sensor unless the flow's destination IP
+address, C<dIP>, is in one of the IPset files in I<ipset-list>.  May
+not appear in the same sensor block with B<discard-when
+destination-ipsets>.  I<Since SiLK 3.10.0>.
+
+=item B<discard-when> B<any>-B<ipsets> I<ipset-list>
+
+Discards a flow for this sensor when either the flow's source IP or
+its destination IP address is in one of the IPset files in
+I<ipset-list>.  May not appear in the same sensor block with
+B<discard-unless any-ipsets>.  I<Since SiLK 3.10.0>.
+
+=item B<discard-unless> B<any>-B<ipsets> I<ipset-list>
+
+Discards a flow for this sensor unless either the flow's source IP or
+its destination IP address is in one of the IPset files in
+I<ipset-list>.  May not appear in the same sensor block with
+B<discard-when any-ipsets>.  I<Since SiLK 3.10.0>.
+
+=back
+
 =head1 EXAMPLES
 
 All these examples assume you are using the B<packlogic-twoway(3)>
 packing logic plug-in to B<rwflowpack(8)>.
 
+=head2 Group definitions
+
+The following shows how to create groups that can be used in other
+group blocks or in certain commands within a sensor block.
+
+ group G01
+     interfaces 1 2, 3
+     interfaces 4
+ end group
+
+ group G02
+     interfaces 5 @G01
+ end group
+
+ group G03
+     interfaces @G02
+     interfaces 6
+ end group
+
+ group G11
+     ipblocks 192.0.2.0/27  192.0.2.32/27,  192.0.2.64/26
+     ipblocks 192.0.2.128/25
+ end group
+
+ group G12
+     ipblocks 198.51.100.0/24  @G11
+ end group
+
+ group G13
+     ipblocks @G12
+     ipblocks 203.0.113.0/24
+ end group
+
+ group G21
+     ipsets /var/sets/ip1.set  /var/sets/ip2.set,  /var/sets/ip3.set
+     ipsets /var/sets/ip4.set
+ end group
+
+ group G22
+     ipsets /var/sets/ip5.set  @G21
+ end group
+
+ group G23
+     ipsets @G22
+     ipsets /var/sets/ip6.set
+ end group
+
 =head2 NetFlow v5 Categorized by SNMP Interface
 
 The following two blocks define a probe that listens on 9900/udp for
 NetFlow v5 from a router.  The probe only accepts traffic originating
-from 172.16.22.22.  The associated sensor uses the SNMP interfaces to
-categorize the flows, where traffic that enters the router on
-interface 1 and leaves on interface 8 is B<in>, traffic entering on 8
-and leaving on 1 is B<out>, traffic from 1 to 0 is B<innull>, traffic
-from 8 to 8 is B<int2int>, etc.
+from 172.16.22.22 or 172.16.33.33.  The associated sensor uses the
+SNMP interfaces to categorize the flows, where traffic that enters the
+router on interface 1 and leaves on interface 8 is B<in>, traffic
+entering on 8 and leaving on 1 is B<out>, traffic from 1 to 0 is
+B<innull>, traffic from 8 to 8 is B<int2int>, etc.
 
   probe S1 netflow-v5
       listen-on-port 9901
       protocol udp
-      accept-from-host 172.16.22.22
+      accept-from-host 172.16.22.22 172.16.33.33
   end probe
 
   sensor S1
@@ -747,7 +928,7 @@ as B<outweb>; the reply (source of google.com and destination
   probe S2 netflow-v5
       listen-on-port 9902
       protocol udp
-      accept-from-host 172.16.22.22
+      accept-from-host 172.16.22.22 172.16.33.33
       log-flags bad                     # ignore missing pkts
   end probe
 
@@ -800,7 +981,7 @@ directory F</tmp/var/yaf/>.
 
 This example uses a NetFlow v9 probe to collect the flows on port
 9905/udp, where the probe binds to address 192.168.1.92.  The sensor
-configuration is the same as in the previous example.
+configuration uses an IPset file to define the internal network.
 
   probe S5 netflow-v9
       listen-on-port 9905
@@ -810,57 +991,43 @@ configuration is the same as in the previous example.
 
   sensor S5
       netflow-v9-probes S5
-      internal-ipblocks 128.2.0.0/16
-      external-ipblocks remainder
+      internal-ipsets /var/sets/my-network.set
+      external-ipsets remainder
   end sensor
 
-=head2 Multiple Sources Becoming One Sensor (Multiple Ports)
+=head2 sFlow v5 Categorized by IP Address
 
-Consider a scenario where there are multiple input streams that need
-to be treated as a single sensor.  For example, you use multiple
-routers for load-balancing but you want them treated as a single
-logical sensor.  The following solution has each stream arrive on a
-separate port where it is collected by a separate probe.  The probes
-are combined into one sensor.  This solution works with all types of
-input; see the next example for a more limited solution.
+This example uses an sFlow probe to collect the flows on port
+9906/udp, where the probe binds to the IPv6 address ::1.  The sensor
+configuration uses an IPset file to define the internal network.
 
-  probe S6-p1 netflow-v9
-      listen-on-port 9961
+  probe S19 sflow
+      listen-on-port 9906
       protocol udp
+      listen-as-host ::1
   end probe
 
-  probe S6-p2 netflow-v9
-      listen-on-port 9962
-      protocol udp
-  end probe
-
-  probe S6-p3 netflow-v9
-      listen-on-port 9963
-      protocol udp
-  end probe
-
-  sensor S6
-      netflow-v9-probes S6-p1, S6-p2, S6-p3
-      internal-ipblocks 128.2.0.0/16
-      external-ipblocks remainder
+  sensor S19
+      sflow-probes S19
+      internal-ipsets /var/sets/my-network.set
+      external-ipsets remainder
   end sensor
 
 =head2 Multiple Sources Becoming One Sensor (One Port)
 
-It may be possible to simplify the previous example that combines
-multiple input streams to a single sensor depending on the type of the
-input streams and on the versions of software being used.  In the more
-simple configuration, you send all the input streams to a single port,
-and you define a single probe listening on that port.  As long as the
-streams have a unique source IP, the streams will be treated
-distinctly.  This configuration works for NetFlow v5 on all versions
-of SiLK, for TCP-based IPFIX as of SiLK 3.0 and libfixbuf-1.0, and for
-NetFlow v9 and UDP-based IPFIX as of SiLK 3.4 and libfixbuf-1.2.0.
-(If these requirements are not met, use the configuration in the
-previous example.)  The following configurations will accept any
-number of TCP-based IPFIX connections to port 9907 and any number of
-NetFlow v5 connections to 9908, and treat all the flow data
-identically.
+Consider a scenario where there are multiple input streams that need
+to be treated as a single sensor.  For example, you use multiple
+routers for load-balancing but you want them treated as a single
+logical sensor.  In this configuration, you send all the input streams
+to a single port, and you define a single probe listening on that
+port.  As long as the streams have a unique source IP, the streams
+will be treated distinctly.
+
+The following sensor and probe blocks accept any number of TCP-based
+IPFIX connections to port 9907 and any number of NetFlow v5
+connections to 9908.  This configuration works for all types of input
+as SiLK 3.4.0 when using libfixbuf-1.2.0.  See the configuration in
+the following example for a alternate approach.
 
   probe S7 ipfix
       listen-on-port 9907
@@ -881,6 +1048,36 @@ identically.
 
   sensor S8
       netflow-v5-probes S8
+      internal-ipblocks 128.2.0.0/16
+      external-ipblocks remainder
+  end sensor
+
+=head2 Multiple Sources Becoming One Sensor (Multiple Ports)
+
+Like the previous example, this example configuration causes multiple
+input streams to be treated as a single sensor.  In this solution,
+each stream arrives on a separate port where it is collected by a
+separate probe.  The sensor block combines the probes into one sensor.
+This type of approach works with all types of input for all releases
+of SiLK.
+
+  probe S6-p1 netflow-v9
+      listen-on-port 9961
+      protocol udp
+  end probe
+
+  probe S6-p2 netflow-v9
+      listen-on-port 9962
+      protocol udp
+  end probe
+
+  probe S6-p3 netflow-v9
+      listen-on-port 9963
+      protocol udp
+  end probe
+
+  sensor S6
+      netflow-v9-probes S6-p1, S6-p2, S6-p3
       internal-ipblocks 128.2.0.0/16
       external-ipblocks remainder
   end sensor
@@ -930,10 +1127,8 @@ distinguish the traffic based on the source address.  Specifically,
 create a separate probe for each sensor where each probe uses the same
 B<listen-on-port> value but different B<accept-from-host> values.  The
 following configuration uses a NetFlow v5 probe, which works for all
-versions of SiLK.  A similar configuration will work for TCP-based
-IPFIX probes as of SiLK 3.0 and libfixbuf-1.0.  The configuration will
-also work for UDP-based IPFIX probes or NetFlow v9 probes as of SiLK
-3.4 and libfixbuf-1.2.0.
+versions of SiLK.  A similar configuration works for any type of input
+as of SiLK 3.4.0 and libfixbuf-1.2.0.
 
   probe S10 netflow-v5
       listen-on-port 9910
@@ -971,7 +1166,7 @@ by sensor S12) is defined as 128.2.0.0/17, and the other (sensor S13)
 as 128.2.128.0/17.  Traffic between 128.2.0.1 and google.com will be
 assigned to sensor S12, but it will so appear as B<ext2ext> traffic
 for sensor S13 unless you explicitly discard that traffic using the
-B<discard-unless> statement.
+B<discard-unless> command.
 
   probe S12-S13 ipfix
       listen-on-port 9912
@@ -1003,7 +1198,7 @@ B<discard-unless> statement.
 =head2 Discarding Flows Using VLAN Tags
 
 You can configure B<rwflowpack> to discard flows that do not have a
-particular VLAN tag.  First, specify the B<interface-values> statement
+particular VLAN tag.  First, specify the B<interface-values> command
 to instruct the probe to put the VLAN id into the fields that
 typically store the SNMP interfaces.  On the sensor, use the
 B<discard-unless> command to discard flows that do not have the
@@ -1029,7 +1224,7 @@ example.)
 =head2 Categorizing Flows Using VLAN Tags
 
 By repeating a sensor block and using different B<discard-unless>
-statements in each block, you may configure B<rwflowpack> to
+commands in each block, you may configure B<rwflowpack> to
 categorize flow records based on VLAN tags.  Suppose B<yaf> is
 monitoring a connection where incoming flows are marked with VLAN tag
 151 and outgoing flows are marked with 152.  You simply discard any
@@ -1159,19 +1354,25 @@ file.
 =head1 SEE ALSO
 
 B<rwflowpack(8)>, B<flowcap(8)>, B<packlogic-twoway(3)>,
-B<packlogic-generic(3)>, B<silk.conf(5)>, B<silk(7)>,
-I<SiLK Installation Handbook>, B<pcap(3)>, B<yaf(1)>, B<gzip(1)>
+B<packlogic-generic(3)>, B<rwsetbuild(1)>, B<silk.conf(5)>,
+B<silk(7)>, I<SiLK Installation Handbook>, B<pcap(3)>, B<yaf(1)>,
+B<gzip(1)>
 
 =head1 NOTES
 
-The B<quirks> statement was introduced in SiLK 3.8.
+The accept-from-host command began to accept a list of arguments in
+SiLK 3.10.1.
 
-The following statements were introduced in SiLK 2.1: B<group>,
-B<discard-unless>, B<discard-when>, B<interface-values>.
+SiLK 3.10.0 added IPset file support to the B<group> block and to some
+commands in the B<sensor> block.
+
+Support for collecting sFlow records was added in SiLK 3.9.0.
+
+The B<quirks> command was introduced in SiLK 3.8.0.
 
 =cut
 
-$SiLK: sensor.conf.pod 37fd860c358b 2014-09-23 13:19:15Z mthomas $
+$SiLK: sensor.conf.pod 68603dc525b7 2015-02-17 15:50:48Z mthomas $
 
 Local Variables:
 mode:text

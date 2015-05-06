@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2001-2014 by Carnegie Mellon University.
+** Copyright (C) 2001-2015 by Carnegie Mellon University.
 **
 ** @OPENSOURCE_HEADER_START@
 **
@@ -63,7 +63,7 @@
 
 #include <silk/silk.h>
 
-RCSIDENT("$SiLK: rwfiltercheck.c cd598eff62b9 2014-09-21 19:31:29Z mthomas $");
+RCSIDENT("$SiLK: rwfiltercheck.c b7b8edebba12 2015-01-05 18:05:21Z mthomas $");
 
 #include "rwfilter.h"
 #include <silk/skipset.h>
@@ -2236,7 +2236,7 @@ parseRangeTime(
     const char         *s_time)
 {
     sktime_t min, max;
-    int max_precision = 0;
+    unsigned int max_precision = 0;
     int rv;
 
     /* parse the time */
@@ -2254,14 +2254,22 @@ parseRangeTime(
     if (max == INT64_MAX) {
         /* there was no max date parsed */
         p_vr->max = p_vr->min;
-    } else if (max_precision < 7) {
+    } else if (SK_PARSED_DATETIME_GET_PRECISION(max_precision)
+               == SK_PARSED_DATETIME_FRACSEC)
+    {
+        /* end time already has fractional seconds */
+        p_vr->max = (uint64_t)max;
+    } else {
+        if (SK_PARSED_DATETIME_EPOCH & max_precision) {
+            /* treat a value in epoch seconds as having second
+             * precision */
+            max_precision = SK_PARSED_DATETIME_SECOND;
+        }
         /* the max date precision is less than (courser than)
          * millisecond resolution, so "round" the date up */
         if (skDatetimeCeiling(&max, &max, max_precision) != 0) {
             return -1;
         }
-        p_vr->max = (uint64_t)max;
-    } else {
         p_vr->max = (uint64_t)max;
     }
 

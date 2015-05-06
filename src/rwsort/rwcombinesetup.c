@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2001-2014 by Carnegie Mellon University.
+** Copyright (C) 2001-2015 by Carnegie Mellon University.
 **
 ** @OPENSOURCE_HEADER_START@
 **
@@ -60,7 +60,7 @@
 
 #include <silk/silk.h>
 
-RCSIDENT("$SiLK: rwcombinesetup.c d85feea768f3 2014-09-24 22:02:33Z mthomas $");
+RCSIDENT("$SiLK: rwcombinesetup.c b7b8edebba12 2015-01-05 18:05:21Z mthomas $");
 
 #include <silk/sksite.h>
 #include <silk/skstringmap.h>
@@ -138,8 +138,8 @@ static const char *appHelp[] = {
     "Describe each possible field and exit. Def. no",
     ("Select how input records should be combined. Def. all.\n"
      "\tAvailable actions:"),
-    ("Ignore these field(s) (ie, treat them as being\n"
-     "\tidentical) when comparing records:"),
+    ("Ignore this comma separated list of field(s) when\n"
+     "\tcomparing records---that is, treat these fields as if identical:"),
     ("Do not combine flows that are idle for more than\n"
      "\tthis number of seconds (may be fractional). Def. no limit"),
     ("Print statistics regarding number of flows combined\n"
@@ -184,10 +184,10 @@ appUsageLong(
 #define USAGE_MSG                                                             \
     ("[SWITCHES] [FILES]\n"                                                   \
      "\tRead SiLK Flow records from FILES given on command line or from\n"    \
-     "\tthe standard input and write the records to the named output path\n"  \
-     "\tor to the standard output, removing any duplicate flow records.\n"    \
-     "\tTwo records are duplications when ALL fields are identical.  Note\n"  \
-     "\tthat the order of records is not maintained.\n")
+     "\tthe standard input, create a single record from flows that were\n"    \
+     "\tclosed due to a timeout or were a continuation of a timed-out\n"      \
+     "\tflow, and write the combined flows and the unmodified flows to\n"     \
+     "\tthe named output path or to the standard output.\n")
 
     FILE *fh = USAGE_FH;
     const sk_stringmap_entry_t *e;

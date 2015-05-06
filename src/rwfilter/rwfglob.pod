@@ -6,10 +6,10 @@ B<rwfglob> - Print files that B<rwfilter>'s File Selection switches will access
 
 =head1 SYNOPSIS
 
-  rwfglob [--start-date=YYYY/MM/DD[:HH] [--end-date=YYYY/MM/DD[:HH]]]
-        { [--class=CLASS] [--type={all | TYPE[,TYPE ...]}]
-         | [--flowtype=CLASS/TYPE[,CLASS/TYPE ...]] }
+  rwfglob { [--class=CLASS] [--type={all | TYPE[,TYPE ...]}]
+            | [--flowtype=CLASS/TYPE[,CLASS/TYPE ...]] }
         [--sensors=SENSOR[,SENSOR ...]]
+        [--start-date=YYYY/MM/DD[:HH] [--end-date=YYYY/MM/DD[:HH]]]
         [--data-rootdir=ROOT_DIRECTORY] [--site-config-file=FILENAME]
         [--print-missing-files] [--no-block-check] [--no-file-names]
         [--no-summary]
@@ -59,6 +59,49 @@ provided.
 
 =over 4
 
+=item B<--class>=I<CLASS>
+
+The B<--class> switch is used to specify a group of files to print.
+Only a single class may be selected with the B<--class> switch; for
+multiple classes, use the B<--flowtypes> switch.  Classes are defined
+in the B<silk.conf(5)> site configuration file.  If the B<--class>
+option is not given, the default-class as specified in F<silk.conf> is
+used.  To see the available classes and the default class, either
+examine the output from B<rwfglob --help> or invoke B<rwsiteinfo(1)>
+with the switch B<--fields=class,default-class>.
+
+=item B<--type>={C<all> | I<TYPE>[,I<TYPE>]}
+
+The B<--type> predicate further specifies data within the selected
+I<CLASS> by listing the I<TYPE>s of traffic to process.  The switch
+takes a comma-separated list of types or the keyword C<all> which
+specifies all types for the specified I<CLASS>.  Types are defined in
+F<silk.conf>, they typically refer to the direction of the flow, and
+they may vary by class.  When the B<--type> switch is not specified, a
+list of default types is used.  The default-type list is determined by
+the value of I<CLASS>, and the default types generally include only
+incoming traffic.  To see the available types and the default types
+for each class, examine the B<--help> output of B<rwfglob> or run
+B<rwsiteinfo> with B<--fields=class,type,default-type>.
+
+=item B<--flowtypes>=I<CLASS>/I<TYPE>[,I<CLASS>/I<TYPE> ...]
+
+The B<--flowtype> predicate provides an alternate way to specify
+class/type pairs.  The B<--flowtypes> switch allows a single
+B<rwfglob> invocation to print data from multiple classes.  The
+keyword C<all> may be used for the I<CLASS> and/or I<TYPE> to select
+all classes and/or types.
+
+=item B<--sensors>=I<SENSOR>[,I<SENSOR> ...]
+
+The B<--sensor> switch is used to select data from specific sensors.
+The parameter is a comma separated list of sensor names, sensor IDs
+(integers), and/or ranges of sensor IDs.  Sensors are defined in the
+B<silk.conf(5)> site configuration file, and the B<rwsiteinfo(1)> command
+can be used to print a mapping of sensor names to IDs and classes.
+When the B<--sensor> switch is not specified, the default is to use
+all sensors which are valid for the specified class(es).
+
 =item B<--start-date>=I<YYYY/MM/DD[:HH]>
 
 =item B<--end-date>=I<YYYY/MM/DD[:HH]>
@@ -72,68 +115,68 @@ in UTC or the local timezone depend on how SiLK was compiled.  To
 determine how your version of SiLK was compiled, see the C<Timezone
 support> setting in the output from B<rwfglob --version>.
 
+When times are expressed in C<YYYY/MM/DD[:HH]> format:
+
+=over 4
+
+=item *
+
 When both B<--start-date> and B<--end-date> are specified to hour
 precision, all hours within that time range are processed.
+
+=item *
 
 When B<--start-date> is specified to day precision, the hour specified
 in B<--end-date> (if any) is ignored, and files for all dates between
 midnight on B<start-date> and 23:59 on B<end-date> are processed.
 
+=item *
+
 When B<--start-date> is specified to hour precision and B<--end-date>
 is specified to day precision, the hour of the start-date is used as
 the hour for the end-date.
 
+=item *
+
 When B<--end-date> is not specified and B<--start-date> is specified
 to day precision, files for that complete day are processed.
 
+=item *
+
 When B<--end-date> is not specified and B<--start-date> is specified
 to hour precision, files for that single hour are processed.
+
+=back
+
+When at least one time is expressed as seconds since the UNIX epoch:
+
+=over 4
+
+=item *
+
+When B<--end-date> is specified in epoch seconds, the given
+B<--start-date> and B<--end-date> are considered to be in hour
+precision.
+
+=item *
+
+When B<--start-date> is specified in epoch seconds and B<--end-date>
+is specified in C<YYYY/MM/DD[:HH]> format, the start-date is
+considered to be in day precision if it divisible by 86400, and hour
+precision otherwise.
+
+=item *
+
+When B<--start-date> is specified in epoch seconds and B<--end-date>
+is not given, the start-date is considered to be in hour-precision.
+
+=back
 
 When neither B<--start-date> nor B<--end-date> is given, B<rwfglob>
 prints all files for the current day.
 
 It is an error to specify B<--end-date> without specifying
 B<--start-date>.
-
-=item B<--class>=I<CLASS>
-
-The B<--class> switch is used to specify a group of data to process.
-Only a single class may be selected.  Classes are defined in the
-B<silk.conf(5)> site configuration file.  If the B<--class> option is
-not given, the default-class as specified in F<silk.conf> is used.
-Use B<rwfglob --help> to see the list of available classes and the
-default class.
-
-=item B<--type>={C<all> | I<TYPE>[,I<TYPE>]}
-
-The B<--type> predicate further specifies data within the selected
-I<CLASS> by listing the I<TYPE>s of traffic to process.  The switch
-takes a comma-separated list of types or the keyword C<all> which
-specifies all types for the specified I<CLASS>.  Types are defined in
-F<silk.conf>, they typically refer to the direction of the flow, and
-they may vary by class.  When the B<--type> switch is not specified, a
-list of default types will be used.  The default-type list is
-determined by the value of I<CLASS>, and the default types generally
-include only incoming traffic.  Use B<rwfglob --help> to see the
-list of available types and the default types for each class.
-
-=item B<--flowtypes>=I<CLASS>/I<TYPE>[,I<CLASS>/I<TYPE> ...]
-
-The B<--flowtype> predicate provides an alternate way to specify
-class/type pairs.  The B<--flowtype> switch allows a single B<rwfglob>
-invocation to print data from multiple classes.  The keyword C<all>
-may be used for the I<CLASS> and/or I<TYPE> to select all classes
-and/or types.
-
-=item B<--sensors>=I<SENSOR>[,I<SENSOR> ...]
-
-The B<--sensor> switch is used to select data from specific sensors.
-The parameter is a comma separated list of sensor names, sensor IDs
-(integers), and/or ranges of sensor IDs.  Sensors are defined in the
-B<silk.conf(5)> site configuration file, and the B<rwsiteinfo(1)> command
-can be used to print a mapping of sensor names to IDs and classes.
-When the B<--sensor> switch is not specified, the default is to use
-all sensors which are valid for the specified class(es).
 
 =item B<--data-rootdir>=I<ROOT_DIRECTORY>
 
@@ -151,14 +194,14 @@ section.
 
 =item B<--print-missing-files>
 
-This option prints to the standard error file names that B<rwfglob>
-expected to find but did not.  This switch is useful for debugging,
-but the list of files it produces can be misleading.  For example,
-suppose there is a decommissioned sensor that still appears in the
-F<silk.conf> file to permit retrieval of historical data; these data
-files will be I<missing> even though their absence is expected.  Use
-the output from this switch judiciously.  The file names are preceded
+This option prints to the standard error the names of the files that
+B<rwfglob> expected to find but did not.  The file names are preceded
 by the text S<'Missing '>; each file name appears on a separate line.
+This switch is useful for debugging, but the list of files it produces
+can be misleading.  For example, suppose there is a decommissioned
+sensor that still appears in the F<silk.conf> file; B<rwfglob>
+considers these data files as I<missing> even though their absence is
+expected.  Use the output from this switch judiciously.
 
 =back
 
@@ -335,7 +378,7 @@ tape-farm systems.
 
 =cut
 
-$SiLK: rwfglob.pod cd09f0a5fcc6 2014-06-14 15:43:33Z mthomas $
+$SiLK: rwfglob.pod d4c658d7f704 2014-12-11 22:23:21Z mthomas $
 
 Local Variables:
 mode:text

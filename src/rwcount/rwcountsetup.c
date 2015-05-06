@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2001-2014 by Carnegie Mellon University.
+** Copyright (C) 2001-2015 by Carnegie Mellon University.
 **
 ** @OPENSOURCE_HEADER_START@
 **
@@ -61,7 +61,7 @@
 
 #include <silk/silk.h>
 
-RCSIDENT("$SiLK: rwcountsetup.c cd598eff62b9 2014-09-21 19:31:29Z mthomas $");
+RCSIDENT("$SiLK: rwcountsetup.c b7b8edebba12 2015-01-05 18:05:21Z mthomas $");
 
 #include <silk/skstringmap.h>
 #include "rwcount.h"
@@ -322,8 +322,8 @@ appSetup(
     SILK_FEATURES_DEFINE_STRUCT(features);
     int optctx_flags;
     sktime_t t;
-    int start_precision = -1;
-    int end_precision = -1;
+    unsigned int end_precision;
+    unsigned int is_epoch;
     int64_t bin_count;
     int rv;
 
@@ -382,15 +382,14 @@ appSetup(
      * to resolve flowtype and sensor from input file names */
     sksiteConfigure(0);
 
-    /* parse the epoch times */
+    /* parse the times */
     if (start_time) {
-        rv = skStringParseDatetime(&(bins.start_time), start_time,
-                                   &start_precision);
+        rv = skStringParseDatetime(&bins.start_time, start_time, NULL);
         if (rv) {
             skAppPrintErr("Invalid %s '%s': %s",
                           appOptions[OPT_START_TIME].name, start_time,
                           skStringParseStrerror(rv));
-            skAppUsage();
+            exit(EXIT_FAILURE);
         }
     }
 
@@ -400,14 +399,18 @@ appSetup(
             skAppPrintErr("Invalid %s '%s': %s",
                           appOptions[OPT_END_TIME].name, end_time,
                           skStringParseStrerror(rv));
-            skAppUsage();
+            exit(EXIT_FAILURE);
+        }
+        /* get the precision; treat epoch time as seconds resolution
+         * unless its precision is already seconds or milliseconds */
+        is_epoch = SK_PARSED_DATETIME_EPOCH & end_precision;
+        end_precision &= SK_PARSED_DATETIME_MASK_PRECISION;
+        if (is_epoch && end_precision < SK_PARSED_DATETIME_SECOND) {
+            end_precision = SK_PARSED_DATETIME_SECOND;
         }
 
         if (start_time) {
             /* move end-time to its ceiling */
-            if (start_precision > end_precision) {
-                end_precision = start_precision;
-            }
             skDatetimeCeiling(&t, &t, end_precision);
             ++t;
 
@@ -424,21 +427,22 @@ appSetup(
                 exit(EXIT_FAILURE);
             }
 
-            /* make certain end_time fails on a boundary */
-            bin_count = ((t - bins.start_time) / bins.size);
-            if (t > (bins.start_time + bins.size * bin_count)) {
-                /* make end_time fail on a bin boundary */
-                ++bin_count;
-                t = bins.start_time + bins.size * bin_count;
-            }
-            bins.end_time = t;
+            /* make certain end-time fails on a boundary by computing
+             * the number of bins required to hold the end-time.  we
+             * subtract 1 then add 1 to get a valid count whether or
+             * not the division would have a remainder. */
+            bin_count = 1 + ((t - bins.start_time - 1) / bins.size);
+            bins.end_time = bins.start_time + bins.size * bin_count;
         } else {
             /* when only end_time is given, create bins up to its
              * ceiling value */
             bins.end_time = t;
             skDatetimeCeiling(&t, &t, end_precision);
             ++t;
-            bin_count = ((t - bins.end_time) / bins.size);
+            /* determine the number of bins between the end-time
+             * specified by the user and the ceiling of that end-time,
+             * then increase the end time by that number of bins */
+            bin_count = 1 + ((t - bins.end_time - 1) / bins.size);
             bins.end_time += bin_count * bins.size;
         }
     }

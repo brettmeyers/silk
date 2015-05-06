@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2007-2014 by Carnegie Mellon University.
+** Copyright (C) 2007-2015 by Carnegie Mellon University.
 **
 ** @OPENSOURCE_HEADER_START@
 **
@@ -60,7 +60,7 @@
                                    headers */
 #include <silk/silk.h>
 
-RCSIDENT("$SiLK: pysilk.c cd598eff62b9 2014-09-21 19:31:29Z mthomas $");
+RCSIDENT("$SiLK: pysilk.c b7b8edebba12 2015-01-05 18:05:21Z mthomas $");
 
 #include <silk/rwrec.h>
 #include <silk/skbag.h>
@@ -7120,8 +7120,8 @@ silkPyRepoIter_init(
     flowtype_iter_t ft_iter;
     flowtypeID_t ft;
     uint32_t flags;
-    int sprec;
-    int eprec;
+    unsigned int start_precision;
+    unsigned int end_precision;
     int rv;
 
     CHECK_SITE(-1);
@@ -7145,14 +7145,16 @@ silkPyRepoIter_init(
         if (rv != 0) {
             goto error;
         }
-        sprec = PyDateTime_Check(start) ? 4 : 3;
+        start_precision = (PyDateTime_Check(start)
+                           ? SK_PARSED_DATETIME_HOUR
+                           : SK_PARSED_DATETIME_DAY);
     } else if (IS_STRING(start)) {
         PyObject *bytes = bytes_from_string(start);
         if (bytes == NULL) {
             goto error;
         }
         rv = skStringParseDatetime(&starttime, PyBytes_AS_STRING(bytes),
-                                   &sprec);
+                                   &start_precision);
         Py_DECREF(bytes);
         if (rv != 0) {
             PyErr_SetString(PyExc_ValueError, skStringParseStrerror(rv));
@@ -7174,14 +7176,16 @@ silkPyRepoIter_init(
         if (rv != 0) {
             goto error;
         }
-        eprec = PyDateTime_Check(end) ? 4 : 3;
+        end_precision = (PyDateTime_Check(end)
+                         ? SK_PARSED_DATETIME_HOUR
+                         : SK_PARSED_DATETIME_DAY);
     } else if (IS_STRING(end)) {
         PyObject *bytes = bytes_from_string(end);
         if (bytes == NULL) {
             goto error;
         }
         rv = skStringParseDatetime(&endtime, PyBytes_AS_STRING(bytes),
-                                   &eprec);
+                                   &end_precision);
         Py_DECREF(bytes);
         if (rv != 0) {
             PyErr_SetString(PyExc_ValueError, skStringParseStrerror(rv));
@@ -7196,17 +7200,24 @@ silkPyRepoIter_init(
 
     /* End-time mashup */
     if (end) {
-        if (sprec == 3) {
+        if (end_precision & SK_PARSED_DATETIME_EPOCH) {
+            /* when end-time is specified as an epoch, use it as-is */
+
+        } else if (SK_PARSED_DATETIME_GET_PRECISION(start_precision)
+                   == SK_PARSED_DATETIME_DAY)
+        {
             /* when no starting hour given, we look at the full days,
              * regardless of the precision of the ending time; go to
              * the last hour of the ending day. */
-            if (skDatetimeCeiling(&endtime, &endtime, sprec)) {
+            if (skDatetimeCeiling(&endtime, &endtime, start_precision)) {
                 PyErr_SetString(PyExc_ValueError,
                                 "Could not determine end time");
                 goto error;
             }
             endtime -= endtime % 3600000;
-        } else if (eprec < 4) {
+        } else if (SK_PARSED_DATETIME_GET_PRECISION(end_precision)
+                   < SK_PARSED_DATETIME_HOUR)
+        {
             /* starting time has an hour but ending time does not; use
              * same hour for ending time */
 #if  SK_ENABLE_LOCALTIME
@@ -7231,14 +7242,20 @@ silkPyRepoIter_init(
         } else {
             endtime -= endtime % 3600000;
         }
-    } else if (sprec >= 4) {
+
+    } else if ((SK_PARSED_DATETIME_GET_PRECISION(start_precision)
+                   >= SK_PARSED_DATETIME_HOUR)
+               || (1 == (start_precision & SK_PARSED_DATETIME_EPOCH)))
+    {
         /* no ending time was given and the starting time contains an
-         * hour; we only look at that single hour */
+         * hour or the starting time was expressed as epoch seconds;
+         * we only look at that single hour */
         endtime = starttime;
+
     } else {
         /* no ending time was given and the starting time was to the
          * day; look at that entire day */
-        if (skDatetimeCeiling(&endtime, &starttime, sprec)) {
+        if (skDatetimeCeiling(&endtime, &starttime, start_precision)) {
             PyErr_SetString(PyExc_ValueError,
                             "Could not determine end time");
             goto error;

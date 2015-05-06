@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2001-2014 by Carnegie Mellon University.
+** Copyright (C) 2001-2015 by Carnegie Mellon University.
 **
 ** @OPENSOURCE_HEADER_START@
 **
@@ -93,7 +93,7 @@
 
 #include <silk/silk.h>
 
-RCSIDENT("$SiLK: rwuniq.c cd598eff62b9 2014-09-21 19:31:29Z mthomas $");
+RCSIDENT("$SiLK: rwuniq.c c19d64b322b8 2015-02-09 22:11:47Z mthomas $");
 
 #include "rwuniq.h"
 
@@ -175,12 +175,6 @@ builtin_field_t builtin_values[] = {
 
 const size_t num_builtin_values = (sizeof(builtin_values)/
                                    sizeof(builtin_field_t));
-
-
-/* LOCAL VARIABLES */
-
-/* whether we encounted an error counting distinct IP addresses */
-static int distinct_err = 0;
 
 
 /* FUNCTION DEFINITIONS */
@@ -606,7 +600,7 @@ int main(int argc, char **argv)
     /* Done, do cleanup */
     appTeardown();
 
-    return (distinct_err ? RWUNIQ_NO_MEMORY_EXIT_CODE : 0);
+    return 0;
 }
 
 

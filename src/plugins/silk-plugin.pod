@@ -995,9 +995,9 @@ B<skpinSetFieldWidths()>.
 
 =item C<rec_to_text>
 
-The application uses this callback function to fetch the textual value
-for the field given a SiLK Flow record.  The signature of this
-function is
+The B<rwcut> application uses this callback function to fetch the
+textual value for the field given a SiLK Flow record.  The signature
+of this function is
 
  skplugin_err_t rec_to_text(
      const rwRec  *rec,
@@ -1456,7 +1456,7 @@ B<pysilk(3)>, B<silkpython(3)>, B<flowrate(3)>, B<silk(7)>, B<pcap(3)>
 
 =cut
 
-$SiLK: silk-plugin.pod cd09f0a5fcc6 2014-06-14 15:43:33Z mthomas $
+$SiLK: silk-plugin.pod bfd8975db3fb 2015-02-03 21:12:15Z mthomas $
 
 Local Variables:
 mode:text

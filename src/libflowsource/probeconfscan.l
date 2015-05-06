@@ -1,6 +1,6 @@
 %{
 /*
-** Copyright (C) 2005-2014 by Carnegie Mellon University.
+** Copyright (C) 2005-2015 by Carnegie Mellon University.
 **
 ** @OPENSOURCE_HEADER_START@
 **
@@ -58,7 +58,7 @@
 
 #include <silk/silk.h>
 
-RCSIDENT("$SiLK: probeconfscan.l cd598eff62b9 2014-09-21 19:31:29Z mthomas $");
+RCSIDENT("$SiLK: probeconfscan.l b7b8edebba12 2015-01-05 18:05:21Z mthomas $");
 
 #include "probeconfscan.h"
 #include "probeconfparse.h"
@@ -233,6 +233,9 @@ eol             {nl}|{comment}{nl}
 <INITIAL>{id}-ipblocks?                 { yylval.string = get_name(yytext,'-');
                                           return stash(NET_NAME_IPBLOCK); }
 
+<INITIAL>{id}-ipsets?                   { yylval.string = get_name(yytext,'-');
+                                          return stash(NET_NAME_IPSET); }
+
 <INITIAL>{id}-probes                    { yylval.string = get_name(yytext,'-');
                                           return stash(PROBES); }
 
@@ -248,6 +251,7 @@ eol             {nl}|{comment}{nl}
 <INITIAL>interfaces                     { return stash(INTERFACES_T); }
 <INITIAL>interface-values               { return stash(INTERFACE_VALUES_T); }
 <INITIAL>ipblocks                       { return stash(IPBLOCKS_T); }
+<INITIAL>ipsets                         { return stash(IPSETS_T); }
 <INITIAL>isp-ips?                       { return stash(ISP_IP_T); }
 <INITIAL>listen-as-host                 { return stash(LISTEN_AS_HOST_T); }
 <INITIAL>listen-on-port                 { return stash(LISTEN_ON_PORT_T); }
@@ -285,6 +289,10 @@ eol             {nl}|{comment}{nl}
 <ST_FILTER>any-ipblocks?                { return filter_set_type('a', 'w'); }
 <ST_FILTER>destination-ipblocks?        { return filter_set_type('d', 'w'); }
 <ST_FILTER>source-ipblocks?             { return filter_set_type('s', 'w'); }
+
+<ST_FILTER>any-ipsets?                  { return filter_set_type('a', 's'); }
+<ST_FILTER>destination-ipsets?          { return filter_set_type('d', 's'); }
+<ST_FILTER>source-ipsets?               { return filter_set_type('s', 's'); }
 
 <ST_FILTER>.                            { yyless(0);
                                           filter_set_type('-', '-');
@@ -483,8 +491,8 @@ filter_start(
  *    keyword ('a'ny, 'd'estination, 's'source), and it determines the
  *    skpc_filter_type_t.
  *
- *    'list_type' is 'n' for numbers (interfaces) or 'w' for wildcards
- *    (ipblocks).
+ *    'list_type' is 'n' for numbers (interfaces), 'w' for wildcards
+ *    (ipblocks), and 's' for IPsets.
  *
  *    A 'filter_type' of '-' indicates an error parsing the keyword
  *    following the discard-when/discard-unless statement.
@@ -522,17 +530,20 @@ filter_set_type(
     }
     switch (list_type) {
       case 'n':                 /* interface numbers */
-        yylval.filter.f_wildcard = 0;
+        yylval.filter.f_group_type = SKPC_GROUP_INTERFACE;
         break;
       case 'w':                 /* ipblock wildcards */
-        yylval.filter.f_wildcard = 1;
+        yylval.filter.f_group_type = SKPC_GROUP_IPBLOCK;
+        break;
+      case 's':                 /* IPset filenames */
+        yylval.filter.f_group_type = SKPC_GROUP_IPSET;
         break;
       default:
         skpcParseErr("Invalid list_type '%c'", list_type);
         skAbort();
     }
 
-    /* prepare to grab the interfaces or ipblocks */
+    /* prepare to grab the interfaces, ipblocks, or IPsets */
     BEGIN(ST_ARGS);
     return FILTER;
 }

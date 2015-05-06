@@ -7,7 +7,7 @@ B<rwcount> - Print traffic summary across time
 =head1 SYNOPSIS
 
   rwcount [--bin-size=SIZE] [--load-scheme=LOADSCHEME]
-        [--start-epoch=START_TIME] [--end-epoch=END_TIME]
+        [--start-time=START_TIME] [--end-time=END_TIME]
         [--skip-zeroes] [--bin-slots] [--epoch-slots]
         [--timestamp-format=FORMAT] [--no-titles]
         [--no-columns] [--column-separator=CHAR]
@@ -42,13 +42,25 @@ B<rwcount> splits each flow record into bins whose size is determined
 by the argument to the B<--bin-size> switch.  When that switch is not
 provided, B<rwcount> uses 30-second bins by default.
 
-The first row of data B<rwcount> prints is the bin that contains the
-earliest record that appears in the input.  After the first row,
-B<rwcount> prints a row for every bin until it prints the final row
-for the bin containing the most recent record.  The B<--start-time>
-and B<--end-time> switches allow you to use a specific time for the
-first row and the final row.  B<rwcount> prints rows for bins that
-contain no data unless the B<--skip-zero> switch is specified.
+By default, the first row of data B<rwcount> prints is the bin
+containing the starting time of the earliest record that appears in
+the input.  B<rwcount> then prints a row for every bin until it
+reaches the bin containing the most recent ending time.  Rows whose
+counts are zero are printed unless the B<--skip-zero> switch is
+specified.
+
+The B<--start-time> and B<--end-time> switches tell B<rwcount> to use
+a specific time for the first row and the final row.  The
+B<--start-time> switch always sets the time stamp on the first bin to
+the specified time.  With the B<--end-time> switch, B<rwcount>
+computes a maximum end-time by setting any unspecified hour, minute,
+second, and millisecond field to its maximum value, and the final bin
+is that which contains the maximum end-time.
+
+When B<--start-time> and B<--end-time> are both specified, B<rwcount>
+reserves the memory for the bins before it begins processing the
+records.  If the memory cannot be allocated, B<rwcount> exits.  If
+this happens, try reducing the time span or increasing the bin-size.
 
 =head2 Load Scheme
 
@@ -229,23 +241,30 @@ contained within the bin; otherwise ignore the flow.
 
 =item B<--start-time>=I<START_TIME>
 
-Denote the time to use for the first bin.  I<START_TIME> may be
-specified as seconds since the UNIX epoch or in
-C<yyyy/mm/dd:HH[:MM[:SS[.sss]]]> format.  A C<T> may be used in place
-of C<:> to separate the day and hour.  Whether the date strings
+Set the time of the first bin to I<START_TIME>.  When this switch is
+not given, the first bin is one that holds the starting time of the
+earliest record.  The I<START_TIME> may be specified in a format of
+C<yyyy/mm/dd[:HH[:MM[:SS[.sss]]]]> (or C<T> may be used in place of
+C<:> to separate the day and hour).  The time must be specified to at
+least day precision, and unspecified hour, minute, second, and
+millisecond values are set to zero.  Whether the date strings
 represent times in UTC or the local timezone depend on how SiLK was
-compiled, which you can determine from the C<Timezone support> setting
-in the output from B<rwcount --version>.
+compiled, which can be determined from the C<Timezone support> setting
+in the output from B<rwcount --version>.  Alternatively, the time may
+be specified as seconds since the UNIX epoch, and an unspecified
+milliseconds value is set to 0.
 
 =item B<--end-time>=I<END_TIME>
 
-Denote the time to use for the final bin.  When neither I<START_TIME>
-nor I<END_TIME> are not specified to the millisecond, the ceiling of
-I<END_TIME> is used.  I<END_TIME> will be adjusted so that the number
-of bins is an integer value.  When both I<START_TIME> and I<END_TIME>
-are used, B<rwcount> will allocate bins for the entire time span
-before it begins processing data, or exit abnormally if it cannot
-allocate the required memory.
+Set the time of the final bin to I<END_TIME>.  When this switch is not
+given, the final bin is one that holds the ending time of the latest
+record.  The format of I<END_TIME> is the same as that for
+I<START_TIME>.  Unspecified hour, minute, second, and millisecond
+values are set to 23, 59, 59, and 999 respectively.  When I<END_TIME>
+is specified as seconds since the UNIX epoch, an unspecified
+milliseconds value is set to 999.  When both B<--start-time> and
+B<--end-time> are used, the I<END_TIME> is adjusted so that the final
+bin represents a complete interval.  
 
 =item B<--skip-zeroes>
 
@@ -416,25 +435,55 @@ prompt.  The text after the dollar sign represents the command line.
 Lines have been wrapped for improved readability, and the back slash
 (C<\>) is used to indicate a wrapped line.
 
-To count all web traffic on Jan 1, 2003, into 1 hour bins:
+To count all web traffic on Feb 12, 2009, into 1 hour bins:
 
- $ rwfilter --pass=stdout --start-date=2003/01/01:00        \
-        --end-date=2003/01/01:24 --proto=6 --aport=80       \
+ $ rwfilter --pass=stdout --start-date=2009/02/12:00        \
+        --end-date=2009/02/12:23 --proto=6 --aport=80       \
    | rwcount --bin-size=3600
-                Date|       Records|          Bytes|      Packets|
- 2003/01/01T00:00:00|      12947.00|     1968190.00|     34312.00|
- 2003/01/01T01:00:00|      65318.00|     5783959.00|    100143.00|
- 2003/01/01T02:00:00|      13765.00|     1895933.00|     36121.00|
- 2003/01/01T03:00:00|      69599.00|     7062388.00|    144130.00|
- 2003/01/01T04:00:00|     204717.00|    18491693.00|    385293.00|
- 2003/01/01T05:00:00|      18664.00|     2352966.00|     45296.00|
+                Date|      Records|          Bytes|      Packets|
+ 2009/02/12T00:00:00|      1490.49|   578270918.16|    463951.55|
+ 2009/02/12T01:00:00|      1459.33|   596455716.52|    457487.80|
+ 2009/02/12T02:00:00|      1529.06|   562602842.44|    451456.41|
+ 2009/02/12T03:00:00|      1503.89|   562683116.38|    455554.81|
+ 2009/02/12T04:00:00|      1561.89|   590554569.78|    489273.81|
  ....
 
-To force the hourly bins in the previous example to run from 30
-minutes past the hour, use the B<--start-time> switch:
+To bin the records according to their start times, use the
+B<--load-scheme> switch:
+
+ $ rwfilter ... --pass=stdout       \
+   | rwcount --bin-size=3600 --load-scheme=1
+                Date|      Records|          Bytes|      Packets|
+ 2009/02/12T00:00:00|      1494.00|   580350969.00|    464952.00|
+ 2009/02/12T01:00:00|      1462.00|   596145212.00|    457871.00|
+ 2009/02/12T02:00:00|      1526.00|   561629416.00|    451088.00|
+ 2009/02/12T03:00:00|      1502.00|   563500618.00|    455262.00|
+ 2009/02/12T04:00:00|      1562.00|   589265818.00|    489279.00|
+ ...
+
+To bin the records by their end times:
+ $ rwfilter ... --pass=stdout       \
+   | rwcount --bin-size=3600 --load-scheme=2
+                Date|      Records|          Bytes|      Packets|
+ 2009/02/12T00:00:00|      1488.00|   577132372.00|    463393.00|
+ 2009/02/12T01:00:00|      1458.00|   596956697.00|    457376.00|
+ 2009/02/12T02:00:00|      1530.00|   562806395.00|    451551.00|
+ 2009/02/12T03:00:00|      1506.00|   562101791.00|    455671.00|
+ 2009/02/12T04:00:00|      1562.00|   591408602.00|    489371.00|
+ ...
+
+To force the hourly bins to run from 30 minutes past the hour, use the
+B<--start-time> switch:
 
  $ rwfilter ... --pass=stdout       \
    | rwcount --bin-size=3600 --start-time=2002/12/31:23:30
+                Date|      Records|          Bytes|      Packets|
+ 2009/02/12T00:30:00|      1483.26|   581251364.04|    456554.40|
+ 2009/02/12T01:30:00|      1494.00|   575037453.00|    449280.00|
+ 2009/02/12T02:30:00|      1486.36|   559700466.61|    447700.15|
+ 2009/02/12T03:30:00|      1555.23|   588882400.58|    480724.48|
+ 2009/02/12T04:30:00|      1537.79|   564756248.52|    472003.45|
+ ...
 
 =head1 ENVIRONMENT
 
@@ -527,7 +576,7 @@ bins.
 
 =cut
 
-$SiLK: rwcount.pod cd09f0a5fcc6 2014-06-14 15:43:33Z mthomas $
+$SiLK: rwcount.pod d4c658d7f704 2014-12-11 22:23:21Z mthomas $
 
 Local Variables:
 mode:text

@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2001-2014 by Carnegie Mellon University.
+** Copyright (C) 2001-2015 by Carnegie Mellon University.
 **
 ** @OPENSOURCE_HEADER_START@
 **
@@ -57,7 +57,7 @@ extern "C" {
 
 #include <silk/silk.h>
 
-RCSIDENTVAR(rcsID_RWASCII_H, "$SiLK: rwascii.h cd598eff62b9 2014-09-21 19:31:29Z mthomas $");
+RCSIDENTVAR(rcsID_RWASCII_H, "$SiLK: rwascii.h b7b8edebba12 2015-01-05 18:05:21Z mthomas $");
 
 #include <silk/silk_types.h>
 #include <silk/skstringmap.h>
@@ -214,6 +214,7 @@ rwAsciiStreamCreate(
 /**
  *    Free all memory associated with the 'astream'.  It is the
  *    caller's responsibility to fflush() the underlying file pointer.
+ *    Does nothing if 'astream' or the location it points to is NULL.
  */
 void
 rwAsciiStreamDestroy(

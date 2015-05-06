@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2001-2014 by Carnegie Mellon University.
+** Copyright (C) 2001-2015 by Carnegie Mellon University.
 **
 ** @OPENSOURCE_HEADER_START@
 **
@@ -58,7 +58,7 @@
 
 #include <silk/silk.h>
 
-RCSIDENT("$SiLK: rwuniqsetup.c dc9ecb5e3731 2014-09-24 20:02:10Z mthomas $");
+RCSIDENT("$SiLK: rwuniqsetup.c b7b8edebba12 2015-01-05 18:05:21Z mthomas $");
 
 #include <silk/skcountry.h>
 #include <silk/skplugin.h>

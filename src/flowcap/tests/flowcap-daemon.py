@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #######################################################################
-# Copyright (C) 2009-2014 by Carnegie Mellon University.
+# Copyright (C) 2009-2015 by Carnegie Mellon University.
 #
 # @OPENSOURCE_HEADER_START@
 #
@@ -53,7 +53,7 @@
 #######################################################################
 
 #######################################################################
-# $SiLK: flowcap-daemon.py 39e8161c33bb 2014-03-31 18:57:22Z mthomas $
+# $SiLK: flowcap-daemon.py b7b8edebba12 2015-01-05 18:05:21Z mthomas $
 #######################################################################
 from __future__ import print_function
 import optparse

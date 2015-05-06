@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2001-2014 by Carnegie Mellon University.
+** Copyright (C) 2001-2015 by Carnegie Mellon University.
 **
 ** @OPENSOURCE_HEADER_START@
 **
@@ -61,7 +61,7 @@
 
 #include <silk/silk.h>
 
-RCSIDENT("$SiLK: rwguess.c cd598eff62b9 2014-09-21 19:31:29Z mthomas $");
+RCSIDENT("$SiLK: rwguess.c b7b8edebba12 2015-01-05 18:05:21Z mthomas $");
 
 #include <silk/utils.h>
 #include <silk/rwrec.h>
@@ -340,7 +340,7 @@ analyze(
     skpcProbeSetName(probe, "rwguess");
     skpcProbeSetType(probe, PROBE_ENUM_NETFLOW_V5);
     skpcProbeSetFileSource(probe, file_name);
-    skpcProbeSetLogFlags(probe, SOURCE_LOG_NONE);
+    skpcProbeClearLogFlags(probe);
     if (skpcProbeVerify(probe, 0)) {
         return -1;
     }

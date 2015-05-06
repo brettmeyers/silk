@@ -1,4 +1,4 @@
-dnl Copyright (C) 2003-2014 by Carnegie Mellon University.
+dnl Copyright (C) 2003-2015 by Carnegie Mellon University.
 dnl
 dnl @OPENSOURCE_HEADER_START@
 dnl
@@ -48,14 +48,14 @@ dnl contract clause at 252.227.7013.
 dnl
 dnl @OPENSOURCE_HEADER_END@
 
-dnl RCSIDENT("$SiLK: configure.ac 521bac0ed616 2014-09-25 18:47:54Z mthomas $")
+dnl RCSIDENT("$SiLK: configure.ac 8b454415a220 2015-02-25 19:18:46Z mthomas $")
 
-AC_INIT([SiLK],[3.9.0],[netsa-help@cert.org],[silk])
-AC_PREREQ(2.62)
-AC_COPYRIGHT([Copyright (C) 2001-2014 by Carnegie Mellon University
+AC_PREREQ(2.64)
+AC_INIT([SiLK],[3.10.1],[netsa-help@cert.org],[silk],[http://tools.netsa.cert.org/silk/])
+AC_COPYRIGHT([Copyright (C) 2001-2015 by Carnegie Mellon University
 GNU Public License (GPL) Rights pursuant to Version 2, June 1991
 Government Purpose License Rights (GPLR) pursuant to DFARS 252.227.7013])
-AC_REVISION($SiLK: configure.ac 521bac0ed616 2014-09-25 18:47:54Z mthomas $)
+AC_REVISION($SiLK: configure.ac 8b454415a220 2015-02-25 19:18:46Z mthomas $)
 AC_CONFIG_SRCDIR([src/libsilk/silk.h])
 AC_CONFIG_AUX_DIR([autoconf])
 AC_CONFIG_MACRO_DIR([m4])
@@ -117,8 +117,25 @@ dnl XXXX hack to kill off all the libtool tags ...
 dnl it isn't like we are using C++ or Fortran.
 dnl (copied from libglade/configure.in)
 m4_define([_LT_AC_TAGCONFIG],[])
-AC_LIBTOOL_DLOPEN
-AC_PROG_LIBTOOL
+LT_PREREQ([2.2.6])
+LT_INIT([disable-static])
+
+#  Do not allow the LT_INIT pattern when the macro is not defined.
+#  When the libtool m4 files are not known to aclocal and this line is
+#  not present, automake complains that SiLK uses libtool but has not
+#  called the LT_INIT() macro.
+#
+#  If you are here because "autoreconf" gave the following error
+#
+#      error: possibly undefined macro: LT_INIT
+#
+#  then "aclocal" did not find the "libtool.m4" file, which should be
+#  in "/usr/share/aclocal/libtool.m4" or similar.  Re-run "autoreconf"
+#  and include the switch "-I/usr/share/aclocal" or whatever the
+#  correct path is on your system.
+#
+m4_ifdef([LT_INIT],[],[m4_pattern_forbid([LT_INIT])])
+
 
 # Compiler
 SILK_AC_COMPILER
@@ -156,9 +173,28 @@ AC_CHECK_PROGS(PODSELECT,podselect)
 # if pod2man is not found, do not build the man pages
 AM_CONDITIONAL([HAVE_POD2MAN], [test -n "$POD2MAN"])
 AM_CONDITIONAL([HAVE_PODSELECT], [test -n "$PODSELECT"])
+# check for Perl's DBI module.  We do not install rwscanquery when
+# DBI.pm is not available to avoid the creating a "perl(DBI)"
+# dependency that prevents the RPM from being installed.
+AC_MSG_CHECKING([for Perl DBI module])
+sk_perl_dbi_cmd="${PERL-perl} -MDBI -e 1"
+sk_perl_dbi_out="`${sk_perl_dbi_cmd} 2>&1`"
+sk_perl_dbi_status=$?
+if test "x${sk_perl_dbi_status}" = x0
+then
+    AC_MSG_RESULT([yes])
+    sk_perl_dbi_result=1
+else
+    AC_MSG_RESULT([no])
+    echo "$as_me:$LINENO: failed command was" >&AS_MESSAGE_LOG_FD
+    echo "$as_me:$LINENO: $sk_perl_dbi_cmd" >&AS_MESSAGE_LOG_FD
+    echo "$as_me:$LINENO: $sk_perl_dbi_out" >&AS_MESSAGE_LOG_FD
+    sk_perl_dbi_result=
+fi
+AM_CONDITIONAL([HAVE_PERL_DBI], [test -n "$sk_perl_dbi_result"])
 
 dnl AC_CHECK_PROGS(RATS,rats)
-AC_CHECK_PROGS(RM,rm)
+dnl AC_CHECK_PROGS(RM,rm)
 dnl AC_CHECK_PROGS(SED,sed)
 dnl AC_CHECK_PROGS(SPLINT,splint)
 dnl AC_CHECK_PROGS(TAR,tar)
@@ -237,6 +273,23 @@ AX_CHECK_LIBCARES
 
 # Checks for python
 SILK_AC_ARG_WITH_PYTHON
+
+#  Do not allow the PKG_CHECK_MODULES pattern when the macro is not
+#  defined.  When that macro is not defined and this line is not
+#  present, autoreconf successfully builds the configure script, but
+#  users encounter a shell syntax error when the shell sees the
+#  literal text "PKG_CHECK_MODULES".
+#
+#  If you are here because "autoreconf" gave the following error
+#
+#      error: possibly undefined macro: PKG_CHECK_MODULES
+#
+#  then "aclocal" did not find the "pkg.m4" file, which should be in
+#  "/usr/share/aclocal/pkg.m4" or similar.  Re-run "autoreconf" and
+#  include the switch "-I/usr/share/aclocal" or whatever the correct
+#  path is on your system.
+#
+m4_ifdef([PKG_CHECK_MODULES],[],[m4_pattern_forbid([PKG_CHECK_MODULES])])
 
 # pkg_config library checks
 AX_PKG_CHECK_GNUTLS([1.4.1])

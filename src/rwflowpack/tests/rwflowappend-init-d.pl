@@ -1,7 +1,7 @@
 #! /usr/bin/perl -w
 #
 #
-# RCSIDENT("$SiLK: rwflowappend-init-d.pl 7db00ddfdd25 2014-05-30 18:58:37Z mthomas $")
+# RCSIDENT("$SiLK: rwflowappend-init-d.pl f2d4deeba366 2014-11-06 20:27:08Z mthomas $")
 
 use strict;
 use SiLKTests;
@@ -48,8 +48,7 @@ open SRC, $daemon_src
     or die "$NAME: Cannot open template file '$daemon_src': $!\n";
 
 # create $DAEMON.conf
-open CONF, ">$daemon_conf"
-    or die "$NAME: Cannot create configuration file '$daemon_conf': $!\n";
+my $daemon_text;
 while (<SRC>) {
     chomp;
     s/\#.*//;
@@ -57,52 +56,55 @@ while (<SRC>) {
 
     if (/^(BIN_DIR=).*/) {
         my $pwd = `pwd`;
-        print CONF $1, $pwd;
+        $daemon_text .= $1 . $pwd;
         next;
     }
     if (/^(CREATE_DIRECTORIES=).*/) {
-        print CONF $1, "yes\n";
+        $daemon_text .= $1 . "yes\n";
         next;
     }
     if (/^(ENABLED=).*/) {
-        print CONF $1, "yes\n";
+        $daemon_text .= $1 . "yes\n";
         next;
     }
     if (/^(LOG_TYPE=).*/) {
-        print CONF $1, "legacy\n";
+        $daemon_text .= $1 . "legacy\n";
         next;
     }
     if (/^(statedirectory=).*/) {
-        print CONF $1, $tmpdir, "\n";
+        $daemon_text .= $1 . $tmpdir . "\n";
         next;
     }
     if (/^(USER=).*/) {
-        print CONF $1, '`whoami`', "\n";
+        $daemon_text .= $1 . '`whoami`' . "\n";
         next;
     }
 
     if (/^(DATA_ROOTDIR=).*/) {
-        print CONF $1, $data_dir, "\n";
+        $daemon_text .= $1 . $data_dir . "\n";
         next;
     }
     if (/^(ARCHIVE_DIR=).*/) {
-        print CONF $1, '${statedirectory}/archive', "\n";
+        $daemon_text .= $1 . '${statedirectory}/archive' . "\n";
         next;
     }
     if (/^((POST_COMMAND|HOUR_COMMAND)=).*/) {
-        print CONF $1, "'echo \%s'\n";
+        $daemon_text .= $1 . "'echo \%s'\n";
         next;
     }
     if (/^(REJECT_HOURS_(PAST|FUTURE)=).*/) {
-        print CONF $1, "5\n";
+        $daemon_text .= $1 . "5\n";
+        next;
+    }
+    if (/^(APPEND_THREADS=).*/) {
+        $daemon_text .= $1 . "4\n";
         next;
     }
 
-    print CONF $_,"\n";
+    $daemon_text .= $_ ."\n";
 }
-close CONF
-    or die "$NAME: Cannot close '$daemon_conf': $!\n";
 close SRC;
+make_config_file($daemon_conf, \$daemon_text);
 
 
 my $cmd;

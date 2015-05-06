@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2001-2014 by Carnegie Mellon University.
+** Copyright (C) 2001-2015 by Carnegie Mellon University.
 **
 ** @OPENSOURCE_HEADER_START@
 **
@@ -57,7 +57,7 @@
 
 #include <silk/silk.h>
 
-RCSIDENT("$SiLK: hashlib_tests.c cd598eff62b9 2014-09-21 19:31:29Z mthomas $");
+RCSIDENT("$SiLK: hashlib_tests.c b7b8edebba12 2015-01-05 18:05:21Z mthomas $");
 
 #include <silk/hashlib.h>
 
@@ -83,7 +83,7 @@ hashlib_test1(
     printf("\n--- Testing value-based hash table\n");
 
     /* Allocate memory for and initialize special "empty" value */
-    no_value_ptr = (uint8_t*) malloc(sizeof(iValue));
+    no_value_ptr = (uint8_t*)malloc(sizeof(iValue));
     memcpy(no_value_ptr, &no_value, sizeof(iValue));
 
     /* Create a table to test with */
@@ -109,7 +109,6 @@ hashlib_test1(
     if (hashlib_count_entries(test_ptr) != max_key) {
         printf(("Error in hashlib_test1."
                 " hashlib_count_entries returned incorrect value\n"));
-        passed = 0;
         exit(EXIT_FAILURE);
     }
 
@@ -146,7 +145,6 @@ hashlib_test1(
         if (inv_val != *key_ref) {
             printf("%u --> %u (%u)", *key_ref, *val_ref, inv_val);
             printf("****Incorrect value: %u != %u\n", inv_val, *key_ref);
-            passed = 0;
             exit(EXIT_FAILURE);
         }
     }
@@ -154,7 +152,6 @@ hashlib_test1(
     if (num_found != max_key) {
         printf("Iteration failed.  Expected %d entries, found %d\n", max_key,
                num_found);
-        passed=0;
         exit(EXIT_FAILURE);
     }
 
@@ -174,7 +171,6 @@ hashlib_test1(
         if (inv_val != *key_ref) {
             printf("%u --> %u (%u)", *key_ref, *val_ref, inv_val);
             printf("****Incorrect value: %u != %u\n", inv_val, *key_ref);
-            passed = 0;
             exit(EXIT_FAILURE);
         }
     }

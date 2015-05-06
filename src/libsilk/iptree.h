@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2001-2014 by Carnegie Mellon University.
+** Copyright (C) 2001-2015 by Carnegie Mellon University.
 **
 ** @OPENSOURCE_HEADER_START@
 **
@@ -51,15 +51,19 @@
 */
 
 /*
-**  iptree.h
-**
-**    Michael Collins
-**    May 6th, 2003
-**
-**    This is a tree structure for ip addresses containing a bitmap of
-**    ip addresses.
-**
-*/
+ *  iptree.h
+ *
+ *    THIS FILE AND ALL FUNCTIONS/MACROS/STUCTURES IT DECLARES/DEFINES
+ *    ARE DEPRECATED AS OF SiLK 3.10.0.  USE skipset.h INSTEAD.
+ *
+ *
+ *    Michael Collins
+ *    May 6th, 2003
+ *
+ *    This is a tree structure for ip addresses containing a bitmap of
+ *    ip addresses.
+ *
+ */
 #ifndef _IPTREE_H
 #define _IPTREE_H
 #ifdef __cplusplus
@@ -68,7 +72,7 @@ extern "C" {
 
 #include <silk/silk.h>
 
-RCSIDENTVAR(rcsID_IPTREE_H, "$SiLK: iptree.h cd598eff62b9 2014-09-21 19:31:29Z mthomas $");
+RCSIDENTVAR(rcsID_IPTREE_H, "$SiLK: iptree.h b7b8edebba12 2015-01-05 18:05:21Z mthomas $");
 
 #include <silk/silk_types.h>
 
@@ -186,7 +190,6 @@ typedef struct skIPTreeCIDRBlock_st {
 
 /* FUNCTION PROTOTYPES */
 
-
 /**
  *    Add the IP Address 'addr' to the binary IPSet 'ipset'.  Returns
  *    SKIP_OK for success, or SKIP_ERR_ALLOC if there is not enough
@@ -284,8 +287,8 @@ skIPTreeCreate(
 
 
 /**
- *    Frees the space associated with *ipset.  On completion
- *    *ipset == NULL
+ *    Frees the space associated with *ipset and sets *ipset to
+ *    NULL.  Does nothing if 'ipset' or '*ipset' is NULL.
  */
 void
 skIPTreeDelete(
@@ -482,7 +485,8 @@ skIPTreeIteratorCreate(
 
 
 /**
- *    Destroy the iterator pointed to by 'out_iter'.
+ *    Destroy the iterator pointed to by 'out_iter'.  Does nothing if
+ *    'out_iter' or the location it points to is NULL.
  */
 void
 skIPTreeIteratorDestroy(
@@ -539,7 +543,8 @@ skIPTreeCIDRBlockIteratorCreate(
 
 
 /**
- *    Destroy the iterator pointed to by 'out_iter'.
+ *    Destroy the iterator pointed to by 'out_iter'.  Does nothing if
+ *    'out_iter' or the location it points to is NULL.
  */
 void
 skIPTreeCIDRBlockIteratorDestroy(

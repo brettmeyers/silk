@@ -8,6 +8,8 @@ B<rwpdu2silk> - Convert NetFlow v5 records to SiLK Flow records
 
   rwpdu2silk [--silk-output=FILE] [--print-statistics]
         [--log-destination={stdout | stderr | none | PATH}]
+        [--log-flags={none | { {all | bad | default | missing
+                                | record-timestamps} ...} } ]
         [--note-add=TEXT] [--note-file-add=FILE]
         [--compression-method=COMP_METHOD]
         {--xargs | --xargs=FILENAME | PDUFILE [PDUFILE...]}
@@ -78,7 +80,59 @@ sequence number), and number of invalid records.
 
 =item *
 
-Messages about invalid records.
+Messages about each NetFlow v5 packet that was rejected due a bad
+version number or having a record count of 0 or more than 30.
+
+=item *
+
+Additional messages enabled by the B<--log-flags> switch.
+
+=back
+
+=item B<--log-flags>=I<FLAGS>
+
+Write additional messages regarding the NetFlow v5 data to the
+B<--log-destination>, where I<FLAGS> is a comma-separated list of
+names specifying the type messages to write.  When this switch is not
+specified, the default value for I<FLAGS> is C<none>.  This switch
+takes the same values as the B<log-flags> setting in the
+B<sensor.conf(5)> file.  This manual page documents the values that
+are relevant for NetFlow v5 data.  I<Since SiLK 3.10.0.>
+
+=over 4
+
+=item I<all>
+
+Log everything.
+
+=item I<bad>
+
+Write messages about an individual NetFlow v5 record where the packet
+or octet count is zero, the packet count is larger than the octet
+count, or the duration of the flow is larger than 45 days.
+
+=item I<default>
+
+Enable the default set of log-flags used be F<sensor.conf>: B<bad>,
+B<missing>.  Despite the name, this is not the default setting for
+this switch; B<none> is.
+
+=item I<missing>
+
+Examine the sequence numbers of NetFlow v5 packets and write messages
+about missing and out-of-sequence packets.  (Currently it is not
+possible to suppress messages regarding out-of-sequence NetFlow v9 or
+IPFIX packets.)
+
+=item I<none>
+
+Log nothing.  It is an error to combine this log-flag name with any
+other.  This is the default setting for B<--log-flags>.
+
+=item I<record-timestamps>
+
+Log the timestamps that appear on each record.  This produces a lot of
+output, and it is primarily used for debugging.
 
 =back
 
@@ -175,7 +229,7 @@ B<rwpdu2silk> cannot read from the standard input.
 
 =cut
 
-$SiLK: rwpdu2silk.pod 3896709adc0e 2013-11-11 22:29:30Z mthomas $
+$SiLK: rwpdu2silk.pod 1b61c87d5945 2014-12-11 22:26:18Z mthomas $
 
 Local Variables:
 mode:text

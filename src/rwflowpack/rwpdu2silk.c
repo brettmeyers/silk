@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2001-2014 by Carnegie Mellon University.
+** Copyright (C) 2001-2015 by Carnegie Mellon University.
 **
 ** @OPENSOURCE_HEADER_START@
 **
@@ -60,7 +60,7 @@
 
 #include <silk/silk.h>
 
-RCSIDENT("$SiLK: rwpdu2silk.c cd598eff62b9 2014-09-21 19:31:29Z mthomas $");
+RCSIDENT("$SiLK: rwpdu2silk.c b7b8edebba12 2015-01-05 18:05:21Z mthomas $");
 
 #include <silk/libflowsource.h>
 #include <silk/rwrec.h>
@@ -96,6 +96,9 @@ static char log_destination[PATH_MAX];
 /* whether to print statistics (--print-statistics) */
 static int print_statistics = 0;
 
+/* log-flags to use for the probe we create */
+static const char *log_flags = NULL;
+
 /* the compression method to use when writing the file.
  * sksiteCompmethodOptionsRegister() will set this to the default or
  * to the value the user specifies. */
@@ -110,13 +113,15 @@ static skpc_probe_t *probe;
 typedef enum {
     OPT_SILK_OUTPUT,
     OPT_PRINT_STATISTICS,
-    OPT_LOG_DESTINATION
+    OPT_LOG_DESTINATION,
+    OPT_LOG_FLAGS
 } appOptionsEnum;
 
 static struct option appOptions[] = {
     {"silk-output",             REQUIRED_ARG, 0, OPT_SILK_OUTPUT},
     {"print-statistics",        NO_ARG,       0, OPT_PRINT_STATISTICS},
     {"log-destination",         REQUIRED_ARG, 0, OPT_LOG_DESTINATION},
+    {"log-flags",               REQUIRED_ARG, 0, OPT_LOG_FLAGS},
     {0,0,0,0}                   /* sentinel entry */
 };
 
@@ -126,6 +131,8 @@ static const char *appHelp[] = {
     ("Write messages about number of records read from\n"
      "\teach input and messages about invalid records to the specified\n"
      "\tlocation. Def. none. Choices: none, stdout, stderr, or a filename"),
+    ("Specify additional messages for the log-destination.\n"
+     "\tChoices: none, all, bad, missing, record-timestamps. Def. none"),
     (char *)NULL
 };
 
@@ -133,6 +140,7 @@ static const char *appHelp[] = {
 /* LOCAL FUNCTION PROTOTYPES */
 
 static int  appOptionsHandler(clientData cData, int opt_index, char *opt_arg);
+static int  parseLogFlags(const char *log_flags_str);
 static size_t logprefix(char *buffer, size_t bufsize);
 
 
@@ -306,7 +314,9 @@ appSetup(
     skpcProbeSetName(probe, skAppName());
     skpcProbeSetType(probe, PROBE_ENUM_NETFLOW_V5);
     skpcProbeSetFileSource(probe, "/dev/null");
-    skpcProbeSetLogFlags(probe, SOURCE_LOG_NONE);
+    if (parseLogFlags(log_flags)) {
+        exit(EXIT_FAILURE);
+    }
     if (skpcProbeVerify(probe, 0)) {
         exit(EXIT_FAILURE);
     }
@@ -401,9 +411,76 @@ appOptionsHandler(
         snprintf(log_destination + sz, sizeof(log_destination) - sz, "/%s",
                  opt_arg);
         break;
+
+      case OPT_LOG_FLAGS:
+        if (log_flags) {
+            skAppPrintErr("Invaild %s: Switch used multiple times",
+                          appOptions[opt_index].name);
+            return 1;
+        }
+        log_flags = opt_arg;
+        break;
     }
 
     return 0;                   /* OK */
+}
+
+
+/*
+ *    Parse the argument to the --log-flags switch.
+ */
+static int
+parseLogFlags(
+    const char         *log_flags_str)
+{
+    char *log_flags_copy = NULL;
+    char *flag_next;
+    char *flag;
+    int rv = -1;
+
+    skpcProbeClearLogFlags(probe);
+
+    if (NULL == log_flags_str) {
+        return 0;
+    }
+
+    /* create a copy of the input string and maintain a reference to
+     * it so we can free it */
+    log_flags_copy = strdup(log_flags_str);
+    flag_next = log_flags_copy;
+    if (NULL == log_flags_copy) {
+        skAppPrintOutOfMemory(NULL);
+        goto END;
+    }
+
+    /* parse the flags as a comma separated list of tokens */
+    while ((flag = strsep(&flag_next, ",")) != NULL) {
+        /* check for empty token (e.g., double comma) */
+        if ('\0' == *flag) {
+            continue;
+        }
+        switch (skpcProbeAddLogFlag(probe, flag)) {
+          case 0:
+            break;
+          case -1:
+            skAppPrintErr("Invalid %s: Unrecognized value '%s'",
+                          appOptions[OPT_LOG_FLAGS].name, flag);
+            goto END;
+          case -2:
+            skAppPrintErr("Invalid %s: Cannot mix 'none' with other value",
+                          appOptions[OPT_LOG_FLAGS].name);
+            goto END;
+          default:
+            skAppPrintErr("Bad return value from skpcProbeAddLogFlag()");
+            skAbort();
+        }
+    }
+
+    rv = 0;
+
+  END:
+    free(log_flags_copy);
+    return rv;
 }
 
 

@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2004-2014 by Carnegie Mellon University.
+** Copyright (C) 2004-2015 by Carnegie Mellon University.
 **
 ** @OPENSOURCE_HEADER_START@
 **
@@ -58,7 +58,7 @@
 
 #include <silk/silk.h>
 
-RCSIDENT("$SiLK: pdusource.c cd598eff62b9 2014-09-21 19:31:29Z mthomas $");
+RCSIDENT("$SiLK: pdusource.c 2b1355d69f79 2015-02-13 23:12:41Z mthomas $");
 
 #include <silk/utils.h>
 #include <silk/rwrec.h>
@@ -155,8 +155,6 @@ struct skPDUSource_st {
      * "bad packet" log messages */
     pdusrc_badpdu_status_t  badpdu_status;
 
-    /* Is this a file-based source? 1==yes */
-    unsigned                file    : 1;
     unsigned                stopped : 1;
 };
 /* typedef struct skPDUSource_st skPDUSource_t;   // libflowsource.h */
@@ -373,10 +371,7 @@ skPDUSourceCreate(
     const skpc_probe_t         *probe,
     const skFlowSourceParams_t *params)
 {
-    const sk_sockaddr_array_t *listen_address;
-    const sk_sockaddr_array_t *from_address;
     skPDUSource_t *source;
-    int rv;
 
     assert(probe);
 
@@ -394,34 +389,9 @@ skPDUSourceCreate(
         goto ERROR;
     }
 
-    /* Check whether this is a file-based probe---either handles a
-     * single file or files pulled from a directory poll */
-    if (NULL != skpcProbeGetPollDirectory(probe)
-        || NULL != skpcProbeGetFileSource(probe))
-    {
-        if (NULL == params->path_name) {
-            goto ERROR;
-        }
-        source->file = 1;
-        rv = skUDPSourceCreateFromFile(&source->source, params->path_name,
-                                       V5PDU_LEN,
+    source->source = skUDPSourceCreate(probe, params, V5PDU_LEN,
                                        &pduSourceRejectPacket, source);
-    } else {
-        /* This must be a network-based probe */
-        rv = skpcProbeGetListenOnSockaddr(probe, &listen_address);
-        if (rv == -1) {
-            goto ERROR;
-        }
-        rv = skpcProbeGetAcceptFromHost(probe, &from_address);
-        if (rv == -1) {
-            from_address = NULL;
-        }
-        rv = skUDPSourceCreateFromSockaddr(&source->source,
-                                           from_address, listen_address,
-                                           V5PDU_LEN, params->max_pkts,
-                                           &pduSourceRejectPacket, source);
-    }
-    if (rv != 0) {
+    if (NULL == source->source) {
         goto ERROR;
     }
 
@@ -456,6 +426,9 @@ skPDUSourceDestroy(
     RBLIST *iter;
     pdu_engine_info_t *engine_info;
 
+    if (!source) {
+        return;
+    }
     if (!source->stopped) {
         skPDUSourceStop(source);
     }
@@ -535,10 +508,9 @@ pduSourceNextPkt(
     flow_sequence = ntohl(pdu->hdr.flow_sequence);
 
     /* use the PDU header to get the "current" time as
-     * milliseconds since the UNIX epoch; round nanoseconds by
-     * adding 5e5 before dividing. */
+     * milliseconds since the UNIX epoch. */
     now = ((intmax_t)1000 * ntohl(pdu->hdr.unix_secs)
-           + ((ntohl(pdu->hdr.unix_nsecs) + 500000) / 1000000));
+           + (ntohl(pdu->hdr.unix_nsecs) / 1000000));
 
     /* get sysUptime, which is the "current" time in milliseconds
      * since the export device booted */
@@ -583,10 +555,17 @@ pduSourceNextPkt(
          && ((router_boot - engine->router_boot) > ROUTER_BOOT_FUZZ))
         || ((router_boot - engine->router_boot) < -ROUTER_BOOT_FUZZ))
     {
-        DEBUGMSG(("'%s': Router reboot for engine %u.%u."
-                  " Last time %" PRIdMAX ", Current time %" PRIdMAX),
-                 source->name, engine->id >> 8, engine->id & 0xFF,
-                 engine->router_boot, router_boot);
+        if (source->logopt & SOURCE_LOG_TIMESTAMPS) {
+            INFOMSG(("'%s': Router reboot for engine %u.%u."
+                     " Last time %" PRIdMAX ", Current time %" PRIdMAX),
+                    source->name, engine->id >> 8, engine->id & 0xFF,
+                    engine->router_boot, router_boot);
+        } else {
+            DEBUGMSG(("'%s': Router reboot for engine %u.%u."
+                      " Last time %" PRIdMAX ", Current time %" PRIdMAX),
+                     source->name, engine->id >> 8, engine->id & 0xFF,
+                     engine->router_boot, router_boot);
+        }
         engine->flow_sequence = flow_sequence;
     }
     engine->router_boot = router_boot;
@@ -821,6 +800,8 @@ skPDUSourceGetGeneric(
     skPDUSource_t      *source,
     rwRec              *rwrec)
 {
+    const char *rollover_first;
+    const char *rollover_last = "";
     const v5Record *v5RPtr;
     intmax_t v5_first, v5_last;
     intmax_t sTime;
@@ -830,19 +811,19 @@ skPDUSourceGetGeneric(
     if (v5RPtr == NULL) {
         return -1;
     }
-    /* Setup start and duration */
+
+    /* v5_first and v5_last are milliseconds since the router booted.
+     * To get UNIX epoch milliseconds, add the router's boot time. */
     v5_first = ntohl(v5RPtr->First);
     v5_last = ntohl(v5RPtr->Last);
+
     if (v5_first > v5_last) {
         /* End has rolled over, while start has not.  Adjust end by
          * 2^32 msecs in order to allow us to subtract start from end
          * and get a correct value for the duration. */
         v5_last += ROLLOVER32;
+        rollover_last = ", assume Last rollover";
     }
-
-    /* v5_first is milliseconds since the router booted.  To get UNIX
-     * epoch milliseconds, add the router's boot time. */
-    sTime = v5_first + source->engine_info->router_boot;
 
     /* Check to see if the difference between the 32bit start time and
      * the sysUptime is overly large.  If it is, one of the two has
@@ -851,10 +832,23 @@ skPDUSourceGetGeneric(
     difference = source->engine_info->sysUptime - v5_first;
     if (difference > maximumFlowTimeDeviation) {
         /* sTime rollover */
-        sTime += ROLLOVER32;
+        sTime = (source->engine_info->router_boot + v5_first + ROLLOVER32);
+        rollover_first = ", assume First rollover";
     } else if (difference < (-maximumFlowTimeDeviation)) {
         /* sysUptime rollover */
-        sTime -= ROLLOVER32;
+        sTime = (source->engine_info->router_boot + v5_first - ROLLOVER32);
+        rollover_first = ", assume Uptime rollover";
+    } else {
+        sTime = v5_first + source->engine_info->router_boot;
+        rollover_first = "";
+    }
+
+    if (source->logopt & SOURCE_LOG_TIMESTAMPS) {
+        INFOMSG(("'%s': Router boot (ms)=%" PRIdMAX ", Uptime=%" PRIdMAX
+                 ", First=%" PRIuMAX ", Last=%" PRIu32 "%s%s"),
+                source->name, source->engine_info->router_boot,
+                source->engine_info->sysUptime, v5_first, ntohl(v5RPtr->Last),
+                rollover_first, rollover_last);
     }
 
     RWREC_CLEAR(rwrec);

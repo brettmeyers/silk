@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2004-2014 by Carnegie Mellon University.
+** Copyright (C) 2004-2015 by Carnegie Mellon University.
 **
 ** @OPENSOURCE_HEADER_START@
 **
@@ -66,9 +66,10 @@ extern "C" {
 
 #include <silk/silk.h>
 
-RCSIDENTVAR(rcsID_PROBECONF_H, "$SiLK: probeconf.h cd598eff62b9 2014-09-21 19:31:29Z mthomas $");
+RCSIDENTVAR(rcsID_PROBECONF_H, "$SiLK: probeconf.h 2b1355d69f79 2015-02-13 23:12:41Z mthomas $");
 
 #include <silk/silk_types.h>
+#include <silk/skipset.h>
 
 /**
  *  @file
@@ -253,47 +254,51 @@ typedef struct skpc_probe_st {
 
     /** List of sensors to which this probe belongs, and a count of
      * those sensors */
-    skpc_sensor_t     **sensor_list;
-    size_t              sensor_count;
+    skpc_sensor_t         **sensor_list;
+    size_t                  sensor_count;
 
     /** The host:port combination on which this probe should listen for
      * data, as an IP address and a port-number. */
-    sk_sockaddr_array_t *listen_addr;
+    sk_sockaddr_array_t     *listen_addr;
 
-    /** The host that this probe should accept connections from. */
-    sk_sockaddr_array_t *accept_from_addr;
+    /** The list of host that this probe should accept connections
+     * from.  Length is in the accept_from_addr_count member. */
+    sk_sockaddr_array_t    **accept_from_addr;
 
     /** The unix domain socket on which this probe should listen for
      * data, as a UNIX pathname */
-    char               *unix_domain_path;
+    char                   *unix_domain_path;
 
     /** A file name from which to read flow data */
-    char               *file_source;
+    char                   *file_source;
 
     /** A directory path name to poll in order to find files from which
      * to read flow data */
-    char               *poll_directory;
+    char                   *poll_directory;
 
     /** the name of the probe */
-    char               *probe_name;
+    char                   *probe_name;
+
+    /** length of the accept_from_addr array */
+    uint32_t                accept_from_addr_count;
 
     /** Probe quirks */
-    uint8_t             quirks;
+    uint8_t                 quirks;
 
     /** Probe type */
-    skpc_probetype_t    probe_type;
+    skpc_probetype_t        probe_type;
 
     /** Probe protocol */
-    skpc_proto_t        protocol;
+    skpc_proto_t            protocol;
 
     /** Probe logging flags */
-    uint8_t             log_flags;
+    uint8_t                 log_flags;
 
     /** Has probe been verified */
-    unsigned            verified :1;
+    unsigned                verified :1;
 
     /** Are we storing the vlanId (1) or SNMP (0) */
-    unsigned            ifvalue_vlan :1;
+    unsigned                ifvalue_vlan :1;
 
 } skpc_probe_t;
 
@@ -301,15 +306,23 @@ typedef struct skpc_probe_st {
 /**
  *  A 'group'
  *
- *    A 'group' contains either a list of interface numbers or a list
- *    of IPWildcards.  A group is created by giving it a list
- *    containing values or previously defined groups.
+ *    A 'group' may contain one of the following: (1)a list of
+ *    interface numbers, (2)a list of IPWildcards, (3)an IPset.
+ *
+ *    A group is created by giving it a list containing values or
+ *    previously defined groups.
  */
 typedef enum {
     SKPC_GROUP_UNSET,
     SKPC_GROUP_INTERFACE,
-    SKPC_GROUP_IPBLOCK
+    SKPC_GROUP_IPBLOCK,
+    SKPC_GROUP_IPSET
 } skpc_group_type_t;
+
+/**
+ *    Number of different types of groups.
+ */
+#define SKPC_NUM_GROUP_TYPES 3
 
 typedef struct skpc_group_st {
     /** groups have an optional name */
@@ -323,6 +336,8 @@ typedef struct skpc_group_st {
         /** Vectory of IPWildcards used while building group.  This is
          * replaced by the 'ipblock' once the group is frozen. */
         sk_vector_t        *vec;
+        /** An IPset */
+        skipset_t          *ipset;
     }                   g_value;
     /** number of items in the group */
     uint32_t            g_itemcount;
@@ -339,11 +354,11 @@ typedef struct skpc_group_st {
  *
  *    This describes the logic that the sensor will use to determine
  *    (decide) the flowtype (class/type) of each flow.  The type will
- *    depend on whether the sensor.conf file lists ipblocks or
- *    interfaces for the sensor.
+ *    depend on whether the sensor.conf file lists interfaces,
+ *    ipblocks, or IPsets for the sensor.
  */
 typedef enum {
-    /** no ipblock or interface values seen */
+    /** no interface, ipblock, or ipset values seen */
     SKPC_UNSET,
     /** *-interface (SNMP) value seen */
     SKPC_INTERFACE,
@@ -351,10 +366,16 @@ typedef enum {
     SKPC_IPBLOCK,
     /** ipblock is inverted */
     SKPC_NEG_IPBLOCK,
+    /** *-ipset value seen */
+    SKPC_IPSET,
+    /** ipset is inverted */
+    SKPC_NEG_IPSET,
     /** sensor.conf has "*-interface remainder" line */
     SKPC_REMAIN_INTERFACE,
     /** sensor.conf has "*-ipblock remainder" line */
-    SKPC_REMAIN_IPBLOCK
+    SKPC_REMAIN_IPBLOCK,
+    /** sensor.conf has "*-ipset remainder" line */
+    SKPC_REMAIN_IPSET
 } skpc_netdecider_type_t;
 
 typedef struct skpc_netdecider_st {
@@ -363,15 +384,15 @@ typedef struct skpc_netdecider_st {
 } skpc_netdecider_t;
 
 /**    number of 'decider' types */
-#define SKPC_NUM_NETDECIDER_TYPES  6
+#define SKPC_NUM_NETDECIDER_TYPES  9
 
 
 /**
  *  A filter
  *
  *    A filter is similar to the decider in that it accepts a list of
- *    interfaces or of ipblocks.  However, instead of being used to
- *    decide the flowtype, a filter is used to determine whether
+ *    interfaces, ipblocks, or IPsets.  However, instead of being used
+ *    to decide the flowtype, a filter is used to determine whether
  *    rwflowpack should even consider the flow.  A filter can match
  *    the 'source' (either source IP or input interface), the
  *    'destination' (either destination IP or output interface), or
@@ -388,11 +409,11 @@ typedef struct skpc_filter_st {
     const skpc_group_t     *f_group;
     /** the part of the flow record to use */
     skpc_filter_type_t      f_type;
+    /** the type of the group in 'f_group' */
+    skpc_group_type_t       f_group_type;
     /** if non-zero, discard flows that match the value in 'f_group'.
      * if zero, discard flows that do NOT match the value */
     unsigned                f_discwhen :1;
-    /** value in 'f_group' (0 == interfaces, 1 == ipwildcards) */
-    unsigned                f_wildcard :1;
 } skpc_filter_t;
 
 /**    number of 'filter' types */
@@ -709,7 +730,8 @@ skpcProbeCreate(
 
 /**
  *    Destroy the probe at '**probe' and free all memory.  Sets *probe
- *    to NULL.
+ *    to NULL.  Does nothing if 'probe' or the location it points to
+ *    is NULL.
  */
 void
 skpcProbeDestroy(
@@ -781,18 +803,33 @@ skpcProbeGetLogFlags(
     const skpc_probe_t *probe);
 
 /**
- *    Set the probe's logging-flags; these
- *    logging flags refer to the log messages regarding missing and
- *    bad packet counts that some of the flow sources support.
+ *    Add 'log_flag' to the logging flags for 'probe'; these logging
+ *    flags refer to log messages regarding NetFlow v5 missing
+ *    packets, NetFlow v5 bad packets, NetFlow v9/IPFIX firewall
+ *    events, NetFlow v9/IPFIX sampling Options Template, and record
+ *    timestamps.
  *
- *    The value of log_flags can be SOURCE_LOG_NONE to log nothing;
- *    SOURCE_LOG_ALL to log everything (the default); or a bitwise OR
- *    of the SOURCE_LOG_* values defined in libflowsource.h.
+ *    Before setting any log-flags on 'probe', the caller should call
+ *    skpcProbeClearLogFlags() to remove all flags.
+ *
+ *    Return 0 on success.  Return -1 if 'log_flag' is not recognized
+ *    for this particular probe.  Return -2 if 'log_flag' conflicts
+ *    with an existing log-flag on 'probe'; for example, it is an
+ *    error to specify "none" when any of the probe's log-flags are
+ *    set.
  */
 int
-skpcProbeSetLogFlags(
+skpcProbeAddLogFlag(
     skpc_probe_t       *probe,
-    uint32_t            log_flags);
+    const char         *log_flag);
+
+
+/**
+ *    Clear all the "log-flag" settings on 'probe'.
+ */
+int
+skpcProbeClearLogFlags(
+    skpc_probe_t       *probe);
 
 
 /**
@@ -829,9 +866,14 @@ skpcProbeGetQuirks(
 
 /**
  *    Add 'quirk' to the special data handling directives for 'probe'.
- *    Return 0 on success.  Return -1 if "quirk" is not recognized for
- *    this particular probe.  Return -2 if "quirk" conflicts with an
- *    existing "quirk" on 'probe'.
+ *
+ *    Before setting any quirks on 'probe', the caller should call
+ *    skpcProbeClearQuirks() to remove all quirks.
+ *
+ *    Return 0 on success.  Return -1 if 'quirk' is not recognized for
+ *    this particular probe.  Return -2 if 'quirk' conflicts with an
+ *    existing quirk on 'probe'; for example, it is an error to
+ *    specify "none" when any of the probe's quirk are set.
  */
 int
 skpcProbeAddQuirk(
@@ -840,7 +882,7 @@ skpcProbeAddQuirk(
 
 
 /**
- *    Clear all the "quirk" settings on 'probe'.
+ *    Clear all the quirk settings on 'probe'.
  */
 int
 skpcProbeClearQuirks(
@@ -871,10 +913,10 @@ skpcProbeGetListenOnSockaddr(
     const sk_sockaddr_array_t **addr);
 
 /**
- *    Set the port on which the probe listens for
- *    connections, and, for multi-homed hosts, the IP address that the
- *    probe should consider to be its IP.  The IP address is in host
- *    byte order.
+ *    Set the port on which the probe listens for connections, and,
+ *    for multi-homed hosts, the IP address that the probe should
+ *    consider to be its IP.  The probe takes ownership of the 'addr'
+ *    object.
  *
  *    To specify the host(s) that may connect to this probe, use the
  *    skpcProbeSetAcceptFromHost() function.
@@ -962,23 +1004,34 @@ skpcProbeSetPollDirectory(
 
 
 /**
- *    Get the host the probe accepts connections
- *    from.  The value is in host byte order.
+ *    Get the hosts that are allowed to connect to 'probe'.
  *
- *    When getting the information, the caller should pass in a
- *    location to be filled with the address.
+ *    The function stores the address of an array of
+ *    sk_sockaddr_array_t* objects in the location referenced by
+ *    'addr_array'.  The return value is the length of that array.
  *
- *    If the 'get' function is called before the 'set' function, NULL
- *    is returned and INADDR_ANY is stored in 'out_addr'.
+ *    The caller must not modify the values in the 'addr_array'.
+ *
+ *    If the get function is called before the set function, the
+ *    location referenced by 'addr_array' is set to NULL and 0 is
+ *    returned.
+ *
+ *    If 'addr_array' is NULL, the number of addresses is returned.
  */
-int
+uint32_t
 skpcProbeGetAcceptFromHost(
-    const skpc_probe_t         *probe,
-    const sk_sockaddr_array_t **addr);
+    const skpc_probe_t             *probe,
+    const sk_sockaddr_array_t    ***addr_array);
 
 /**
- *    Set the host the probe accepts connections
- *    from.  The value is in host byte order.
+ *    Set the host(s) that are allowed to connect to 'probe'.  The
+ *    'addr_vec' argument must be a vector whose elements are
+ *    sk_sockaddr_array_t*.  The function copies the
+ *    sk_sockaddr_array_t* elements from 'addr_vec' onto the 'probe'
+ *    and takes ownership of the sk_sockaddr_array_t*.  The caller is
+ *    responsible for destroying the 'addr_vec' vector.
+ *
+ *    Any previous accept-from-host values are removed.
  *
  *    The probe simply stores the host_address; it does not manipulate
  *    it in any way.
@@ -986,7 +1039,7 @@ skpcProbeGetAcceptFromHost(
 int
 skpcProbeSetAcceptFromHost(
     skpc_probe_t           *probe,
-    sk_sockaddr_array_t    *addr);
+    const sk_vector_t      *addr_vec);
 
 
 /**
@@ -1041,8 +1094,9 @@ skpcSensorCreate(
 
 
 /**
- *    Destroy the sensor at '**sensor' and free all memory.  Sets *sensor
- *    to NULL.
+ *    Destroy the sensor at '**sensor' and free all memory.  Sets
+ *    *sensor to NULL.  Does nothing if 'sensor' or the location it
+ *    points to is NULL.
  */
 void
 skpcSensorDestroy(
@@ -1101,7 +1155,7 @@ skpcSensorAddFilter(
     const skpc_group_t *group,
     skpc_filter_type_t  filter_type,
     int                 is_discardwhen_list,
-    int                 is_wildcard_list);
+    skpc_group_type_t   group_type);
 
 
 /**
@@ -1139,8 +1193,9 @@ skpcSensorSetIspIps(
 
 
 /**
- *    Specify that the 'dir' of all traffic should be considered
- *    the 'network_id'.  The list of 'network_id's is defined by the
+ *    Specify that for all traffic seen at 'sensor' the direction
+ *    'dir' of all traffic is assigned to the network 'network_id'.
+ *    The list of 'network_id's is defined by the
  *    packing logic plug-in that is specified on the rwflowpack
  *    command line.
  *
@@ -1154,23 +1209,22 @@ skpcSensorSetIspIps(
  *    incoming (coming from the external network and going to the
  *    internal network), one would call this function twice, once to
  *    set the SKPC_DIR_SRC to 'external' and again to set the
- *    SKPC_DIR_DST to 'internal.
+ *    SKPC_DIR_DST to 'internal'.
  *
- *    This function conflicts with skpcSensorSetIpBlocks() and
- *    skpcSensorSetInterfaces().
+ *    This function conflicts with skpcSensorSetNetworkGroup().
  */
 int
-skpcSensorSetNetwork(
+skpcSensorSetNetworkDirection(
     skpc_sensor_t      *sensor,
     skpc_network_id_t   network_id,
     skpc_direction_t    dir);
 
 
 /**
- *    Function to set the list of IPs associated with the network
- *    'network_id'.  The list of 'network_id's is defined by the
- *    packing logic plug-in that is specified on the rwflowpack
- *    command line.
+ *    Function to set the list of interfaces or IPs associated with
+ *    the network 'network_id' to those in the group 'group'.  The
+ *    list of 'network_id's is defined by the packing logic plug-in
+ *    that is specified on the rwflowpack command line.
  *
  *    Here, "network" refers to one of the domains that are being
  *    monitored by the router or other flow collection software.  For
@@ -1178,72 +1232,34 @@ skpcSensorSetNetwork(
  *    networks, and a flow whose source IP is specified in the list of
  *    external network addresses will be considered incoming.
  *
- *    The 'ip_group' must be frozen and have type SKPC_GROUP_IPBLOCK.
- *    The skIPWildcard_t's contained in the group will be assigned to
- *    the specified 'network_id'.
- *
- *    The 'is_negated' value, if non-zero, means that the list of IPs
- *    to assign to 'network_id' are all those NOT given in the
- *    'ip_group'.
+ *    The 'group' must be frozen.
  *
  *    The function returns 0 on success, or -1 if the group is NULL,
  *    not frozen, or empty.
  *
- *    The skpcSensorSetIpBlocks() function will return an error if
- *    skpcSensorSetInterfaces() function is called before it, or if
- *    the skpcSensotSetNetwork() function has already assigned all
+ *    The skpcSensorSetNetworkGroup() function will return an error if
+ *    it is called multiple times for the same network or if
+ *    the skpcSensorSetNetworkDirection() function has already assigned all
  *    source or destination traffic to this 'network_id'.
  */
 int
-skpcSensorSetIpBlocks(
+skpcSensorSetNetworkGroup(
     skpc_sensor_t      *sensor,
     skpc_network_id_t   network_id,
-    const skpc_group_t *ip_group,
-    int                 is_negated);
+    const skpc_group_t *ip_group);
 
 
 /**
- *    Sets the list of IPs that are part of the network 'network_id'
- *    to all IPs that not assigned to another interface.  The list of
- *    'network_id's is defined by the packing logic plug-in that is
- *    specified on the rwflowpack command line.
+ *    Sets the list of interfaces or IPs that are part of the network
+ *    'network_id' to all those that not assigned to another
+ *    interface.  The list of 'network_id's is defined by the packing
+ *    logic plug-in that is specified on the rwflowpack command line.
  */
 int
-skpcSensorSetToRemainderIpBlocks(
-    skpc_sensor_t      *sensor,
-    skpc_network_id_t   network_id);
-
-
-/**
- *    Function to set the list of SNMP interfaces associated with the
- *    network 'network_id'.  The list of 'network_id's is defined by
- *    the packing logic plug-in that is specified on the rwflowpack
- *    command line.
- *
- *    Here, "network" refers to one of the domains that are being
- *    monitored by the router or other flow collection software.  For
- *    example, a border router joins the internal and external
- *    networks, and a flow whose interface ID is specified in the list
- *    of external interfaces will be considered incoming.
- *
- *    The 'if_group' must be frozen and have type
- *    SKPC_GROUP_INTERFACE.  The uint32_t's contained in the group
- *    will be treated as SNMP values and will be assigned to the
- *    specified 'network_id'.
- *
- *    The function returns 0 on success, or -1 if the group is NULL,
- *    not frozen, or empty.
- *
- *    The skpcSensorSetInterfaces() function will return an error if
- *    skpcSensorSetIpBlocks() function is called before it, or if
- *    the skpcSensotSetNetwork() function has already assigned all
- *    source or destination traffic to this 'network_id'.
- */
-int
-skpcSensorSetInterfaces(
+skpcSensorSetNetworkRemainder(
     skpc_sensor_t      *sensor,
     skpc_network_id_t   network_id,
-    const skpc_group_t *if_group);
+    skpc_group_type_t   group_type);
 
 
 /**
@@ -1255,19 +1271,6 @@ skpcSensorSetInterfaces(
  */
 int
 skpcSensorSetDefaultNonrouted(
-    skpc_sensor_t      *sensor,
-    skpc_network_id_t   network_id);
-
-
-/**
- *    Sets the SNMP interfaces associated with 'network_id' to all
- *    SNMP interfaces that have not been not assigned to other
- *    interfaces.  The list of 'network_id's is defined by the
- *    packing logic plug-in that is specified on the rwflowpack
- *    command line.
- */
-int
-skpcSensorSetToRemainderInterfaces(
     skpc_sensor_t      *sensor,
     skpc_network_id_t   network_id);
 
@@ -1389,7 +1392,8 @@ skpcGroupCreate(
 
 /**
  *    Destroy the group at '**group' and free all memory.  Sets *group
- *    to NULL.
+ *    to NULL.  Does nothing if 'group' or the location it points to
+ *    is NULL.
  */
 void
 skpcGroupDestroy(
@@ -1518,6 +1522,16 @@ skpcGroupIsFrozen(
 skpc_group_t *
 skpcGroupLookupByName(
     const char         *group_name);
+
+
+/**
+ *    Return the printable respresentation of the group type.
+ *
+ *    Return NULL when given an illegal value.
+ */
+const char *
+skpcGrouptypeEnumtoName(
+    skpc_group_type_t   type);
 
 
 #ifdef __cplusplus

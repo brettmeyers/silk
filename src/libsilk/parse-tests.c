@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2004-2014 by Carnegie Mellon University.
+** Copyright (C) 2004-2015 by Carnegie Mellon University.
 **
 ** @OPENSOURCE_HEADER_START@
 **
@@ -57,7 +57,7 @@
 
 #include <silk/silk.h>
 
-RCSIDENT("$SiLK: parse-tests.c cd598eff62b9 2014-09-21 19:31:29Z mthomas $");
+RCSIDENT("$SiLK: parse-tests.c b7b8edebba12 2015-01-05 18:05:21Z mthomas $");
 
 #include <silk/skipaddr.h>
 #include <silk/utils.h>
@@ -417,57 +417,57 @@ datetime_parser(
     uint32_t i;
     int rv;
     sktime_t result_val;
-    int precision;
+    unsigned int precision;
     int failed, print_results;
 
     static struct {
-        int         exp_retval;
-        sktime_t    exp_result;
-        int         exp_prec;
-        const char *str;
+        int             exp_retval;
+        sktime_t        exp_result;
+        unsigned int    exp_prec;
+        const char     *str;
     } input[] = {
-        {0,       1099526400000LL, 3, "2004/11/04"},
-        {0,       1099526400000LL, 3, "2004/11/04   "},
-        {0,       1099526400000LL, 3, "   2004/11/04"},
-        {0,       1099526400000LL, 3, " 2004/11/04  "},
-        {0,       1099566000000LL, 4, "2004/11/04:11"},
-        {0,       1099566720000LL, 5, "2004/11/4:11:12"},
-        {0,       1099566733000LL, 6, "2004/11/4:11:12:13"},
-        {0,       1099566733456LL, 7, "2004/11/4:11:12:13.456"},
-        {0,       1099566733000LL, 6, "1099566733"},
-        {0,       1099566733456LL, 7, "1099566733.456"},
-        {0,       1099566733400LL, 7, "2004/11/4:11:12:13.4"},
-        {0,       1099566733450LL, 7, "2004/11/4:11:12:13.45"},
-        {0,       1099566733456LL, 7, "2004/11/4:11:12:13.456111111"},
-        {0,       1099566733457LL, 7, "2004/11/4:11:12:13.456999999"},
-        {SKUTILS_ERR_BAD_CHAR,  0, 6, "2004/11/4:11:12:13:14"},
-        {SKUTILS_ERR_BAD_CHAR,  0, 6, "2004/11/4:11:12:13-2004/11/4:11:12:14"},
-        {SKUTILS_ERR_BAD_CHAR,  0, 0, "2004-11-4"},
-        {SKUTILS_ERR_BAD_CHAR,  0, 0, "2004/11/4:11:12:13  x"},
-        {SKUTILS_ERR_MINIMUM,   0, 0, "200411.04"},
-        {SKUTILS_ERR_OVERFLOW,  0, 0, "109956673345629384756"},
-        {SKUTILS_ERR_SHORT,     0, 1, "2004"},
-        {SKUTILS_ERR_SHORT,     0, 1, "2004/"},
-        {SKUTILS_ERR_BAD_CHAR,  0, 3, "  2004/11/4 11:12:13  "},
-        {SKUTILS_ERR_SHORT,     0, 2, "2004/11"},
-        {SKUTILS_ERR_SHORT,     0, 2, "2004/11/"},
-        {SKUTILS_ERR_MINIMUM,   0, 0, "2004/0/4"},
-        {SKUTILS_ERR_MAXIMUM,   0, 0, "2004/13/4"},
-        {SKUTILS_ERR_MINIMUM,   0, 0, "1959/01/01"},
-        {SKUTILS_ERR_BAD_CHAR,  0, 0, "2004/11/4:-3:-3:-3"},
-        {SKUTILS_ERR_BAD_CHAR,  0, 0, "2004/11/4::11:12"},
-        {SKUTILS_ERR_MAXIMUM,   0, 0, "2004/11/31"},
-        {SKUTILS_ERR_MAXIMUM,   0, 0, "2004/11/4:24"},
-        {SKUTILS_ERR_MAXIMUM,   0, 0, "2004/11/4:23:60:59"},
-        {SKUTILS_ERR_MAXIMUM,   0, 0, "2004/11/4:23:59:60"},
-        {SKUTILS_ERR_MAXIMUM,   0, 2, "2004/11/40"},
-        {SKUTILS_ERR_MAXIMUM,   0, 3, "2004/11/4:110"},
-        {SKUTILS_ERR_MAXIMUM,   0, 4, "2004/11/4:11:120"},
-        {SKUTILS_ERR_MAXIMUM,   0, 5, "2004/11/4:11:12:130"},
-        {SKUTILS_ERR_EMPTY,     0, 0, "   "},
-        {SKUTILS_ERR_EMPTY,     0, 0, ""},
-        {SKUTILS_ERR_INVALID,   0, 0, NULL},
-        {0,                     0, 0, SENTINEL}
+        {0,       1099526400000LL,  3, "2004/11/04"},
+        {0,       1099526400000LL,  3, "2004/11/04   "},
+        {0,       1099526400000LL,  3, "   2004/11/04"},
+        {0,       1099526400000LL,  3, " 2004/11/04  "},
+        {0,       1099566000000LL,  4, "2004/11/04:11"},
+        {0,       1099566720000LL,  5, "2004/11/4:11:12"},
+        {0,       1099566733000LL,  6, "2004/11/4:11:12:13"},
+        {0,       1099566733456LL,  7, "2004/11/4:11:12:13.456"},
+        {0,       1099566733000LL, 14, "1099566733"},
+        {0,       1099566733456LL, 15, "1099566733.456"},
+        {0,       1099566733400LL,  7, "2004/11/4:11:12:13.4"},
+        {0,       1099566733450LL,  7, "2004/11/4:11:12:13.45"},
+        {0,       1099566733456LL,  7, "2004/11/4:11:12:13.456111111"},
+        {0,       1099566733456LL,  7, "2004/11/4:11:12:13.456999999"},
+        {SKUTILS_ERR_BAD_CHAR,  0,  6, "2004/11/4:11:12:13:14"},
+        {SKUTILS_ERR_BAD_CHAR,  0,  6, "2004/11/4:11:12:13-2004/11/4:11:12:14"},
+        {SKUTILS_ERR_BAD_CHAR,  0,  0, "2004-11-4"},
+        {SKUTILS_ERR_BAD_CHAR,  0,  0, "2004/11/4:11:12:13  x"},
+        {SKUTILS_ERR_MINIMUM,   0,  0, "200411.04"},
+        {SKUTILS_ERR_OVERFLOW,  0,  0, "109956673345629384756"},
+        {SKUTILS_ERR_SHORT,     0,  1, "2004"},
+        {SKUTILS_ERR_SHORT,     0,  1, "2004/"},
+        {SKUTILS_ERR_BAD_CHAR,  0,  3, "  2004/11/4 11:12:13  "},
+        {SKUTILS_ERR_SHORT,     0,  2, "2004/11"},
+        {SKUTILS_ERR_SHORT,     0,  2, "2004/11/"},
+        {SKUTILS_ERR_MINIMUM,   0,  0, "2004/0/4"},
+        {SKUTILS_ERR_MAXIMUM,   0,  0, "2004/13/4"},
+        {SKUTILS_ERR_MINIMUM,   0,  0, "1959/01/01"},
+        {SKUTILS_ERR_BAD_CHAR,  0,  0, "2004/11/4:-3:-3:-3"},
+        {SKUTILS_ERR_BAD_CHAR,  0,  0, "2004/11/4::11:12"},
+        {SKUTILS_ERR_MAXIMUM,   0,  0, "2004/11/31"},
+        {SKUTILS_ERR_MAXIMUM,   0,  0, "2004/11/4:24"},
+        {SKUTILS_ERR_MAXIMUM,   0,  0, "2004/11/4:23:60:59"},
+        {SKUTILS_ERR_MAXIMUM,   0,  0, "2004/11/4:23:59:60"},
+        {SKUTILS_ERR_MAXIMUM,   0,  2, "2004/11/40"},
+        {SKUTILS_ERR_MAXIMUM,   0,  3, "2004/11/4:110"},
+        {SKUTILS_ERR_MAXIMUM,   0,  4, "2004/11/4:11:120"},
+        {SKUTILS_ERR_MAXIMUM,   0,  5, "2004/11/4:11:12:130"},
+        {SKUTILS_ERR_EMPTY,     0,  0, "   "},
+        {SKUTILS_ERR_EMPTY,     0,  0, ""},
+        {SKUTILS_ERR_INVALID,   0,  0, NULL},
+        {0,                     0,  0, SENTINEL}
     };
 
     P_HEADER("skStringParseDatetime()");
@@ -500,13 +500,13 @@ datetime_parser(
         P_STATUS(failed);
 
         if (failed || print_results) {
-            printf((GOT_STR "ret=%3d, precision=%3d, result=%15" PRId64),
+            printf((GOT_STR "ret=%3d, precision=%3u, result=%15" PRId64),
                    rv, precision, (int64_t)result_val);
         }
         P_NL;
 
         if (failed) {
-            printf((EXP_STR "ret=%3d, precision=%3d, result=%15" PRId64 "\n"),
+            printf((EXP_STR "ret=%3d, precision=%3u, result=%15" PRId64 "\n"),
                    input[i].exp_retval, input[i].exp_prec,
                    (int64_t)input[i].exp_result);
         }
@@ -532,16 +532,16 @@ datetime_range_parser(
     uint32_t i;
     int rv;
     sktime_t s_time, e_time;
-    int s_precision, e_precision;
+    unsigned int s_precision, e_precision;
     int failed, print_results;
 
     static struct {
-        int         exp_retval;
-        sktime_t    exp_start_time;
-        sktime_t    exp_end_time;
-        int         exp_start_prec;
-        int         exp_end_prec;
-        const char *str;
+        int             exp_retval;
+        sktime_t        exp_start_time;
+        sktime_t        exp_end_time;
+        unsigned int    exp_start_prec;
+        unsigned int    exp_end_prec;
+        const char     *str;
     } input[] = {
         {SKUTILS_OK,            1099526400000LL,       INT64_MAX, 3, 0,
          "2004/11/04"},
@@ -650,7 +650,7 @@ datetime_range_parser(
         P_STATUS(failed);
 
         if (failed || print_results) {
-            printf((GOT_STR "ret=%3d, s_prec=%3d, e_prec=%3d, "
+            printf((GOT_STR "ret=%3d, s_prec=%3u, e_prec=%3u, "
                     "s_time=%15" PRId64 ", e_time=%15" PRId64),
                    rv, s_precision, e_precision,
                    (int64_t)s_time, (int64_t)e_time);
@@ -658,7 +658,7 @@ datetime_range_parser(
         P_NL;
 
         if (failed) {
-            printf((EXP_STR "ret=%3d, s_prec=%3d, e_prec=%3d, "
+            printf((EXP_STR "ret=%3d, s_prec=%3u, e_prec=%3u, "
                     "s_time=%15" PRId64 ", e_time=%15" PRId64 "\n"),
                    input[i].exp_retval,
                    input[i].exp_start_prec, input[i].exp_end_prec,
@@ -689,10 +689,10 @@ datetime_ceiling_parser(
     sktime_t ceiling_time;
     int failed, print_results;
     static struct {
-        int         exp_retval;
-        sktime_t    exp_ceiling_time;
-        int         prec;
-        sktime_t    in_time;
+        int             exp_retval;
+        sktime_t        exp_ceiling_time;
+        unsigned int    prec;
+        sktime_t        in_time;
     } input[] = {
         {0,  1099566733000LL,  7, 1099566733000LL},
         {0,  1099566733456LL,  7, 1099566733456LL},
@@ -703,7 +703,7 @@ datetime_ceiling_parser(
         {0,  1101859199999LL,  2, 1099566733456LL},
         {0,  1104537599999LL,  1, 1099566733456LL},
         {-1,               0,  0, 1099566733456LL},
-        {-1,               0, -1, 1099566733456LL},
+        {-1,               0, 99, 1099566733456LL},
         {0,                0,  0, 0}
     };
 
@@ -1283,7 +1283,6 @@ ip_parser(
         P_NL;
 
         skipaddrClear(&ipaddr);
-        ip = 0;
         print_results = 0;
         failed = 0;
 

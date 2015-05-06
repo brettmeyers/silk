@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2007-2014 by Carnegie Mellon University.
+** Copyright (C) 2007-2015 by Carnegie Mellon University.
 **
 ** @OPENSOURCE_HEADER_START@
 **
@@ -52,7 +52,7 @@
 
 #include <silk/silk.h>
 
-RCSIDENT("$SiLK: rwipautils.c 65582bd0c019 2014-09-09 16:32:58Z mthomas $");
+RCSIDENT("$SiLK: rwipautils.c b7b8edebba12 2015-01-05 18:05:21Z mthomas $");
 
 #include "rwipa.h"
 

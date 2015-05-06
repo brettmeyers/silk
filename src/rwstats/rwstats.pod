@@ -126,12 +126,6 @@ directory.  To modify the temporary directory used by B<rwstats>,
 provide the B<--temp-directory> switch, set the SILK_TMPDIR
 environment variable, or set the TMPDIR environment variable.
 
-B<rwstats> may run out of memory when computing distinct IP counts,
-causing the counts for some bins to be smaller than the actual number
-of distinct IPs.  When this occurs, a single warning is printed the
-standard error noting that B<rwstats> has run out of memory, processing
-continues, and B<rwstats> exits with status 16.
-
 B<rwstats> may also run out of memory if the requested Top-N is too
 large.
 
@@ -1444,12 +1438,6 @@ When computing distinct IP counts, B<rwstats> will typically run
 faster if you do I<not> use the B<--presorted-input> switch, even if
 the data was previously sorted.
 
-B<rwstats> may run out of memory when computing distinct IP counts,
-causing the counts for some bins to be smaller than the actual number
-of distinct IPs.  When this occurs, a single warning is printed the
-standard error noting that B<rwstats> has run out of memory,
-processing continues, and B<rwstats> exits with status 16.
-
 B<rwstats>'s strength is its ability to build arbitrary keys and
 aggregate fields.  For maps of a single key to a single value, see
 also B<rwbag(1)>.
@@ -1463,7 +1451,7 @@ B<rwflowpack(8)>, B<silk(7)>, B<yaf(1)>, B<dlopen(3)>
 
 =cut
 
-$SiLK: rwstats.pod 477e54df24bf 2014-07-08 18:02:17Z mthomas $
+$SiLK: rwstats.pod c19d64b322b8 2015-02-09 22:11:47Z mthomas $
 
 Local Variables:
 mode:text

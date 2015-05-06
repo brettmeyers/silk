@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2004-2014 by Carnegie Mellon University.
+** Copyright (C) 2004-2015 by Carnegie Mellon University.
 **
 ** @OPENSOURCE_HEADER_START@
 **
@@ -58,7 +58,7 @@
 
 #include <silk/silk.h>
 
-RCSIDENT("$SiLK: udpsource.c cd598eff62b9 2014-09-21 19:31:29Z mthomas $");
+RCSIDENT("$SiLK: udpsource.c 57462b566e53 2015-02-17 15:50:12Z mthomas $");
 
 #if SK_ENABLE_ZLIB
 #include <zlib.h>
@@ -96,7 +96,7 @@ typedef struct peeraddr_source_st peeraddr_source_t;
  *    data on a UDP port.  The skUDPSource_t contains data collected
  *    for that particular probe.
  *
- *    For each source/probe, the pair (listen_address, from_address)
+ *    For each source/probe, the pair (listen_address, accept_from)
  *    must be unique.  That is, either the source is only thing
  *    listening on this address/port, or the sources are distinguished
  *    by the address the packets are coming from (i.e., the peer
@@ -120,8 +120,8 @@ struct skUDPSource_st {
     /* network collector */
     skUDPSourceBase_t          *base;
 
-    /* set of addresses from which this source accepts data */
-    const sk_sockaddr_array_t  *from_addresses;
+    /* probe associated with this source */
+    const skpc_probe_t         *probe;
 
     /* 'data_buffer' holds packets collected for this probe but not
      * yet requested.  'pkt_buffer' is the current location in the
@@ -135,13 +135,10 @@ struct skUDPSource_st {
 
 /* typedef struct skUDPSourceBase_st skUDPSourceBase_t; */
 struct skUDPSourceBase_st {
-    const char             *name;
-    uint16_t                port;
-
     /* when a probe does not have an accept-from-host clause, any peer
      * may connect, and there is a one-to-one mapping between a source
      * object and a base object.  The 'any' member points to the
-     * source, and the 'addr_to_source' member will be NULL. */
+     * source, and the 'addr_to_source' member must be NULL. */
     skUDPSource_t          *any;
 
     /* if there is an accept-from clause, the 'addr_to_source'
@@ -150,17 +147,13 @@ struct skUDPSourceBase_st {
      * member must be NULL. */
     struct rbtree          *addr_to_source;
 
-#if 0
-    /* the 'connections' red-black tree maps the peering host to a
-     * particular source when multiple sources are listening on the
-     * same port.  if 'connections' is NULL, then 'any' must not be
-     * NULL, and any peer may connect. */
-    struct rbtree          *connections;
-    peeraddr_source_t      *any;
-#endif
-
     /* addresses to bind() to */
     const sk_sockaddr_array_t *listen_address;
+
+    /* Thread data */
+    pthread_t               thread;
+    pthread_mutex_t         mutex;
+    pthread_cond_t          cond;
 
     /* Sockets to listen to */
     struct pollfd          *pfd;
@@ -175,15 +168,10 @@ struct skUDPSourceBase_st {
     FILE                   *udpfile;
 #endif
 
-    /* Thread data */
-    pthread_t               thread;
-    pthread_mutex_t         mutex;
-    pthread_cond_t          cond;
+    char                    name[PATH_MAX];
 
-    /* 'data_size' is the maximum size of an individual packet.
-     * 'bufsize' is the number of packets to keep in memory. */
+    /* 'data_size' is the maximum size of an individual packet. */
     size_t                  data_size;
-    uint32_t                bufsize;
 
     /* number of 'sources' that use this 'base' */
     uint32_t                refcount;
@@ -192,6 +180,8 @@ struct skUDPSourceBase_st {
 
     /* Is this a file source? */
     unsigned                file       : 1;
+    /* Was the udp_reader thread started? */
+    unsigned                started    : 1;
     /* Is the udp_reader thread running? */
     unsigned                running    : 1;
 
@@ -208,6 +198,9 @@ struct skUDPSourceBase_st {
  *    objects.  They are used when multiple sources have
  *    accept-from-host clauses and listen on the same port so that the
  *    base can choose the source based on the peer address.
+ *
+ *    The 'addr_to_source' tree uses the peeraddr_compare() comparison
+ *    function.
  */
 /* typedef struct peeraddr_source_st peeraddr_source_t; */
 struct peeraddr_source_st {
@@ -231,7 +224,14 @@ static uint32_t sockets_count = 0;
 
 /* FUNCTION DEFINITIONS */
 
-/* Comparison function for the 'addr_to_source' red-black tree. */
+/*
+ *     The peeraddr_compare() function is used as the comparison
+ *     function for the skUDPSourceBase_t's red-black tree,
+ *     addr_to_source.
+ *
+ *     The tree stores peeraddr_source_t objects, keyed by
+ *     sk_sockaddr_t address of the accepted peers.
+ */
 static int
 peeraddr_compare(
     const void         *va,
@@ -258,7 +258,6 @@ udp_reader(
     void               *vbase)
 {
     skUDPSourceBase_t *base = (skUDPSourceBase_t*)vbase;
-    char name[PATH_MAX];
     sk_sockaddr_t addr;
     void *data;
     peeraddr_source_t target;
@@ -271,29 +270,20 @@ udp_reader(
     /* ignore all signals */
     skthread_ignore_signals();
 
-    /* set 'name' to a printable name for this socket */
-    if (base->port) {
-        snprintf(name, sizeof(name), ("[%s]:%" PRIu16), base->name,base->port);
-    } else {
-        strncpy(name, base->name, sizeof(name));
-    }
-
-    DEBUGMSG("UDP listener started for %s", name);
+    DEBUGMSG("UDP listener started for %s", base->name);
 
     /* Lock for initialization */
     pthread_mutex_lock(&base->mutex);
 
     /* Note run state */
+    base->started = 1;
     base->running = 1;
-
-    /* Disable cancelling */
-    pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 
     /* Allocate a space to read data into */
     data = (void *)malloc(base->data_size);
     if (NULL == data) {
         NOTICEMSG("Unable to create UDP listener data buffer for %s: %s",
-                  name, strerror(errno));
+                  base->name, strerror(errno));
         base->running = 0;
         pthread_cond_signal(&base->cond);
         pthread_mutex_unlock(&base->mutex);
@@ -324,7 +314,7 @@ udp_reader(
             }
             /* Error */
             ERRMSG("Poll error for %s (%d) [%s]",
-                   name, errno, strerror(errno));
+                   base->name, errno, strerror(errno));
             break;
         }
 
@@ -345,7 +335,7 @@ udp_reader(
                 pfd->fd = -1;
                 base->pfd_valid--;
                 DEBUGMSG("Poll for %s encountered a (%s,%s,%s) condition",
-                         name, (pfd->revents & POLLERR) ? "ERR": "",
+                         base->name, (pfd->revents & POLLERR) ? "ERR": "",
                          (pfd->revents & POLLHUP) ? "HUP": "",
                          (pfd->revents & POLLNVAL) ? "NVAL": "");
                 DEBUGMSG("Closing file handle, %d remaining",
@@ -373,25 +363,28 @@ udp_reader(
                     /* We should not be getting this, but have seen them
                      * in the field nonetheless.  Note and ignore them. */
                     NOTICEMSG(("Ignoring spurious EAGAIN from recvfrom() "
-                               "call on %s"), name);
+                               "call on %s"), base->name);
                     continue;
                   default:
                     ERRMSG("recvfrom error from %s (%d) [%s]",
-                           name, errno, strerror(errno));
+                           base->name, errno, strerror(errno));
                     goto BREAK_WHILE;
                 }
             }
 
-            /* Match the address on the packet against the list of
-             * from_addresses for each source that uses this base. */
-            assert((base->any && !base->addr_to_source)
-                   || (!base->any && base->addr_to_source));
             pthread_mutex_lock(&base->mutex);
-            if (!base->addr_to_source) {
-                /* we accept data from any address */
+
+            if (base->any) {
+                /* When there is no accept-from address on the probe,
+                 * there is a one-to-one mapping between source and
+                 * base, and all connections are permitted. */
+                assert(NULL == base->addr_to_source);
                 source = base->any;
             } else {
-                /* check whether we recognoze the sender */
+                /* Using the address of the incoming connection,
+                 * search for the source object associated with this
+                 * address. */
+                assert(NULL != base->addr_to_source);
                 target.addr = &addr;
                 match_address = ((const peeraddr_source_t*)
                                  rbfind(&target, base->addr_to_source));
@@ -423,7 +416,7 @@ udp_reader(
                 continue;
             }
 
-            /* Copy the data */
+            /* Copy the data onto the source */
             memcpy(source->pkt_buffer, data, rv);
             pthread_mutex_unlock(&base->mutex);
 
@@ -438,7 +431,7 @@ udp_reader(
             /* Acquire the next location */
             source->pkt_buffer = (void*)circBufNextHead(source->data_buffer);
             if (source->pkt_buffer == NULL) {
-                NOTICEMSG("Non-existent data buffer for %s", name);
+                NOTICEMSG("Non-existent data buffer for %s", base->name);
                 break;
             }
         } /* for (i = 0; i < base->nfds_t; i++) */
@@ -454,7 +447,7 @@ udp_reader(
     pthread_cond_broadcast(&base->cond);
     pthread_mutex_unlock(&base->mutex);
 
-    DEBUGMSG("UDP listener stopped for %s", name);
+    DEBUGMSG("UDP listener stopped for %s", base->name);
 
     return NULL;
 }
@@ -615,7 +608,7 @@ udpSourceDestroyBase(
 
 /*
  *    Create a base object and its associated thread.  The file
- *    descriptors for the base to monitor are in the 'pfd_addry'.  If
+ *    descriptors for the base to monitor are in the 'pfd_array'.  If
  *    an error occurs, close the descriptors and return NULL.
  */
 static skUDPSourceBase_t *
@@ -625,8 +618,7 @@ udpSourceCreateBase(
     struct pollfd      *pfd_array,
     nfds_t              pfd_len,
     nfds_t              pfd_valid,
-    uint32_t            itemsize,
-    uint32_t            itemcount)
+    uint32_t            itemsize)
 {
     skUDPSourceBase_t *base;
     int rv;
@@ -646,15 +638,17 @@ udpSourceCreateBase(
     }
 
     /* Fill the data structure */
-    base->name = name;
-    base->port = port;
     base->pfd = pfd_array;
     base->pfd_len = pfd_len;
     base->pfd_valid = pfd_valid;
     base->data_size = itemsize;
-    base->bufsize = itemcount;
     pthread_mutex_init(&base->mutex, NULL);
     pthread_cond_init(&base->cond, NULL);
+    if (port) {
+        snprintf(base->name, sizeof(base->name), "%s:%d", name, port);
+    } else {
+        snprintf(base->name, sizeof(base->name), "%s", name);
+    }
 
     /* Start the collection thread */
     pthread_mutex_lock(&base->mutex);
@@ -668,7 +662,9 @@ udpSourceCreateBase(
     }
 
     /* Wait for the thread to finish initializing before returning. */
-    pthread_cond_wait(&base->cond, &base->mutex);
+    do {
+        pthread_cond_wait(&base->cond, &base->mutex);
+    } while (!base->started);
     pthread_mutex_unlock(&base->mutex);
 
     return base;
@@ -676,96 +672,82 @@ udpSourceCreateBase(
 
 
 /*
- *    Create a new source object that wraps 'base', where
- *    'from_address' is the peer address from which this source
- *    accepts packets.  If 'from_address' is NULL, the source accepts
- *    packets from any peer.
+ *    Add the 'source' object to the 'base' object (or for an
+ *    alternate view, have the 'source' wrap the 'base').  Return 0 on
+ *    success, or -1 on failure.
  */
-static skUDPSource_t *
-udpSourceCreateSource(
-    skUDPSourceBase_t          *base,
-    const sk_sockaddr_array_t  *from_address,
-    udp_source_reject_fn        reject_pkt_fn,
-    void                       *fn_callback_data)
+static int
+updSourceBaseAddUDPSource(
+    skUDPSourceBase_t  *base,
+    skUDPSource_t      *source)
 {
-    skUDPSource_t *source;
+    const sk_sockaddr_array_t **accept_from;
+    peeraddr_source_t *peeraddr;
+    const peeraddr_source_t *found;
+    uint32_t accept_from_count;
+    uint32_t i;
+    uint32_t j;
 
-    if (base == NULL || base->file || base->any) {
-        return NULL;
-    }
-    if (from_address == NULL && base->addr_to_source) {
-        /* When no from_address is specified, this source accepts
-         * packets from any address and there should be a one-to-one
-         * mapping between source and base; however, the base already
-         * references another source. */
-        return NULL;
-    }
+    assert(base);
+    assert(source);
+    assert(source->probe);
+    assert(NULL == source->base);
 
-    /* Create and initialize a new source object */
-    source = (skUDPSource_t*)calloc(1, sizeof(skUDPSource_t));
-    if (source == NULL) {
-        return NULL;
-    }
-    source->reject_pkt_fn = reject_pkt_fn;
-    source->fn_callback_data = fn_callback_data;
-    source->from_addresses = from_address;
-
-    source->data_buffer = circBufCreate(base->data_size, base->bufsize);
-    if (source->data_buffer == NULL) {
-        goto error;
-    }
-    source->pkt_buffer = (void *)circBufNextHead(source->data_buffer);
-    assert(source->pkt_buffer != NULL);
+    accept_from_count = skpcProbeGetAcceptFromHost(source->probe,&accept_from);
 
     /* Lock the base */
     pthread_mutex_lock(&base->mutex);
 
-    /* Attach the new source to the base */
-    source->base = base;
-    base->refcount++;
+    /* Base must not be file-based nor currently configured to accept
+     * packets from any host. */
+    if (base->file || base->any) {
+        goto ERROR;
+    }
 
-    if (!from_address) {
-        /* one-to-one mapping between source and base */
+    if (NULL == accept_from) {
+        /* When no accept-from-host is specified, this source accepts
+         * packets from any address and there should be a one-to-one
+         * mapping between source and base */
+        if (base->addr_to_source) {
+            /* The base already references another source. */
+            goto ERROR;
+        }
         base->any = source;
+        source->base = base;
+        ++base->refcount;
 
     } else {
         /* Otherwise, we need to update the base so that it knows
-         * packets coming from the 'from_address' should be processed
-         * by this source */
-        uint32_t i;
-
+         * packets coming from the 'accept_from' host should be
+         * processed by this source */
         if (base->addr_to_source == NULL) {
             base->addr_to_source = rbinit(peeraddr_compare, NULL);
             if (base->addr_to_source == NULL) {
-                goto error;
+                goto ERROR;
             }
         }
 
-        for (i = 0; i < skSockaddrArraySize(from_address); ++i) {
-            peeraddr_source_t *addr;
-            const peeraddr_source_t *found;
-
-            /* Create the mapping between this from_address and the
-             * source */
-            addr = (peeraddr_source_t*)calloc(1, sizeof(peeraddr_source_t));
-            if (addr == NULL) {
-                goto error;
-            }
-            addr->source = source;
-            addr->addr = skSockaddrArrayGet(from_address, i);
-
-            /* Add the from_address to the tree */
-            found = ((const peeraddr_source_t*)
-                     rbsearch(addr, base->addr_to_source));
-            if (found != addr) {
-                if (found && (found->source == addr->source)) {
-                    /* Duplicate address, same connection */
-                    free(addr);
-                    continue;
+        for (j = 0; j < accept_from_count; ++j) {
+            for (i = 0; i < skSockaddrArraySize(accept_from[j]); ++i) {
+                peeraddr = ((peeraddr_source_t*)
+                            calloc(1, sizeof(peeraddr_source_t)));
+                if (peeraddr == NULL) {
+                    goto ERROR;
                 }
-                /* Memory error adding to tree */
-                free(addr);
-                goto error;
+                peeraddr->source = source;
+                peeraddr->addr = skSockaddrArrayGet(accept_from[j], i);
+                found = ((const peeraddr_source_t*)
+                         rbsearch(peeraddr, base->addr_to_source));
+                if (found != peeraddr) {
+                    if (found && (found->source == peeraddr->source)) {
+                        /* Duplicate address, same connection */
+                        free(peeraddr);
+                        continue;
+                    }
+                    /* Memory error adding to tree */
+                    free(peeraddr);
+                    goto ERROR;
+                }
             }
         }
 
@@ -784,54 +766,57 @@ udpSourceCreateSource(
             rbcloselist(iter);
         }
 #endif  /* DEBUG_ACCEPT_FROM */
+
+        source->base = base;
+        ++base->refcount;
     }
 
-    /* Increase the number of active sources */
-    base->active_sources++;
+    /* Increase the number of active sources and signal the
+     * udp_reader() thread to continue */
+    ++base->active_sources;
     pthread_cond_broadcast(&base->cond);
 
     pthread_mutex_unlock(&base->mutex);
 
-    return source;
+    return 0;
 
-  error:
+  ERROR:
     pthread_mutex_unlock(&base->mutex);
-    if (source->base != base && base->refcount == 0) {
-        udpSourceDestroyBase(source->base);
-    }
-    skUDPSourceDestroy(source);
-    return NULL;
+    return -1;
 }
 
 
-/* Creates a UDP source representing a Berkeley socket. */
-int
-skUDPSourceCreateFromSockaddr(
-    skUDPSource_t             **rsource,
-    const sk_sockaddr_array_t  *from_address,
-    const sk_sockaddr_array_t  *listen_address,
-    uint32_t                    itemsize,
-    uint32_t                    itemcount,
-    udp_source_reject_fn        reject_pkt_fn,
-    void                       *fn_callback_data)
+/*
+ *    Completes the creatation a UDP source representing a Berkeley
+ *    socket.
+ */
+static int
+udpSourceCreateFromSockaddr(
+    skUDPSource_t      *source,
+    uint32_t            itemsize)
 {
+    const sk_sockaddr_array_t  *listen_address;
     const sk_sockaddr_t *addr;
     skUDPSourceBase_t *base;
     skUDPSourceBase_t *cleanup_base = NULL;
     struct pollfd *pfd_array = NULL;
-    skUDPSource_t *source = NULL;
     nfds_t pfd_valid;
     uint32_t i;
     int rv;
     uint16_t arrayport;
     int retval = -1;
 
-    assert(rsource);
-    assert(listen_address);
+    assert(source);
+    assert(source->probe);
 
+    if (skpcProbeGetListenOnSockaddr(source->probe, &listen_address)) {
+        return -1;
+    }
+
+    /* If base objects already exists, look for one that has been
+     * bound to this source's port.  If a base is found, have this
+     * source object use it and jump to the end of this function. */
     pthread_mutex_lock(&source_bases_mutex);
-    /* Look for any existing source-bases that are already listening
-     * on this port. */
     if (source_bases) {
         sk_dll_iter_t iter;
         skDLLAssignIter(&iter, source_bases);
@@ -840,7 +825,6 @@ skUDPSourceCreateFromSockaddr(
                                      SK_SOCKADDRCOMP_NOT_V4_AS_V6))
             {
                 if ((base->data_size != itemsize)
-                    || (base->bufsize != itemcount)
                     || (!skSockaddrArrayEqual(listen_address,
                                               base->listen_address,
                                               SK_SOCKADDRCOMP_NOT_V4_AS_V6)))
@@ -851,15 +835,9 @@ skUDPSourceCreateFromSockaddr(
                      * *all* the same addresses. */
                     goto END;
                 }
-                /* found one. create the source using this source-base */
-                *rsource = udpSourceCreateSource(base, from_address,
-                                                 reject_pkt_fn,
-                                                 fn_callback_data);
-                if (*rsource == NULL) {
-                    goto END;
-                }
-                /* Successful */
-                retval = 0;
+                /* found one.  Add the skUDPSource_t to the
+                 * skUDPSourceBase_t */
+                retval = updSourceBaseAddUDPSource(base, source);
                 goto END;
             }
             if (skSockaddrArrayMatches(listen_address, base->listen_address,
@@ -937,7 +915,7 @@ skUDPSourceCreateFromSockaddr(
     base = udpSourceCreateBase(skSockaddrArrayNameSafe(listen_address),
                                arrayport, pfd_array,
                                skSockaddrArraySize(listen_address),
-                               pfd_valid, itemsize, itemcount);
+                               pfd_valid, itemsize);
     if (base == NULL) {
         goto END;
     }
@@ -949,10 +927,8 @@ skUDPSourceCreateFromSockaddr(
 
     base->listen_address = listen_address;
 
-    /* Create the source */
-    source = udpSourceCreateSource(base, from_address, reject_pkt_fn,
-                                   fn_callback_data);
-    if (source == NULL) {
+    /* Add the skUDPSource_t to the skUDPSourceBase_t */
+    if (updSourceBaseAddUDPSource(base, source)) {
         goto END;
     }
 
@@ -970,8 +946,6 @@ skUDPSourceCreateFromSockaddr(
     /* Base is good.  Don't destroy it on cleanup */
     cleanup_base = NULL;
 
-    *rsource = source;
-    source = NULL;
     ++source_bases_count;
     sockets_count += pfd_valid;
 
@@ -984,50 +958,49 @@ skUDPSourceCreateFromSockaddr(
     pthread_mutex_unlock(&source_bases_mutex);
 
     free(pfd_array);
-    /* These could lock source_bases_mutex, so must be it must be unlocked
-     * beforehand. */
     if (cleanup_base) {
+        /* This may lock source_bases_mutex, so must be it must be
+         * unlocked beforehand. */
         udpSourceDestroyBase(cleanup_base);
-    }
-    if (source) {
-        skUDPSourceDestroy(source);
     }
 
     return retval;
 }
 
 
-/* Creates a UDP source representing a Unix domain socket.*/
-int
-skUDPSourceCreateFromUnixDomain(
-    skUDPSource_t         **source_ret,
-    const char             *uds,
-    uint32_t                itemsize,
-    uint32_t                itemcount,
-    udp_source_reject_fn    reject_pkt_fn,
-    void                   *fn_callback_data)
+/*
+ *    Completes the creatation a UDP source representing a UNIX domain
+ *    socket.
+ */
+static int
+udpSourceCreateFromUnixDomain(
+    skUDPSource_t      *source,
+    uint32_t            itemsize)
 {
+    const char *uds;
     sk_sockaddr_t addr;
-    skUDPSource_t *source = NULL;
     skUDPSourceBase_t *base = NULL;
-    struct pollfd *pfd = NULL;
-    int sock;
+    struct pollfd *pfd_array = NULL;
+    int sock = -1;
 
-    assert(source_ret);
+    assert(source);
+    assert(source->probe);
+
+    uds = skpcProbeGetListenOnUnixDomainSocket(source->probe);
     assert(uds);
 
-    /* Get a socket */
+    /* Create a socket */
     sock = socket(AF_UNIX, SOCK_DGRAM, 0);
     if (sock == -1) {
         ERRMSG("Failed to create socket: %s", strerror(errno));
-        return -1;
+        goto ERROR;
     }
 
     /* Remove the domain socket if it exists. */
     if ((unlink(uds) == -1) && (errno != ENOENT)) {
         ERRMSG("Failed to unlink existing socket '%s': %s",
                uds, strerror(errno));
-        return -1;
+        goto ERROR;
     }
 
     /* Fill in sockaddr */
@@ -1038,80 +1011,73 @@ skUDPSourceCreateFromUnixDomain(
     /* Bind socket to port */
     if (bind(sock, &addr.sa, skSockaddrLen(&addr)) == -1) {
         ERRMSG("Failed to bind address '%s': %s", uds, strerror(errno));
-        goto error;
+        goto ERROR;
     }
 
     /* Create the pfd object */
-    pfd = (struct pollfd*)calloc(1, sizeof(struct pollfd));
-    if (pfd == NULL) {
-        goto error;
+    pfd_array = (struct pollfd*)calloc(1, sizeof(struct pollfd));
+    if (pfd_array == NULL) {
+        close(sock);
+        goto ERROR;
     }
-    pfd->fd = sock;
-    pfd->events = POLLIN;
+    pfd_array->fd = sock;
+    pfd_array->events = POLLIN;
+    /* pdf_array owns this now */
+    sock = -1;
 
     /* Create a base object */
-    base = udpSourceCreateBase(uds, 0, pfd, 1, 1, itemsize, itemcount);
+    base = udpSourceCreateBase(uds, 0, pfd_array, 1, 1, itemsize);
     if (base == NULL) {
-        goto error;
+        goto ERROR;
     }
-    pfd = NULL;
+    /* base owns this now */
+    pfd_array = NULL;
 
-    /* Create the source object */
-    source = udpSourceCreateSource(base, NULL, reject_pkt_fn,fn_callback_data);
-    if (source == NULL) {
-        goto error;
+    /* Add the skUDPSource_t to the skUDPSourceBase_t */
+    if (updSourceBaseAddUDPSource(base, source)) {
+        goto ERROR;
     }
-    *source_ret = source;
 
     return 0;
 
-  error:
-    free(pfd);
-    if (source != NULL) {
-        skUDPSourceDestroy(source);
-    }
+  ERROR:
+    free(pfd_array);
     if (base != NULL) {
         udpSourceDestroyBase(base);
+    }
+    if (-1 != sock) {
+        close(sock);
     }
     return -1;
 }
 
 
-/* Creates a UDP source representing a file of collected traffic. */
-int
-skUDPSourceCreateFromFile(
-    skUDPSource_t         **source_ret,
-    const char             *path,
-    uint32_t                itemsize,
-    udp_source_reject_fn    reject_pkt_fn,
-    void                   *fn_callback_data)
+/*
+ *    Completes the creatation a UDP source representing a file of
+ *    collected traffic.
+ */
+static int
+udpSourceCreateFromFile(
+    skUDPSource_t      *source,
+    uint32_t            itemsize,
+    const char         *path)
 {
-    skUDPSourceBase_t *base = NULL;
-    skUDPSource_t *source = NULL;
+    skUDPSourceBase_t *base;
 
-    assert(source_ret);
     assert(path);
 
     /* Create and initialize base structure */
     base = (skUDPSourceBase_t*)calloc(1, sizeof(skUDPSourceBase_t));
     if (base == NULL) {
-        goto error;
+        goto ERROR;
     }
     pthread_mutex_init(&base->mutex, NULL);
     base->file = 1;
     base->data_size = itemsize;
     base->file_buffer = (uint8_t *)malloc(base->data_size);
     if (base->file_buffer == NULL) {
-        goto error;
+        goto ERROR;
     }
-
-    /* Create and initialize source structure */
-    source = (skUDPSource_t*)calloc(1, sizeof(skUDPSource_t));
-    if (source == NULL) {
-        goto error;
-    }
-    source->reject_pkt_fn = reject_pkt_fn;
-    source->fn_callback_data = fn_callback_data;
 
     /* open the file */
 #if SK_ENABLE_ZLIB
@@ -1121,25 +1087,78 @@ skUDPSourceCreateFromFile(
 #endif
     if (base->udpfile == NULL) {
         ERRMSG("Unable to open file '%s': %s", path, strerror(errno));
-        goto error;
+        goto ERROR;
     }
 
     source->base = base;
     base->refcount = 1;
     base->active_sources = 1;
-    *source_ret = source;
 
     return 0;
 
-  error:
+  ERROR:
     if (base != NULL) {
         udpSourceDestroyBase(base);
     }
-    if (source != NULL) {
-        skUDPSourceDestroy(source);
-    }
-
     return -1;
+}
+
+
+skUDPSource_t *
+skUDPSourceCreate(
+    const skpc_probe_t         *probe,
+    const skFlowSourceParams_t *params,
+    uint32_t                    itemsize,
+    udp_source_reject_fn        reject_pkt_fn,
+    void                       *fn_callback_data)
+{
+    skUDPSource_t *source;
+    int rv;
+
+    source = (skUDPSource_t*)calloc(1, sizeof(skUDPSource_t));
+    if (source == NULL) {
+        return NULL;
+    }
+    source->reject_pkt_fn = reject_pkt_fn;
+    source->fn_callback_data = fn_callback_data;
+    source->probe = probe;
+
+    if (NULL != skpcProbeGetPollDirectory(probe)
+        || NULL != skpcProbeGetFileSource(probe))
+    {
+        /* This is a file-based probe---either handles a single file
+         * or files pulled from a directory poll */
+        if (NULL == params || NULL == params->path_name) {
+            free(source);
+            return NULL;
+        }
+        rv = udpSourceCreateFromFile(source, itemsize, params->path_name);
+
+    } else {
+        /* A socket-based probe */
+
+        /* Create circular buffer */
+        source->data_buffer = circBufCreate(itemsize, params->max_pkts);
+        if (source->data_buffer == NULL) {
+            free(source);
+            return NULL;
+        }
+        source->pkt_buffer = (void *)circBufNextHead(source->data_buffer);
+        assert(source->pkt_buffer != NULL);
+
+        if (NULL != skpcProbeGetListenOnUnixDomainSocket(probe)) {
+            /* UNIX domain socket */
+            rv = udpSourceCreateFromUnixDomain(source, itemsize);
+        } else {
+            /* must be a Berkeley-socket based source */
+            rv = udpSourceCreateFromSockaddr(source, itemsize);
+        }
+    }
+    if (rv) {
+        skUDPSourceDestroy(source);
+        return NULL;
+    }
+    return source;
 }
 
 
@@ -1186,50 +1205,59 @@ void
 skUDPSourceDestroy(
     skUDPSource_t      *source)
 {
+    skUDPSourceBase_t *base;
+    const sk_sockaddr_array_t **accept_from;
     peeraddr_source_t target;
-    const peeraddr_source_t *a2;
+    const peeraddr_source_t *found;
+    uint32_t accept_from_count;
     uint32_t i;
+    uint32_t j;
 
-    assert(source);
-
+    if (!source) {
+        return;
+    }
     /* Stop the source */
     if (!source->stopped) {
         skUDPSourceStop(source);
     }
 
-    if (source->base) {
-        pthread_mutex_lock(&source->base->mutex);
+    base = source->base;
 
-        if (source->base->any) {
-            source->base->any = NULL;
-        } else if (source->from_addresses && source->base->addr_to_source) {
-            /* Remove the source's from_addresses from
-             * base->addr_to_source */
-            for (i = 0; i < skSockaddrArraySize(source->from_addresses); ++i) {
-                target.addr = skSockaddrArrayGet(source->from_addresses, i);
-                a2 = ((const peeraddr_source_t *)
-                      rbdelete(&target, source->base->addr_to_source));
-                assert(a2->source == source);
-                free((void*)a2);
+    if (NULL == base) {
+        circBufDestroy(source->data_buffer);
+        free(source);
+        return;
+    }
+    accept_from_count = skpcProbeGetAcceptFromHost(source->probe,&accept_from);
+
+    pthread_mutex_lock(&base->mutex);
+
+    if (base->addr_to_source && accept_from) {
+        /* Remove the source's accept-from-host addresses from
+         * base->addr_to_source */
+        for (j = 0; j < accept_from_count; ++j) {
+            for (i = 0; i < skSockaddrArraySize(accept_from[j]); ++i) {
+                target.addr = skSockaddrArrayGet(accept_from[j], i);
+                found = ((const peeraddr_source_t *)
+                         rbdelete(&target, base->addr_to_source));
+                if (found && (found->source == source)) {
+                    free((void*)found);
+                }
             }
         }
     }
 
     /* Destroy the circular buffer */
-    if (source->data_buffer) {
-        circBufDestroy(source->data_buffer);
-    }
+    circBufDestroy(source->data_buffer);
 
     /* Decref and possibly delete the base */
-    if (source->base) {
-        assert(source->base->refcount);
-        source->base->refcount--;
-        if (source->base->refcount == 0) {
-            pthread_mutex_unlock(&source->base->mutex);
-            udpSourceDestroyBase(source->base);
-        } else {
-            pthread_mutex_unlock(&source->base->mutex);
-        }
+    assert(base->refcount);
+    --base->refcount;
+    if (base->refcount == 0) {
+        pthread_mutex_unlock(&base->mutex);
+        udpSourceDestroyBase(base);
+    } else {
+        pthread_mutex_unlock(&base->mutex);
     }
 
     free(source);

@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2005-2014 by Carnegie Mellon University.
+** Copyright (C) 2005-2015 by Carnegie Mellon University.
 **
 ** @OPENSOURCE_HEADER_START@
 **
@@ -57,7 +57,7 @@
 
 #include <silk/silk.h>
 
-RCSIDENT("$SiLK: packlogic-twoway.c cd598eff62b9 2014-09-21 19:31:29Z mthomas $");
+RCSIDENT("$SiLK: packlogic-twoway.c b7b8edebba12 2015-01-05 18:05:21Z mthomas $");
 
 #include <silk/rwflowpack.h>
 #include <silk/rwrec.h>
@@ -290,19 +290,19 @@ static int
 packLogicVerifySensor(
     skpc_sensor_t      *sensor)
 {
-    int nd_type_count[SKPC_NUM_NETDECIDER_TYPES];
-    int ip_count;
-    int if_count;
-    int i;
+    unsigned int nd_type_count[SKPC_NUM_NETDECIDER_TYPES];
+    unsigned int block_count;
+    unsigned int set_count;
+    unsigned int if_count;
+    unsigned int i;
     skpc_probe_t *probe;
     sk_vector_t *probe_vec;
     uint32_t probe_count;
     uint32_t c;
 
     /* There is a single class, so no per-class verification is
-     * necessary.  Make certain we have either snmp interface values
-     * or ip-blocks depending on the type of probe(s) associated with
-     * this sensor. */
+     * necessary.  Make certain each sensor has snmp interface values,
+     * ipblocks, or IPsets to categorize each flow. */
 
     /* get the probes for the sensor */
     probe_vec = skVectorNew(sizeof(skpc_probe_t*));
@@ -355,16 +355,17 @@ packLogicVerifySensor(
      * Verify that we have enough information to determine the
      * flowtype for every flow.  These are the rules:
      *
-     * 1. A NET-interface or NET-ipblock must be specified, where NET
-     * is either "internal" or "external".
+     * 1. One of NET-interface, NET-ipblock, or NET-ipset must be
+     * specified, where NET is either "internal" or "external".
      *
-     * 2. You cannot mix ipblocks and interfaces, with the exception
-     * that a null-interface is always allowed.
+     * 2. A null-interface is always allowed.  Otherwise, each sensor
+     * must only use one of ipblocks, ipsets, and interfaces.
      *
      * 3. Only one network may claim the remainder.
      *
-     * 4. Using 'remainder' for an ipblock requires that another NET
-     * has set an IPblock.  (Not required for interfaces.)
+     * 4. Using 'remainder' for an ipblock or an ipset requires that
+     * another NET has set an IPblock or an IPset.  (Not required for
+     * interfaces.)
      *
      * 5. If only one of internal-* or external-* is set, set the
      * other to the remaining values, unless the 'remainder' is
@@ -380,10 +381,12 @@ packLogicVerifySensor(
     }
 
     /* get number of deciders for ipblocks and for interfaces */
-    ip_count = (nd_type_count[SKPC_IPBLOCK]
-                + nd_type_count[SKPC_REMAIN_IPBLOCK]);
     if_count = (nd_type_count[SKPC_INTERFACE]
                 + nd_type_count[SKPC_REMAIN_INTERFACE]);
+    block_count = (nd_type_count[SKPC_IPBLOCK]
+                   + nd_type_count[SKPC_REMAIN_IPBLOCK]);
+    set_count = (nd_type_count[SKPC_IPSET]
+                 + nd_type_count[SKPC_REMAIN_IPSET]);
 
     if (nd_type_count[SKPC_NEG_IPBLOCK]) {
         /* this should never happen, since there is no way to set this
@@ -391,25 +394,35 @@ packLogicVerifySensor(
         skAppPrintErr("Negated IPblock logic not implemented");
         exit(EXIT_FAILURE);
     }
+    if (nd_type_count[SKPC_NEG_IPSET]) {
+        /* this should never happen, since there is no way to set this
+         * from the sensor.conf file  */
+        skAppPrintErr("Negated IPset logic not implemented");
+        exit(EXIT_FAILURE);
+    }
 
-    /* make certain either ipblocks or interfaces are specified, and
+    /* make certain ipblocks, ipsets, or interfaces are specified, and
      * make certain something in addition to null-* is specified */
-    if ((ip_count + if_count == 0)
-        || ((ip_count + if_count == 1)
+    if ((block_count + if_count + set_count == 0)
+        || ((block_count + if_count + set_count == 1)
             && (sensor->decider[NETWORK_NULL].nd_type != SKPC_UNSET)))
     {
         skAppPrintErr(("Cannot verify sensor %s:\n"
                        "\tMust specify source-network and"
                        " destination-network, or at least one\n"
-                       "\tof %s- and %s-interface or %s- and %s-ipblock"),
+                       "\tof %s- and %s-interface, %s- and %s-ipblock,"
+                       " or %s- and %s-ipset"),
                       sensor->sensor_name,
+                      net_names[NETWORK_EXTERNAL],net_names[NETWORK_INTERNAL],
                       net_names[NETWORK_EXTERNAL],net_names[NETWORK_INTERNAL],
                       net_names[NETWORK_EXTERNAL],net_names[NETWORK_INTERNAL]);
         return -1;
     }
 
     /* only one 'remainder' is allowed */
-    if (nd_type_count[SKPC_REMAIN_IPBLOCK]+nd_type_count[SKPC_REMAIN_INTERFACE]
+    if ((nd_type_count[SKPC_REMAIN_IPBLOCK]
+         + nd_type_count[SKPC_REMAIN_INTERFACE]
+         + nd_type_count[SKPC_REMAIN_IPSET])
         > 1)
     {
         skAppPrintErr(("Cannot verify sensor '%s':\n"
@@ -419,13 +432,22 @@ packLogicVerifySensor(
     }
 
     /* handle case where NET-ipblocks are set */
-    if (ip_count) {
-        if (ip_count == NUM_NETWORKS) {
+    if (block_count) {
+        if (block_count == NUM_NETWORKS) {
             /* all networks were specified. nothing else to check */
             assert(if_count == 0);
+            assert(set_count == 0);
             return 0;
         }
-        /* ip_count is either 1 or 2 */
+        /* block_count is either 1 or 2 */
+        assert(block_count <= 2);
+
+        if (set_count) {
+            skAppPrintErr(("Cannot verify sensor '%s':\n"
+                           "\tCannot mix <NET>-ipblock and <NET>-ipset"),
+                          sensor->sensor_name);
+            return -1;
+        }
 
         /* only valid mix of NET-ipblock and NET-interface is for the
          * interfaces to be on the NULL network */
@@ -453,7 +475,7 @@ packLogicVerifySensor(
         if (nd_type_count[SKPC_REMAIN_IPBLOCK] == 1) {
             /* need at least one IP address to be specified for
              * 'remainder' to work */
-            if (ip_count == 1) {
+            if (block_count == 1) {
                 skAppPrintErr(("Cannot verify sensor '%s':\n"
                                "\tCannot set ipblocks to remainder when"
                                " no other networks hold IP blocks"),
@@ -476,8 +498,75 @@ packLogicVerifySensor(
         return 0;
     }
 
+    /* handle case where NET-ipsets are set */
+    if (set_count) {
+        if (set_count == NUM_NETWORKS) {
+            /* all networks were specified. nothing else to check */
+            assert(if_count == 0);
+            assert(block_count == 0);
+            return 0;
+        }
+        /* set_count is either 1 or 2 */
+        assert(set_count <= 2);
+
+        if (block_count) {
+            skAppPrintErr(("Cannot verify sensor '%s':\n"
+                           "\tCannot mix <NET>-ipset and <NET>-ipblock"),
+                          sensor->sensor_name);
+            return -1;
+        }
+
+        /* only valid mix of NET-ipset and NET-interface is for the
+         * interfaces to be on the NULL network */
+        if (if_count) {
+            switch (sensor->decider[NETWORK_NULL].nd_type) {
+              case SKPC_INTERFACE:
+              case SKPC_REMAIN_INTERFACE:
+                --if_count;
+                break;
+
+              default:
+                break;
+            }
+            if (if_count) {
+                skAppPrintErr(("Cannot verify sensor '%s':\n"
+                               "\tCannot mix <NET>-interface"
+                               " and <NET>-ipset"),
+                              sensor->sensor_name);
+                return -1;
+            }
+        }
+
+        /* if an ipset has claimed the 'remainder', verify we have
+         * IPs specified elsewhere and return */
+        if (nd_type_count[SKPC_REMAIN_IPSET] == 1) {
+            /* need at least one IP address to be specified for
+             * 'remainder' to work */
+            if (set_count == 1) {
+                skAppPrintErr(("Cannot verify sensor '%s':\n"
+                               "\tCannot set ipsets to remainder when"
+                               " no other networks hold IP sets"),
+                              sensor->sensor_name);
+                return -1;
+            }
+            return 0;
+        }
+
+        /* if either EXTERNAL or INTERNAL is unset, set to remainder */
+        if (sensor->decider[NETWORK_EXTERNAL].nd_type == SKPC_UNSET) {
+            assert(sensor->decider[NETWORK_INTERNAL].nd_type == SKPC_IPSET);
+            sensor->decider[NETWORK_EXTERNAL].nd_type = SKPC_REMAIN_IPSET;
+        }
+        if (sensor->decider[NETWORK_INTERNAL].nd_type == SKPC_UNSET) {
+            assert(sensor->decider[NETWORK_EXTERNAL].nd_type == SKPC_IPSET);
+            sensor->decider[NETWORK_INTERNAL].nd_type = SKPC_REMAIN_IPSET;
+        }
+
+        return 0;
+    }
+
     /* handle case where NET-interfaces are set */
-    if (0 == if_count || ip_count > 0) {
+    if (0 == if_count || block_count > 0 || set_count > 0) {
         skAppPrintErr("Programmer error");
         skAbort();
     }
@@ -487,6 +576,7 @@ packLogicVerifySensor(
         return 0;
     }
     /* if_count is either 1 or 2. */
+    assert(if_count <= 2);
 
     /* if someone has claimed the 'remainder', there is nothing else
      * to do. */

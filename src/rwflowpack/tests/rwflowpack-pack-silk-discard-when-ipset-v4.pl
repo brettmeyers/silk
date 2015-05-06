@@ -1,7 +1,7 @@
 #! /usr/bin/perl -w
 #
 #
-# RCSIDENT("$SiLK: rwflowpack-pack-silk-after.pl 3c4d6696a20e 2014-10-15 19:18:45Z mthomas $")
+# RCSIDENT("$SiLK: rwflowpack-pack-silk-discard-when-ipset-v4.pl 3c4d6696a20e 2014-10-15 19:18:45Z mthomas $")
 
 use strict;
 use SiLKTests;
@@ -65,15 +65,15 @@ my $cmd = join " ", ("$SiLKTests::PYTHON $srcdir/tests/rwflowpack-daemon.py",
                      ($ENV{SK_TESTS_VERBOSE} ? "--verbose" : ()),
                      ($ENV{SK_TESTS_LOG_DEBUG} ? "--log-level=debug" : ()),
                      "--sensor-conf=$sensor_conf",
-                     "--copy-after $file{data}:incoming",
-                     "--limit=501876",
+                     "--copy $file{data}:incoming",
+                     "--limit=486394",
                      "--basedir=$tmpdir",
                      "--",
                      "--polling-interval=5",
     );
 
 # run it and check the MD5 hash of its output
-check_md5_output('a78a286719574389a972724d761c931e', $cmd);
+check_md5_output('49fcb3ee5f7b60a8c6d02ef868f05ead', $cmd);
 
 
 # the following directories should be empty
@@ -88,23 +88,19 @@ die "ERROR: Missing data directory '$data_dir'\n"
 my $expected_count = 0;
 my $file_count = 0;
 
-# read in the MD5s for every packed file we expect to find.  Although
-# we are packing IPv4 data, whether we write IPv4 or IPv6 files
-# depends on how SiLK was compiled.  In the packed IPv4 files, bytes
-# are stored as a byte/packet ratio, and due to rounding the "bytes"
-# value in the IPv4 and IPv6 files may differ.  Thus, we read in
-# separate MD5 sums for each.
+# Result of this test is the same as the other discard tests.
 my %md5_map;
 my $md5_file = $0;
-# the MD5 sums should be the same as those for the
-# rwflowpack-pack-silk.pl test
-$md5_file =~ s/-after//;
+$md5_file =~ s/(discard)-when-ipset-v4/$1/;
 
 if ($SiLKTests::SK_ENABLE_IPV6) {
     $md5_file .= "-ipv6.txt";
 }
 else {
-    $md5_file .= "-ipv4.txt";
+    # The sensor.conf file contains the "zero-packets" quirk for the
+    # probe used in this test (simulating the Cisco ASA router),
+    # causing the IPv4 file format to be RWGENERIC.
+    $md5_file .= "-ipv4-asa.txt";
 }
 
 open F, $md5_file
@@ -150,6 +146,7 @@ __END__
 # the sensor.conf file for this test
 probe P0 silk
     poll-directory ${incoming}
+    quirks zero-packets
 end probe
 
 group internal
@@ -158,10 +155,17 @@ end group
 group external
     ipsets ${external}
 end group
+group null
+    ipsets ${null}
+end group
 
 sensor S0
     silk-probes P0
+
+    discard-when source-ipsets @null
+    discard-when destination-ipsets ${null}
+
     internal-ipsets  @internal
     external-ipsets  @external
-    null-ipset       ${null}
+    null-ipsets      ${null}
 end sensor

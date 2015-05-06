@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2004-2014 by Carnegie Mellon University.
+** Copyright (C) 2004-2015 by Carnegie Mellon University.
 **
 ** @OPENSOURCE_HEADER_START@
 **
@@ -59,7 +59,7 @@
 
 #include <silk/silk.h>
 
-RCSIDENTVAR(rcsID_RWPACK_C, "$SiLK: rwpack.c cd598eff62b9 2014-09-21 19:31:29Z mthomas $");
+RCSIDENTVAR(rcsID_RWPACK_C, "$SiLK: rwpack.c b7b8edebba12 2015-01-05 18:05:21Z mthomas $");
 
 #ifndef RWPACK_BYTES_PACKETS
 #if defined(RWPACK_FLAGS_TIMES_VOLUMES) || defined(RWPACK_SBB_PEF)

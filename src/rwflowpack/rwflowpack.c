@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2003-2014 by Carnegie Mellon University.
+** Copyright (C) 2003-2015 by Carnegie Mellon University.
 **
 ** @OPENSOURCE_HEADER_START@
 **
@@ -125,7 +125,7 @@
 
 #include <silk/silk.h>
 
-RCSIDENT("$SiLK: rwflowpack.c 37fd860c358b 2014-09-23 13:19:15Z mthomas $");
+RCSIDENT("$SiLK: rwflowpack.c d0a292b2508d 2015-01-26 16:42:32Z mthomas $");
 
 #include <dlfcn.h>
 
@@ -2212,10 +2212,22 @@ createFlowProcessorsRespool(
     void)
 {
     input_mode_type_t *imt;
+    skpc_probe_t *probe;
 
     /* get the correct reader */
     assert(INPUT_RESPOOL == input_mode);
     imt = &input_mode_types[INPUT_MODE_TYPE_RESPOOL];
+
+    /* create a dummy probe that is used when reporting errors */
+    if (skpcProbeCreate(&probe)) {
+        exit(EXIT_FAILURE);
+    }
+    skpcProbeSetName(probe, "RESPOOL");
+    skpcProbeSetType(probe, PROBE_ENUM_SILK);
+    skpcProbeSetPollDirectory(probe, reader_opts.respool.incoming_directory);
+    if (skpcProbeVerify(probe, 0)) {
+        exit(EXIT_FAILURE);
+    }
 
     /* only one flow_processor is required. */
     num_flow_processors = 1;
@@ -2225,7 +2237,7 @@ createFlowProcessorsRespool(
         skAppPrintOutOfMemory(NULL);
         return -1;
     }
-    flow_processors[0].probe = NULL;
+    flow_processors[0].probe = probe;
     flow_processors[0].input_mode_type = imt;
 
     /* need to set the 'probes' field on the input_mode_type to a non-NULL

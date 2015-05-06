@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2005-2014 by Carnegie Mellon University.
+** Copyright (C) 2005-2015 by Carnegie Mellon University.
 **
 ** @OPENSOURCE_HEADER_START@
 **
@@ -70,7 +70,7 @@
 
 #include <silk/silk.h>
 
-RCSIDENT("$SiLK: rwptoflow.c cd598eff62b9 2014-09-21 19:31:29Z mthomas $");
+RCSIDENT("$SiLK: rwptoflow.c b7b8edebba12 2015-01-05 18:05:21Z mthomas $");
 
 #include <silk/rwrec.h>
 #include <silk/skipaddr.h>
@@ -580,7 +580,7 @@ appOptionsHandler(
     skipaddr_t ip;
     imaxdiv_t t_div;
     uint32_t temp;
-    int precision;
+    unsigned int precision;
     int rv;
 
     switch ((appOptionsEnum)opt_index) {
@@ -604,7 +604,11 @@ appOptionsHandler(
         time_window.tw_begin.tv_usec = t_div.rem * 1000;
 
         /* adjust the maximum if required */
-        if (end_time != INT64_MAX && precision < 6) {
+        if (end_time != INT64_MAX
+            && (0 == (SK_PARSED_DATETIME_EPOCH & precision))
+            && (SK_PARSED_DATETIME_GET_PRECISION(precision)
+                < SK_PARSED_DATETIME_SECOND))
+        {
             /* the max date precision is less than (courser than) second
              * resolution, so "round" the date up */
             if (skDatetimeCeiling(&end_time, &end_time, precision)) {

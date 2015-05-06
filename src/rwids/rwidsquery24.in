@@ -1,7 +1,7 @@
 #! @PYTHON@
 
 #######################################################################
-# Copyright (C) 2008-2014 by Carnegie Mellon University.
+# Copyright (C) 2008-2015 by Carnegie Mellon University.
 #
 # @OPENSOURCE_HEADER_START@
 #
@@ -52,7 +52,7 @@
 # @OPENSOURCE_HEADER_END@
 #
 #######################################################################
-# $SiLK: rwidsquery24.in f09105e13b0f 2014-05-23 20:14:04Z mthomas $
+# $SiLK: rwidsquery24.in b7b8edebba12 2015-01-05 18:05:21Z mthomas $
 #######################################################################
 # rwidsquery
 #
@@ -225,7 +225,7 @@ supported_rule_opts = {
 
 def tool_version_exit():
     print """%s: Part of @PACKAGE_STRING@
-Copyright (C) 2001-2014 by Carnegie Mellon University
+Copyright (C) 2001-2015 by Carnegie Mellon University
 GNU Public License (GPL) Rights pursuant to Version 2, June 1991
 Government Purpose License Rights (GPLR) pursuant to DFARS 252.227.7013
 Send bug reports, feature requests, and comments to @PACKAGE_BUGREPORT@""" % (appname)

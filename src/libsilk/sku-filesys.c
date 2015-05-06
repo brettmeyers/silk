@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2001-2014 by Carnegie Mellon University.
+** Copyright (C) 2001-2015 by Carnegie Mellon University.
 **
 ** @OPENSOURCE_HEADER_START@
 **
@@ -61,7 +61,7 @@
 
 #include <silk/silk.h>
 
-RCSIDENT("$SiLK: sku-filesys.c cd598eff62b9 2014-09-21 19:31:29Z mthomas $");
+RCSIDENT("$SiLK: sku-filesys.c b7b8edebba12 2015-01-05 18:05:21Z mthomas $");
 
 #include <silk/utils.h>
 
@@ -1078,16 +1078,16 @@ skCopyFile(
     }
 
     rv = close(fdin);
+    fdin = -1;
     if (rv == -1) {
         goto copy_error;
     }
-    fdin = -1;
 
     rv = close(fdout);
+    fdout = -1;
     if (rv == -1) {
         goto copy_error;
     }
-    fdout = -1;
 
     return 0;
 
@@ -1352,7 +1352,7 @@ skFileptrOpenPager(
 
     /* don't page if output is not "stdout" */
     if (NULL == file->of_fp) {
-        out = stdout;
+        /* assume output is stdout */
     } else if (file->of_fp != stdout) {
         /* no change */
         return SK_FILEPTR_PAGER_IGNORED;

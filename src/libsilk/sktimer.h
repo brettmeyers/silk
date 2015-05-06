@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2004-2014 by Carnegie Mellon University.
+** Copyright (C) 2004-2015 by Carnegie Mellon University.
 **
 ** @OPENSOURCE_HEADER_START@
 **
@@ -65,7 +65,7 @@ extern "C" {
 
 #include <silk/silk.h>
 
-RCSIDENTVAR(rcsID_SKTIMER_H, "$SiLK: sktimer.h cd598eff62b9 2014-09-21 19:31:29Z mthomas $");
+RCSIDENTVAR(rcsID_SKTIMER_H, "$SiLK: sktimer.h b7b8edebba12 2015-01-05 18:05:21Z mthomas $");
 
 #include <silk/silk_types.h>
 
@@ -148,7 +148,7 @@ skTimerCreate(
 
 /**
  *    Stops and destroys a timer. Returns zero on success, non-zero on
- *    failure.
+ *    failure.  Does nothing if 'timer' is NULL.
  */
 int
 skTimerDestroy(

@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2006-2014 by Carnegie Mellon University.
+** Copyright (C) 2006-2015 by Carnegie Mellon University.
 **
 ** @OPENSOURCE_HEADER_START@
 **
@@ -57,7 +57,7 @@
 
 #include <silk/silk.h>
 
-RCSIDENT("$SiLK: skpolldir.c cd598eff62b9 2014-09-21 19:31:29Z mthomas $");
+RCSIDENT("$SiLK: skpolldir.c b7b8edebba12 2015-01-05 18:05:21Z mthomas $");
 
 #include <silk/skdeque.h>
 #include <silk/redblack.h>
@@ -288,9 +288,8 @@ remove_unseen(
 #endif
 
     /* Remove items in the delete list */
-    for (i = 0; i < skVectorGetCount(dellist); i++) {
-        rv = skVectorGetValue(&x, dellist, i);
-        assert(0 == rv);
+    for (i = 0; i < skVectorGetCount(dellist); ++i) {
+        skVectorGetValue(&x, dellist, i);
         rbdelete(x, pd->tree);
         free(x->name);
         free(x);
@@ -568,8 +567,10 @@ skPollDirDestroy(
 {
     pd_qentry_t *item;
 
-    assert(pd);
-
+    if (NULL == pd) {
+        TRACEMSG(1, ("polldir %p: Attempting to destroy NULL polldir", pd));
+        return;
+    }
     skPollDirStop(pd);
 
     TRACEMSG(1, ("polldir %p: Being destroyed", pd));

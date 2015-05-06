@@ -1,4 +1,4 @@
-dnl Copyright (C) 2004-2014 by Carnegie Mellon University.
+dnl Copyright (C) 2004-2015 by Carnegie Mellon University.
 dnl
 dnl @OPENSOURCE_HEADER_START@
 dnl
@@ -48,7 +48,7 @@ dnl contract clause at 252.227.7013.
 dnl
 dnl @OPENSOURCE_HEADER_END@
 
-dnl RCSIDENT("$SiLK: ax_pkg_check_libfixbuf.m4 9e932ca3440e 2014-08-25 14:56:52Z mthomas $")
+dnl RCSIDENT("$SiLK: ax_pkg_check_libfixbuf.m4 b7b8edebba12 2015-01-05 18:05:21Z mthomas $")
 
 
 # ---------------------------------------------------------------------------
@@ -64,15 +64,92 @@ AC_DEFUN([AX_PKG_CHECK_LIBFIXBUF],[
     AC_SUBST([FIXBUF_CFLAGS])
     AC_SUBST([FIXBUF_LDFLAGS])
 
+    # Either one or two arguments; first is minimum version required;
+    # if a second is present, it represents a version that is "too
+    # new"
     libfixbuf_required_version="$1"
-    libfixbuf_toonew_version="$2"
-    libfixbuf_declined=no
+    if test "x$2" = "x"
+    then
+        version_check="libfixbuf >= $1"
+        report_version="libfixbuf.pc >= $1"
+    else
+        version_check="libfixbuf >= $1 libfixbuf < $2"
+        report_version="libfixbuf.pc >= $1, libfixbuf.pc < $2"
+    fi
+
+    # the value in libfixbuf_have_version is printed as part of the
+    # package summary
     libfixbuf_have_version=no
     ENABLE_IPFIX=0
     ENABLE_IPFIX_SFLOW=0
 
-    m4_ifdef([PKG_CHECK_MODULES], [AX_PKG_CHECK_LIBFIXBUF_PKGCONFIG])
+    # The configure switch
+    sk_pkg_config=""
+    AC_ARG_WITH([libfixbuf],[AS_HELP_STRING([--with-libfixbuf=DIR],
+            [specify location of the libfixbuf IPFIX protocol package; find "libfixbuf.pc" in the directory DIR/ (i.e., prepend DIR to PKG_CONFIG_PATH).  The last component of DIR is likely "pkgconfig" [auto]])[]dnl
+        ],[
+            if test "x${withval}" != "xyes"
+            then
+                sk_pkg_config="${withval}"
+            fi
+    ])
 
+    if test "x${sk_pkg_config}" = "xno"
+    then
+        AC_MSG_NOTICE([(${PACKAGE}) Building without IPFIX support at user request])
+    else
+        # prepend any argument to PKG_CONFIG_PATH
+        if test "x${sk_pkg_config}" != "x"
+        then
+            sk_save_PKG_CONFIG_PATH="${PKG_CONFIG_PATH}"
+            PKG_CONFIG_PATH="${sk_pkg_config}:${PKG_CONFIG_PATH}"
+            export PKG_CONFIG_PATH
+        fi
+
+        # use pkg-config to check for libfixbuf existence
+        PKG_CHECK_MODULES([LIBFIXBUF],
+            [${version_check}],
+            [ENABLE_IPFIX=1],[ENABLE_IPFIX=0])
+
+        if test "x${ENABLE_IPFIX}" = "x0"
+        then
+            AC_MSG_NOTICE([(${PACKAGE}) Building without IPFIX support since pkg-config failed to find ${report_version}])
+        else
+            # verify that libfixbuf has any packages it depends on
+            libfixbuf_reported_version=`${PKG_CONFIG} --modversion libfixbuf 2>/dev/null`
+            if test "x${libfixbuf_reported_version}" = "x"
+            then
+                # PKG_CHECK_MODULES() says package is available, but
+                # pkg-config does not find it; assume the user set the
+                # LIBFIXBUF_LIBS/LIBFIXBUF_CFLAGS variables
+                libfixbuf_reported_version=unknown
+            else
+                AC_MSG_CHECKING([presence of libfixbuf dependencies])
+                echo "${as_me}:${LINENO}: \$PKG_CONFIG --libs libfixbuf >/dev/null 2>&AS_MESSAGE_LOG_FD" >&AS_MESSAGE_LOG_FD
+                (${PKG_CONFIG} --libs libfixbuf) >/dev/null 2>&AS_MESSAGE_LOG_FD
+                sk_pkg_status=$?
+                echo "${as_me}:${LINENO}: \$? = ${sk_pkg_status}" >&AS_MESSAGE_LOG_FD
+
+                if test 0 -eq ${sk_pkg_status}
+                then
+                    AC_MSG_RESULT([yes])
+                else
+                    AC_MSG_RESULT([no])
+                    AC_MSG_NOTICE([(${PACKAGE}) Building without IPFIX support due to missing dependencies for libfixbuf. Details in config.log])
+                    ENABLE_IPFIX=0
+                fi
+            fi
+        fi
+
+        # Restore the PKG_CONFIG_PATH to the saved value
+        if test "x${sk_pkg_config}" != "x"
+        then
+            PKG_CONFIG_PATH="${sk_save_PKG_CONFIG_PATH}"
+            export PKG_CONFIG_PATH
+        fi
+    fi
+
+    # compile program that uses libfixbuf
     if test "x${ENABLE_IPFIX}" = "x1"
     then
         # Cache current values
@@ -93,15 +170,14 @@ AC_DEFUN([AX_PKG_CHECK_LIBFIXBUF],[
 #include <fixbuf/public.h>
                 ],[
 fbInfoModel_t *m = fbInfoModelAlloc();
-                 ])],[
-            AC_MSG_RESULT([yes])
-            ENABLE_IPFIX=1
-            ],[
-            AC_MSG_RESULT([no])
-            ENABLE_IPFIX=0])
+                 ])],[ENABLE_IPFIX=1],[ENABLE_IPFIX=0])
 
-        if test "x${ENABLE_IPFIX}" = "x1"
+        if test "x${ENABLE_IPFIX}" = "x0"
         then
+            AC_MSG_RESULT([no])
+            AC_MSG_NOTICE([(${PACKAGE}) Building without IPFIX support since unable to compile program using libfixbuf. Details in config.log])
+        else
+            AC_MSG_RESULT([yes])
             AC_CHECK_FUNCS([fbTemplateGetContext fbCollectorSetSFlowTranslator])
             AC_CHECK_DECLS([FB_ENABLE_SCTP, HAVE_OPENSSL, HAVE_SPREAD])
 
@@ -130,15 +206,6 @@ fbInfoModel_t *m = fbInfoModelAlloc();
     then
         FIXBUF_LDFLAGS=
         FIXBUF_CFLAGS=
-        if test "x${libfixbuf_declined}" = "xyes"
-        then
-            AC_MSG_NOTICE([(${PACKAGE}) Building without IPFIX support at user request])
-        elif test "x${libfixbuf_toonew_version}" = "x"
-        then
-            AC_MSG_NOTICE([(${PACKAGE}) Building without IPFIX support since pkg-config failed to find libfixbuf.pc >= ${libfixbuf_required_version}])
-        else
-            AC_MSG_NOTICE([(${PACKAGE}) Building without IPFIX support since pkg-config failed to find libfixbuf.pc >= ${libfixbuf_required_version}, libfixbuf.pc < ${libfixbuf_toonew_version}])
-        fi
     fi
 
     AM_CONDITIONAL(HAVE_FIXBUF, [test "x${ENABLE_IPFIX}" = "x1"])
@@ -161,66 +228,6 @@ fbInfoModel_t *m = fbInfoModelAlloc();
 #    Run the part of --with-fixbuf that requires pkgconfig
 #
 AC_DEFUN([AX_PKG_CHECK_LIBFIXBUF_PKGCONFIG],[
-    sk_pkg_config=""
-    AC_ARG_WITH([libfixbuf],[AS_HELP_STRING([--with-libfixbuf=DIR],
-            [specify location of the libfixbuf IPFIX protocol package; find "libfixbuf.pc" in the directory DIR/ (i.e., prepend DIR to PKG_CONFIG_PATH).  The last component of DIR is likely "pkgconfig" [auto]])[]dnl
-        ],[
-            if test "x${withval}" != "xyes"
-            then
-                sk_pkg_config="${withval}"
-            fi
-    ])
-
-    if test "x${sk_pkg_config}" = "xno"
-    then
-        libfixbuf_declined=yes
-    else
-        if test "x${sk_pkg_config}" != "x"
-        then
-            sk_save_PKG_CONFIG_PATH="${PKG_CONFIG_PATH}"
-            PKG_CONFIG_PATH="${sk_pkg_config}:${PKG_CONFIG_PATH}"
-            export PKG_CONFIG_PATH
-        fi
-
-        # check for libfixbuf existence
-        if test "x${libfixbuf_toonew_version}" = "x"
-        then
-            PKG_CHECK_MODULES([LIBFIXBUF],
-                [libfixbuf >= ${libfixbuf_required_version}],
-                [ENABLE_IPFIX=1],[ENABLE_IPFIX=0])
-        else
-            PKG_CHECK_MODULES([LIBFIXBUF],
-                [libfixbuf >= ${libfixbuf_required_version} libfixbuf < ${libfixbuf_toonew_version}],
-                [ENABLE_IPFIX=1],[ENABLE_IPFIX=0])
-        fi
-
-        # verify that libfixbuf has the packages it needs
-        if test "x${ENABLE_IPFIX}" = "x1"
-        then
-            libfixbuf_reported_version=`${PKG_CONFIG} --modversion libfixbuf`
-
-            AC_MSG_CHECKING([presence of libfixbuf dependencies])
-            echo "${as_me}:${LINENO}: \$PKG_CONFIG --libs libfixbuf >/dev/null 2>&AS_MESSAGE_LOG_FD" >&AS_MESSAGE_LOG_FD
-            (${PKG_CONFIG} --libs libfixbuf) >/dev/null 2>&AS_MESSAGE_LOG_FD
-            sk_pkg_status=$?
-            echo "${as_me}:${LINENO}: \$? = ${sk_pkg_status}" >&AS_MESSAGE_LOG_FD
-
-            if test 0 -eq ${sk_pkg_status}
-            then
-                AC_MSG_RESULT([yes])
-            else
-                AC_MSG_RESULT([no])
-                AC_MSG_NOTICE([(${PACKAGE}) Building without IPFIX support due to missing dependencies for libfixbuf. Details in config.log])
-                ENABLE_IPFIX=0
-            fi
-        fi
-
-        if test "x${sk_pkg_config}" != "x"
-        then
-            PKG_CONFIG_PATH="${sk_save_PKG_CONFIG_PATH}"
-            export PKG_CONFIG_PATH
-        fi
-    fi
 ])# AX_PKG_CHECK_LIBFIXBUF_PKGCONFIG
 
 dnl Local Variables:

@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2005-2014 by Carnegie Mellon University.
+** Copyright (C) 2005-2015 by Carnegie Mellon University.
 **
 ** @OPENSOURCE_HEADER_START@
 **
@@ -58,7 +58,7 @@
 
 #include <silk/silk.h>
 
-RCSIDENT("$SiLK: skvector-test.c 5f274272aebc 2014-05-30 19:15:05Z mthomas $");
+RCSIDENT("$SiLK: skvector-test.c b7b8edebba12 2015-01-05 18:05:21Z mthomas $");
 
 #include <silk/skvector.h>
 

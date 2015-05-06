@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2004-2014 by Carnegie Mellon University.
+** Copyright (C) 2004-2015 by Carnegie Mellon University.
 **
 ** @OPENSOURCE_HEADER_START@
 **
@@ -57,7 +57,7 @@
 
 #include <silk/silk.h>
 
-RCSIDENT("$SiLK: sktimer.c cd598eff62b9 2014-09-21 19:31:29Z mthomas $");
+RCSIDENT("$SiLK: sktimer.c b7b8edebba12 2015-01-05 18:05:21Z mthomas $");
 
 #include <silk/utils.h>
 #include <silk/sktimer.h>
@@ -73,29 +73,44 @@ RCSIDENT("$SiLK: sktimer.c cd598eff62b9 2014-09-21 19:31:29Z mthomas $");
 /* LOCAL DEFINES AND TYPEDEFS */
 
 typedef struct sk_timer_st {
-    /* function to call when timer fires and data to pass to it */
-    skTimerFn_t      callBack;
-    void            *clientData;
+    /** function the user provided that is called when the timer fires */
+    skTimerFn_t      callback_fn;
 
-    /* protect/signal the timer */
+    /** data pointer the user provided that is passed to 'callback_fn' */
+    void            *callback_data;
+
+    /** object to protect access to the timer */
     pthread_mutex_t  mutex;
-    pthread_cond_t   cond;
-    pthread_cond_t   end;
 
-    /* time to use so timer fires at predictable times  */
+    /** object to signal the timer */
+    pthread_cond_t   cond;
+
+    /** reference time to use so timer fires at predictable times;
+     *  e.g., at 0,15,30,45 minutes past the hour */
     struct timeval   base_time;
 
-    /* how often the timer should fire */
+    /** how often the timer should fire, in seconds */
     int64_t          interval;
 
-    /* whether timer is active */
-    unsigned         running : 1;
+    /** whether the timer thread has started */
+    unsigned         started : 1;
+
+    /** whether the timer has been told to stop */
+    unsigned         stopping : 1;
+
+    /** whether the timer thread has stopped */
+    unsigned         stopped : 1;
 } sk_timer_t;
 
 
 /* FUNCTION DEFINITIONS */
 
-/* Thread entry point */
+/*
+ *    THREAD ENTRY POINT
+ *
+ *    This is the function the timer thread runs until the callback_fn
+ *    function returns SK_TIMER_END or the timer is destroyed.
+ */
 static void *
 sk_timer_thread(
     void               *v_timer)
@@ -110,15 +125,16 @@ sk_timer_thread(
     /* next_time is one interval ahead of wait_time */
     struct timeval   next_time;
 
-    /* current_time is now. */
+    /* current_time is now */
     struct timeval   current_time;
 
     /* Lock the mutex */
     pthread_mutex_lock(&timer->mutex);
 
-    /* Have we been asked to be destroyed before we've even started? */
-    if (!timer->running) {
-        goto end;
+    /* Have we been destroyed before we've even started? */
+    if (timer->stopping) {
+        TRACEMSG(("Timer thread stopped before initial run"));
+        goto END;
     }
 
     /* We do no calculations with fractional seconds in this function;
@@ -129,11 +145,11 @@ sk_timer_thread(
     /* Initialize next_time to the base_time */
     next_time = timer->base_time;
 
-    pthread_setcanceltype(PTHREAD_CANCEL_DEFERRED, NULL);
-    pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
-
     do {
-        /* Skip to the next interval greater than the current time. */
+        /* Skip to the next interval greater than the current time;
+         * this way we avoid calling the function multiple times if
+         * the function takes longer than 'interval' seconds to
+         * complete. */
         gettimeofday(&current_time, NULL);
         if (next_time.tv_sec < current_time.tv_sec) {
             int64_t seconds_into_interval
@@ -150,12 +166,17 @@ sk_timer_thread(
                   (int64_t)wait_time.tv_sec, (int64_t)wait_time.tv_nsec));
 
         /* Loop around pthread_cond_timedwait() forever until the
-         * timer actually fires or the condition variable is
-         * signaled (for example, during shutdown) */
+         * timer actually fires or the condition variable is signaled
+         * (for example, during shutdown).  When the timer fires,
+         * invoke the callback_fn function and exit this for() loop. */
         for (;;) {
             /* Mutex is released while within pthread_cond_timedwait */
             rv = pthread_cond_timedwait(&timer->cond, &timer->mutex,
                                         &wait_time);
+            if (timer->stopping) {
+                TRACEMSG(("Timer thread noticed stopping variable"));
+                goto END;
+            }
             if (ETIMEDOUT == rv) {
                 /* Timer timed out */
 #ifdef CHECK_PTHREAD_COND_TIMEDWAIT
@@ -190,26 +211,21 @@ sk_timer_thread(
                 /* else timer fired at correct time (or later) */
 #endif  /* CHECK_PTHREAD_COND_TIMEDWAIT */
 
-                repeat = timer->callBack(timer->clientData);
-                break;
-            }
-            if (0 == rv) {
-                /* pthread_cond_broadcast() was called */
-                repeat = SK_TIMER_END;
+                TRACEMSG(("Timer invoking callback"));
+                repeat = timer->callback_fn(timer->callback_data);
                 break;
             }
             /* else, a signal interrupted the call; continue waiting */
             TRACEMSG(("Timer pthread_cond_timedwait() returned unexpected %d",
                       rv));
         }
-
     } while (SK_TIMER_REPEAT == repeat);
 
-    timer->running = 0;
-
-  end:
+  END:
     /* Notify destroy function that we have ended properly. */
-    pthread_cond_broadcast(&timer->end);
+    TRACEMSG(("Timer thread stopped"));
+    timer->stopped = 1;
+    pthread_cond_broadcast(&timer->cond);
     pthread_mutex_unlock(&timer->mutex);
 
     return NULL;
@@ -220,8 +236,8 @@ int
 skTimerCreate(
     sk_timer_t        **new_timer,
     uint32_t            interval,
-    skTimerFn_t         callBack,
-    void               *callBackData)
+    skTimerFn_t         callback_fn,
+    void               *callback_data)
 {
     struct timeval current_time;
 
@@ -229,7 +245,7 @@ skTimerCreate(
     current_time.tv_sec += interval;
     return skTimerCreateAtTime(new_timer, interval,
                                sktimeCreateFromTimeval(&current_time),
-                               callBack, callBackData);
+                               callback_fn, callback_data);
 }
 
 
@@ -238,8 +254,8 @@ skTimerCreateAtTime(
     sk_timer_t        **new_timer,
     uint32_t            interval,
     sktime_t            start,
-    skTimerFn_t         callBack,
-    void               *callBackData)
+    skTimerFn_t         callback_fn,
+    void               *callback_data)
 {
     sk_timer_t *timer;
     pthread_t   thread;
@@ -251,27 +267,24 @@ skTimerCreateAtTime(
               interval, sktimestamp_r(tstamp, start, 0)));
 #endif
 
-    timer = (sk_timer_t *)malloc(sizeof(sk_timer_t));
+    timer = (sk_timer_t *)calloc(1, sizeof(sk_timer_t));
     timer->interval = (int64_t)interval;
-    timer->callBack = callBack;
-    timer->clientData = callBackData;
-    timer->running = 1;
+    timer->callback_fn = callback_fn;
+    timer->callback_data = callback_data;
     timer->base_time.tv_sec = sktimeGetSeconds(start);
     timer->base_time.tv_usec = sktimeGetMilliseconds(start) * 1000;
     pthread_mutex_init(&timer->mutex, NULL);
     pthread_cond_init(&timer->cond, NULL);
-    pthread_cond_init(&timer->end, NULL);
 
     /* Mutex starts locked */
     pthread_mutex_lock(&timer->mutex);
+    timer->started = 1;
     err = skthread_create_detached("sktimer", &thread, sk_timer_thread,
                                    (void *)timer);
     if (err) {
+        timer->started = 0;
         pthread_mutex_unlock(&timer->mutex);
-        pthread_mutex_destroy(&timer->mutex);
-        pthread_cond_destroy(&timer->cond);
-        pthread_cond_destroy(&timer->end);
-        free(timer);
+        skTimerDestroy(timer);
         return err;
     }
 
@@ -285,20 +298,24 @@ int
 skTimerDestroy(
     sk_timer_t         *timer)
 {
+    if (NULL == timer) {
+        return 0;
+    }
     /* Grab the mutex */
     pthread_mutex_lock(&timer->mutex);
-    if (timer->running) {
-        timer->running = 0;
-        /* Broadcast a stop to the timer */
+    timer->stopping = 1;
+    if (timer->started) {
+        /* Wake the timer thread so it can check 'stopping' */
         pthread_cond_broadcast(&timer->cond);
         /* Wait for timer process to end */
-        pthread_cond_wait(&timer->end, &timer->mutex);
+        while (!timer->stopped) {
+            pthread_cond_wait(&timer->cond, &timer->mutex);
+        }
     }
     /* Unlock and destroy mutexes */
     pthread_mutex_unlock(&timer->mutex);
     pthread_mutex_destroy(&timer->mutex);
     pthread_cond_destroy(&timer->cond);
-    pthread_cond_destroy(&timer->end);
     free(timer);
     return 0;
 }

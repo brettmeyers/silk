@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2011-2014 by Carnegie Mellon University.
+** Copyright (C) 2011-2015 by Carnegie Mellon University.
 **
 ** @OPENSOURCE_HEADER_START@
 **
@@ -65,7 +65,7 @@ extern "C" {
 
 #include <silk/silk.h>
 
-RCSIDENTVAR(rcsID_SILK_TYPES_H, "$SiLK: silk_types.h 412b51a029ce 2014-01-28 22:59:06Z mthomas $");
+RCSIDENTVAR(rcsID_SILK_TYPES_H, "$SiLK: silk_types.h b7b8edebba12 2015-01-05 18:05:21Z mthomas $");
 
 /**
  *  @file
@@ -191,7 +191,7 @@ typedef rwGenericRec_V5 rwRec;
 /**
  *    The maximum size of a SiLK Flow record.
  */
-#define SK_MAX_RECORD_SIZE 96
+#define SK_MAX_RECORD_SIZE 104
 
 /**
  *    Number of possible SNMP interface index values

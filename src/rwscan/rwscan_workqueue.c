@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2006-2014 by Carnegie Mellon University.
+** Copyright (C) 2006-2015 by Carnegie Mellon University.
 **
 ** @OPENSOURCE_HEADER_START@
 **
@@ -52,7 +52,7 @@
 
 #include <silk/silk.h>
 
-RCSIDENT("$SiLK: rwscan_workqueue.c cd598eff62b9 2014-09-21 19:31:29Z mthomas $");
+RCSIDENT("$SiLK: rwscan_workqueue.c b7b8edebba12 2015-01-05 18:05:21Z mthomas $");
 
 #include "rwscan_workqueue.h"
 

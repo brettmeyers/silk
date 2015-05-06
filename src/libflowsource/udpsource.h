@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2004-2014 by Carnegie Mellon University.
+** Copyright (C) 2004-2015 by Carnegie Mellon University.
 **
 ** @OPENSOURCE_HEADER_START@
 **
@@ -57,7 +57,7 @@ extern "C" {
 
 #include <silk/silk.h>
 
-RCSIDENTVAR(rcsID_UDPSOURCE_H, "$SiLK: udpsource.h cd598eff62b9 2014-09-21 19:31:29Z mthomas $");
+RCSIDENTVAR(rcsID_UDPSOURCE_H, "$SiLK: udpsource.h 2b1355d69f79 2015-02-13 23:12:41Z mthomas $");
 
 #include <silk/utils.h>
 
@@ -65,11 +65,7 @@ struct skUDPSource_st;
 typedef struct skUDPSource_st skUDPSource_t;
 
 
-typedef int (*udp_source_reject_fn)(
-    ssize_t         recv_data_len,
-    void           *recv_data,
-    void           *callback_data);
-/*
+/**
  *    Signature of callback function.
  *
  *    The UDP source calls this function for each packet it collects
@@ -81,114 +77,57 @@ typedef int (*udp_source_reject_fn)(
  *    the function returns 0, the packet is stored until request by
  *    the caller via the skUDPSourceNext() function.
  */
+typedef int (*udp_source_reject_fn)(
+    ssize_t         recv_data_len,
+    void           *recv_data,
+    void           *callback_data);
 
 
-int
-skUDPSourceCreateFromSockaddr(
-    skUDPSource_t             **source,
-    const sk_sockaddr_array_t  *from_address,
-    const sk_sockaddr_array_t  *listen_address,
+/**
+ *    Creates and returns a UDP source representing the connectivity
+ *    information in 'probe' and 'params'.
+ *
+ *    'itemsize' is the maximum size of an individual packet.
+ *
+ *    'reject_pkt_fn' is a function that will be called for every
+ *    packet the UDP source receives, and 'fn_callback_data' is a
+ *    parameter passed to that function.  If the 'reject_pkt_fn'
+ *    returns a true value, the packet will be ignored.
+ *
+ *    Returns the UDP source on success, or NULL on failure.
+ */
+skUDPSource_t *
+skUDPSourceCreate(
+    const skpc_probe_t         *probe,
+    const skFlowSourceParams_t *params,
     uint32_t                    itemsize,
-    uint32_t                    itemcount,
     udp_source_reject_fn        reject_pkt_fn,
     void                       *fn_callback_data);
-/*
- *    Creates a UDP source representing a Berkeley socket.  The new
- *    source will be placed at the memory referenced by 'source'.
- *
- *    'from_address' contains the host that may connect to this
- *    socket; if it is NULL, any host may connect.  'listen_address'
- *    is the address/port pair to which this socket should bind().
- *
- *    'itemsize' is the maximum size of an individual packet.
- *    'itemcount' is the number of packets the created source can
- *    buffer in memory.
- *
- *    'reject_pkt_fn' is a function that will be called for every
- *    packet the UDP source receives, and 'fn_callback_data' is a
- *    parameter passed to that function.  If the 'reject_pkt_fn'
- *    returns a true value, the packet will be ignored.
- *
- *    Returns 0 on success, or -1 on failure.
+
+
+/**
+ *    Tell the UDP Source to stop processing data.
  */
-
-
-int
-skUDPSourceCreateFromUnixDomain(
-    skUDPSource_t         **source,
-    const char             *uds,
-    uint32_t                itemsize,
-    uint32_t                itemcount,
-    udp_source_reject_fn    reject_pkt_fn,
-    void                   *fn_callback_data);
-/*
- *    Creates a UDP source representing a Unix domain socket.  The new
- *    source will be placed at the memory referenced by 'source'.
- *
- *    'uds' is the path to a UNIX domain socket, which this function
- *    will remove (if existent) and create.
- *
- *    'itemsize' is the maximum size of an individual packet.
- *    'itemcount' is the number of packets the created source can
- *    buffer in memory.
- *
- *    'reject_pkt_fn' is a function that will be called for every
- *    packet the UDP source receives, and 'fn_callback_data' is a
- *    parameter passed to that function.  If the 'reject_pkt_fn'
- *    returns a true value, the packet will be ignored.
- *
- *    Returns 0 on success, or -1 on failure.
- */
-
-
-int
-skUDPSourceCreateFromFile(
-    skUDPSource_t         **source,
-    const char             *path,
-    uint32_t                itemsize,
-    udp_source_reject_fn    reject_pkt_fn,
-    void                   *fn_callback_data);
-/*
- *    Creates a UDP source representing a file of collected traffic.
- *    The new source will be placed at the memory referenced by
- *    'source'.
- *
- *    'path' is the filesystem path to the file to process.
- *
- *    'itemsize' is the size of an individual packet in the collected
- *    file.  All packets in this file must be of this size.
- *
- *    'reject_pkt_fn' is a function that will be called for every
- *    packet the UDP source receives, and 'fn_callback_data' is a
- *    parameter passed to that function.  If the 'reject_pkt_fn'
- *    returns a true value, the packet will be ignored.
- *
- *    Returns 0 on success, or -1 on failure.
- */
-
-
 void
 skUDPSourceStop(
     skUDPSource_t      *source);
-/*
- *    Have the UDP Source stop processing data.
+
+
+/**
+ *    Free all memory associated with the UDP Source.  Does nothing if
+ *    'source' is NULL.
  */
-
-
 void
 skUDPSourceDestroy(
     skUDPSource_t      *source);
-/*
- *    Free all memory associated with the UDP Source.
+
+
+/**
+ *    Get the next piece of data collected/read by the UDP Source.
  */
-
-
 uint8_t *
 skUDPSourceNext(
     skUDPSource_t      *source);
-/*
- *    Get the next piece of data collected/read by the UDP Source.
- */
 
 #ifdef __cplusplus
 }

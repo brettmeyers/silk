@@ -39,7 +39,7 @@ default  0
 120.0.0.0  127.255.255.255  12
 
 
-# $SiLK: sensor-map.txt 17141 2011-06-03 17:16:27Z mthomas $
+# $SiLK: sensor-map.txt e0a35d2861ea 2014-09-25 21:34:43Z mthomas $
 #
 # Local Variables:
 # mode:conf-unix-mode

@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2004-2014 by Carnegie Mellon University.
+** Copyright (C) 2004-2015 by Carnegie Mellon University.
 **
 ** @OPENSOURCE_HEADER_START@
 **
@@ -62,7 +62,7 @@
 
 #include <silk/silk.h>
 
-RCSIDENT("$SiLK: pmapfilter.c cd598eff62b9 2014-09-21 19:31:29Z mthomas $");
+RCSIDENT("$SiLK: pmapfilter.c b7b8edebba12 2015-01-05 18:05:21Z mthomas $");
 
 #include <silk/utils.h>
 #include <silk/skplugin.h>
@@ -295,13 +295,16 @@ skPrefixMapAddFields(
     /* Add --pmap-file to apps that accept RWREC: rwcut, rwsort, etc */
     err = skpinRegOption2(pmap_file_option,
                           REQUIRED_ARG,
-                          PMAP_FILE_HELP("\tfield names.  As such, this "
-                                         "switch must precede the "
-                                         "--fields switch."), NULL,
+                          PMAP_FILE_HELP(
+                              "\tfield names.  As such, this switch must"
+                              " precede the --fields switch."), NULL,
                           pmapfile_handler, NULL,
                           2,
                           SKPLUGIN_FN_REC_TO_TEXT,
                           SKPLUGIN_FN_REC_TO_BIN);
+    if (err == SKPLUGIN_ERR_FATAL) {
+        return err;
+    }
 
     /* Add --pmap-column-width to apps that produce TEXT: rwcut, rwuniq  */
     err = skpinRegOption2(pmap_column_width_option,
@@ -311,15 +314,21 @@ skPrefixMapAddFields(
                           2,
                           SKPLUGIN_FN_REC_TO_TEXT,
                           SKPLUGIN_FN_BIN_TO_TEXT);
+    if (err == SKPLUGIN_ERR_FATAL) {
+        return err;
+    }
 
     /* Add --pmap-file to rwfilter */
-    skpinRegOption2(pmap_file_option,
-                    REQUIRED_ARG,
-                    PMAP_FILE_HELP("\tfiltering switches.  This switch must"
-                                   " precede other --pmap-* switches."),
-                    NULL,
-                    pmapfile_handler, NULL,
-                    1, SKPLUGIN_FN_FILTER);
+    err = skpinRegOption2(pmap_file_option,
+                          REQUIRED_ARG,
+                          PMAP_FILE_HELP(
+                              "\tfiltering switches.  This switch must"
+                              " precede other --pmap-* switches."), NULL,
+                          pmapfile_handler, NULL,
+                          1, SKPLUGIN_FN_FILTER);
+    if (err == SKPLUGIN_ERR_FATAL) {
+        return err;
+    }
 
     /* Register cleanup function */
     skpinRegCleanup(pmap_teardown);
@@ -820,8 +829,7 @@ pmapfile_handler(
                                      ? &pmap_data->sdir
                                      : &pmap_data->ddir);
 
-        ok = skpinRegField(&dir->field, dir->field_name, NULL, &regdata, dir);
-
+        skpinRegField(&dir->field, dir->field_name, NULL, &regdata, dir);
         skpinRegOption2(dir->filter_option,
                         REQUIRED_ARG,
                         NULL, &pmap_filter_help,
@@ -837,7 +845,10 @@ pmapfile_handler(
                     1, SKPLUGIN_FN_FILTER);
 
 
-    ok = skVectorAppendValue(pmap_vector, &pmap_data);
+    if (skVectorAppendValue(pmap_vector, &pmap_data)) {
+        rv = SKPLUGIN_ERR_FATAL;
+        goto END;
+    }
 
     rv = SKPLUGIN_OK;
 

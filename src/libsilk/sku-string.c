@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2001-2014 by Carnegie Mellon University.
+** Copyright (C) 2001-2015 by Carnegie Mellon University.
 **
 ** @OPENSOURCE_HEADER_START@
 **
@@ -59,7 +59,7 @@
 
 #include <silk/silk.h>
 
-RCSIDENT("$SiLK: sku-string.c cd598eff62b9 2014-09-21 19:31:29Z mthomas $");
+RCSIDENT("$SiLK: sku-string.c b7b8edebba12 2015-01-05 18:05:21Z mthomas $");
 
 #include <silk/utils.h>
 #include <silk/skipaddr.h>
@@ -1204,7 +1204,7 @@ skStringParseIP(
     const char *colon;
     uint32_t ipv4 = 0;
     int rv;
-    int i;
+    unsigned int i;
 
     /* verify input */
     if (!ip_string) {
@@ -1254,7 +1254,7 @@ skStringParseIP(
                           PARSE_ERRORCODE_MSG(SKUTILS_ERR_BAD_CHAR));
 #else
         uint8_t ipv6[16];
-        int double_colon = -1;
+        unsigned int double_colon = UINT_MAX;
         unsigned long val;
         char *ep;
 
@@ -1277,7 +1277,7 @@ skStringParseIP(
         for (i = 0; i < 8; ++i) {
             /* expecting a base-16 number */
             if (!isxdigit((int)*sp)) {
-                if (double_colon != -1) {
+                if (double_colon != UINT_MAX) {
                     /* treat as end of string */
                     break;
                 }
@@ -1294,7 +1294,7 @@ skStringParseIP(
             errno = 0;
             val = strtoul(sp, &ep, 16);
             if (sp == ep) {
-                if (double_colon != -1) {
+                if (double_colon != UINT_MAX) {
                     /* treat as end of string */
                     break;
                 }
@@ -1310,14 +1310,14 @@ skStringParseIP(
             if (val > UINT16_MAX) {
                 /* value too big for octet */
                 return parseError(SKUTILS_ERR_MAXIMUM,
-                                  "Value in IP section %d is too large",
+                                  "Value in IP section %u is too large",
                                   i + 1);
             }
 
             /* if a dot follows the number we just parsed, treat that
              * number as the start of an embedded IPv4 address. */
             if (*ep == '.') {
-                int j;
+                unsigned int j;
 
                 if (i > 6) {
                     return parseError(SKUTILS_ERR_BAD_CHAR,
@@ -1349,7 +1349,7 @@ skStringParseIP(
             /* handle section separator */
             if (*sp != ':') {
                 if (i != 7) {
-                    if (double_colon != -1) {
+                    if (double_colon != UINT_MAX) {
                         /* treat as end of string */
                         ++i;
                         break;
@@ -1371,7 +1371,7 @@ skStringParseIP(
                 /* move to start of next section */
                 ++sp;
                 if (':' == *sp) {
-                    if (double_colon != -1) {
+                    if (double_colon != UINT_MAX) {
                         /* parse error */
                         return parseError(SKUTILS_ERR_BAD_CHAR,
                                           "Only one :: instance allowed");
@@ -1396,7 +1396,7 @@ skStringParseIP(
             }
         }
 
-        if (double_colon != -1) {
+        if (double_colon != UINT_MAX) {
             if (i == 8) {
                 /* error */
                 return parseError(SKUTILS_ERR_BAD_CHAR,
@@ -1408,7 +1408,7 @@ skStringParseIP(
         } else if (i != 8) {
             /* error */
             return parseError(SKUTILS_ERR_SHORT,
-                              "Only %d/8 IP sections specified", i);
+                              "Only %u/8 IP sections specified", i);
         }
 
         skipaddrSetV6(out_val, ipv6);
@@ -1424,7 +1424,7 @@ skStringParseIP(
 
     if ('\0' != *sp) {
         /* text after IP, return the cached position */
-        return i;
+        return (int)i;
     }
     return SKUTILS_OK;
 }
@@ -2117,6 +2117,9 @@ skStringParseHostPortPair(
         vec = skVectorNew(sizeof(addr));
         if (vec == NULL) {
             freeaddrinfo(addrinfo);
+            if (host) {
+                free(host);
+            }
             return parseError(SKUTILS_ERR_ALLOC, PE_NULL);
         }
 
@@ -2193,6 +2196,7 @@ skStringParseHostPortPair(
 
         sa = (sk_sockaddr_array_t*)calloc(1, sizeof(sk_sockaddr_array_t));
         if (sa == NULL) {
+            free(host);
             skVectorDestroy(vec);
             return parseError(SKUTILS_ERR_ALLOC, PE_NULL);
         }
@@ -2212,14 +2216,80 @@ skStringParseHostPortPair(
 }
 
 
+/*
+ *    Helper function for skStringParseDatetime() to handle parsing of
+ *    the fractional seconds.
+ *
+ *    Fractional seconds begin in 'start_char'.  'end_char' is set to
+ *    the character following the fractional seconds, and 'end_char'
+ *    must be provided.  The fractional seconds are stored in the
+ *    value referenced by 'msec'.  Return SKUTILS_OK or a negative
+ *    skutils-parse-error value.
+ */
+static int
+parseDatetimeFractionalSeconds(
+    const char         *start_char,
+    char              **end_char,
+    long               *msec)
+{
+    long val;
+    size_t num_digits;
+
+    if (!isdigit((int)*start_char)) {
+        return parseError(SKUTILS_ERR_BAD_CHAR, "%s '%c'",
+                          PARSE_ERRORCODE_MSG(SKUTILS_ERR_BAD_CHAR),
+                          *start_char);
+    }
+    /* parse the value */
+    errno = 0;
+    val = strtol(start_char, end_char, 10);
+    num_digits = (*end_char - start_char);
+    if (0 == num_digits) {
+        return parseError(SKUTILS_ERR_BAD_CHAR, "%s '%c'",
+                          PARSE_ERRORCODE_MSG(SKUTILS_ERR_BAD_CHAR),
+                          *start_char);
+    }
+    if (val == LONG_MAX && errno == ERANGE) {
+        return parseError(SKUTILS_ERR_OVERFLOW, PE_NULL);
+    }
+    if (val < 0) {
+        return parseError(SKUTILS_ERR_OVERFLOW, PE_NULL);
+    }
+    /* multiply or divide as needed given the number of digits parsed */
+    switch (num_digits) {
+      case 0:  skAbortBadCase(num_digits);
+      case 1:  *msec = val * 100; break;
+      case 2:  *msec = val * 10; break;
+      case 3:  *msec = val; break;
+      case 4:  *msec = val / 10; break;
+      case 5:  *msec = val / 100; break;
+      case 6:  *msec = val / 1000; break;
+      case 7:  *msec = val / 10000; break;
+      case 8:  *msec = val / 100000; break;
+      case 9:  *msec = val / 1000000; break;
+      case 10: *msec = val / 10000000; break;
+      case 11: *msec = val / 100000000; break;
+      case 12:
+      default:
+        val /= 1000000000;
+        for ( ; num_digits > 12; --num_digits) {
+            val /= 10;
+        }
+        *msec = val;
+        break;
+    }
+    return SKUTILS_OK;
+}
+
+
 /*  time string to struct sktime_st; see utils.h for details */
 int
 skStringParseDatetime(
     sktime_t           *date_val,
     const char         *date_string,
-    int                *resulting_precision)
+    unsigned int       *out_flags)
 {
-    const int min_precision = 3; /* at least day */
+    const unsigned int min_precision = SK_PARSED_DATETIME_DAY;
     struct tm ts;
     time_t t;
     const char *sp;
@@ -2227,8 +2297,8 @@ skStringParseDatetime(
     const char delim[] = {'\0', '/', '/', ':', ':', ':', '.'};
     long val;
     long msec = 0;
-    int i;
-    int j;
+    unsigned int i;
+    int rv;
 
     /* check inputs */
     assert(date_val);
@@ -2288,39 +2358,10 @@ skStringParseDatetime(
         if ('.' == *ep && isdigit((int)*(ep+1))) {
             /* parse fractional seconds */
             sp = ep + 1;
-            errno = 0;
-            val = strtol(sp, &ep, 10);
-            if (sp == ep) {
-                return parseError(SKUTILS_ERR_BAD_CHAR, "%s '%c'",
-                                  PARSE_ERRORCODE_MSG(SKUTILS_ERR_BAD_CHAR),
-                                  *sp);
+            rv = parseDatetimeFractionalSeconds(sp, &ep, &msec);
+            if (rv) {
+                return rv;
             }
-            if (val == LONG_MAX && errno == ERANGE) {
-                return parseError(SKUTILS_ERR_OVERFLOW, PE_NULL);
-            }
-            if (val < 0) {
-                return parseError(SKUTILS_ERR_OVERFLOW, PE_NULL);
-            }
-
-            if ((ep - sp) < 3) {
-                /* multiply to get to milliseconds */
-                for (j = (ep - sp); j < 3; ++j) {
-                    val *= 10;
-                }
-            } else if ((ep - sp) > 3) {
-                /* divide to get to milliseconds; round final digit */
-                ldiv_t q;
-                for (j = 4; j < (ep - sp); ++j) {
-                    val /= 10;
-                }
-                q = ldiv(val, 10);
-                if (q.rem < 5) {
-                    val = q.quot;
-                } else {
-                    val = q.quot + 1;
-                }
-            }
-            msec = val;
         }
 
         /* handle the end of the string, to see if we are attempting
@@ -2339,13 +2380,22 @@ skStringParseDatetime(
             return parseError(SKUTILS_ERR_BAD_CHAR, "%s '%c'",
                               PARSE_ERRORCODE_MSG(SKUTILS_ERR_BAD_CHAR), *sp);
         }
-
-        if (resulting_precision) {
+        if (out_flags) {
             if (strchr(date_string, '.')) {
-                *resulting_precision = 7;
+                *out_flags = SK_PARSED_DATETIME_FRACSEC;
+            } else if (0 == epoch % 3600) {
+                /* at least hour precision */
+                if (0 == epoch % 86400) {
+                    *out_flags = SK_PARSED_DATETIME_DAY;
+                } else {
+                    *out_flags = SK_PARSED_DATETIME_HOUR;
+                }
+            } else if (0 == epoch % 60) {
+                *out_flags = SK_PARSED_DATETIME_MINUTE;
             } else {
-                *resulting_precision = 6;
+                *out_flags = SK_PARSED_DATETIME_SECOND;
             }
+            *out_flags |= SK_PARSED_DATETIME_EPOCH;
         }
         *date_val = sktimeCreate(epoch, msec);
         return SKUTILS_OK;
@@ -2354,26 +2404,34 @@ skStringParseDatetime(
     /* 'i' is the part of the date we have successfully parsed;
      * 1=year, 2=month, 3=day, 4=hour, 5=min, 6=sec, 7=msec */
     i = 0;
-    while (*sp && (i < (int)(sizeof(delim)/sizeof(char)))) {
+    while (*sp && (i < (sizeof(delim)/sizeof(char)))) {
         /* this will catch things like double ':' in the string */
         if ( !isdigit((int)*sp)) {
             return parseError(SKUTILS_ERR_BAD_CHAR, "%s '%c'",
                               PARSE_ERRORCODE_MSG(SKUTILS_ERR_BAD_CHAR), *sp);
         }
 
-        /* parse the digit */
-        errno = 0;
-        val = strtol(sp, &ep, 10);
+        if (6 == i) {
+            rv = parseDatetimeFractionalSeconds(sp, &ep, &msec);
+            if (rv) {
+                return rv;
+            }
+        } else {
+            /* parse the digit */
+            errno = 0;
+            val = strtol(sp, &ep, 10);
 
-        if (sp == ep) {
-            return parseError(SKUTILS_ERR_BAD_CHAR, "%s '%c'",
-                              PARSE_ERRORCODE_MSG(SKUTILS_ERR_BAD_CHAR), *sp);
-        }
-        if (val == LONG_MAX && errno == ERANGE) {
-            return parseError(SKUTILS_ERR_OVERFLOW, PE_NULL);
-        }
-        if (val < 0) {
-            return parseError(SKUTILS_ERR_OVERFLOW, PE_NULL);
+            if (sp == ep) {
+                return parseError(SKUTILS_ERR_BAD_CHAR, "%s '%c'",
+                                  PARSE_ERRORCODE_MSG(SKUTILS_ERR_BAD_CHAR),
+                                  *sp);
+            }
+            if (val == LONG_MAX && errno == ERANGE) {
+                return parseError(SKUTILS_ERR_OVERFLOW, PE_NULL);
+            }
+            if (val < 0) {
+                return parseError(SKUTILS_ERR_OVERFLOW, PE_NULL);
+            }
         }
 
         /* check that value is valid given what we are parsing */
@@ -2444,26 +2502,7 @@ skStringParseDatetime(
             }
             ts.tm_sec = val;
             break;
-          case 6: /* fractional seconds */
-            if ((ep - sp) < 3) {
-                /* multiply to get to milliseconds */
-                for (j = (ep - sp); j < 3; ++j) {
-                    val *= 10;
-                }
-            } else if ((ep - sp) > 3) {
-                /* divide to get to milliseconds; round final digit */
-                ldiv_t q;
-                for (j = 4; j < (ep - sp); ++j) {
-                    val /= 10;
-                }
-                q = ldiv(val, 10);
-                if (q.rem < 5) {
-                    val = q.quot;
-                } else {
-                    val = q.quot + 1;
-                }
-            }
-            msec = val;
+          case 6: /* fractional seconds; handled above */
             break;
           default:
             /* should never get here */
@@ -2509,8 +2548,8 @@ skStringParseDatetime(
 
     /* if the caller wants to know the last state parsed, we update
      * their variable. */
-    if ( resulting_precision != NULL ) {
-        *resulting_precision = i;
+    if (out_flags != NULL) {
+        *out_flags = i;
     }
 
     /* need at least year/month/day */
@@ -2542,8 +2581,8 @@ skStringParseDatetimeRange(
     sktime_t           *start,
     sktime_t           *end,
     const char         *s_datetime,
-    int                *start_precision,
-    int                *end_precision)
+    unsigned int       *start_precision,
+    unsigned int       *end_precision)
 {
     char *s_start_time;
     char *s_end_time;
@@ -2607,7 +2646,7 @@ int
 skDatetimeCeiling(
     sktime_t           *ceiling_time,
     const sktime_t     *t,
-    int                 precision)
+    unsigned int        precision)
 {
     struct tm ts;
     struct tm *rv;
@@ -2616,18 +2655,15 @@ skDatetimeCeiling(
     assert(t);
     assert(ceiling_time);
 
-    /* if we're already at max precision, just return what we were given */
-    if (precision == 7) {
-        *ceiling_time = *t;
-        return 0;
-    }
-
-    t_sec = (time_t)(*t / 1000);
-
-    /* we must have at least parsed a year */
-    if (precision < 1 || precision > 7) {
+    if ((precision
+         & ~(SK_PARSED_DATETIME_MASK_PRECISION | SK_PARSED_DATETIME_EPOCH))
+        || (0 == precision))
+    {
         return -1;
     }
+    precision &= SK_PARSED_DATETIME_MASK_PRECISION;
+
+    t_sec = (time_t)(*t / 1000);
 
 #if  SK_ENABLE_LOCALTIME
     rv = localtime_r(&t_sec, &ts);
@@ -2641,28 +2677,35 @@ skDatetimeCeiling(
     /* 'precision' is what we know; we need to set everything that is
      * "finer" than that value. */
     switch (precision) {
-      case 1: /* know year, set month */
+      case SK_PARSED_DATETIME_YEAR: /* know year, set month */
         ts.tm_mon = 11;
         /* FALLTHROUGH */
 
-      case 2: /* know month, set month-day */
+      case SK_PARSED_DATETIME_MONTH: /* know month, set month-day */
         ts.tm_mday = skGetMaxDayInMonth((1900 + ts.tm_year), (1 + ts.tm_mon));
         /* FALLTHROUGH */
 
-      case 3: /* know month-day, set hour */
+      case SK_PARSED_DATETIME_DAY: /* know month-day, set hour */
         ts.tm_hour = 23;
         /* FALLTHROUGH */
 
-      case 4: /* know hour, set min */
+      case SK_PARSED_DATETIME_HOUR: /* know hour, set min */
         ts.tm_min = 59;
         /* FALLTHROUGH */
 
-      case 5: /* know min, set sec */
+      case SK_PARSED_DATETIME_MINUTE: /* know min, set sec */
         ts.tm_sec = 59;
-        /* FALLTHROUGH */
-
-      case 6: /* know sec, set fractional-sec (below) */
         break;
+
+      case SK_PARSED_DATETIME_SECOND:
+        /* know sec, just set fractional-seconds */
+        *ceiling_time = sktimeCreate(t_sec, 999);
+        return 0;
+
+      case SK_PARSED_DATETIME_FRACSEC:
+        /* already at max precision, just return what we were given */
+        *ceiling_time = *t;
+        return 0;
 
       default:
         skAbortBadCase(precision);

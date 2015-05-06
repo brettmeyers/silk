@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2001-2014 by Carnegie Mellon University.
+** Copyright (C) 2001-2015 by Carnegie Mellon University.
 **
 ** @OPENSOURCE_HEADER_START@
 **
@@ -57,7 +57,7 @@ extern "C" {
 
 #include <silk/silk.h>
 
-RCSIDENTVAR(rcsID_SILK_FILES_H, "$SiLK: silk_files.h 412b51a029ce 2014-01-28 22:59:06Z mthomas $");
+RCSIDENTVAR(rcsID_SILK_FILES_H, "$SiLK: silk_files.h f82f9fc3d786 2015-01-14 23:03:22Z mthomas $");
 
 
 /* Special compression method values */
@@ -90,9 +90,9 @@ static const char *skCompressionMethods[] = {
 #define FT_NIDSMAP          0x05
 #define FT_EXPERIMENT1      0x06        /* free for all ID */
 #define FT_EXPERIMENT2      0x07        /* free for all ID */
-#define FT_RESERVED_08      0x08
+#define FT_TEMPFILE         0x08
 #define FT_RESERVED_09      0x09
-#define FT_RESERVED_0A      0x0A
+#define FT_IPFIX            0x0A
 #define FT_RWIPV6           0x0B
 #define FT_RWIPV6ROUTING    0x0C
 #define FT_RWAUGSNMPOUT     0x0D
@@ -143,9 +143,9 @@ static const char *fileOutputFormats[] = {
     /* 0x05 */  "FT_NIDSMAP",
     /* 0x06 */  "FT_EXPERIMENT1",
     /* 0x07 */  "FT_EXPERIMENT2",
-    /* 0x08 */  "FT_RESERVED_08",
+    /* 0x08 */  "FT_TEMPFILE",
     /* 0x09 */  "FT_RESERVED_09",
-    /* 0x0A */  "FT_RESERVED_0A",
+    /* 0x0A */  "FT_IPFIX",
     /* 0x0B */  "FT_RWIPV6",
     /* 0x0C */  "FT_RWIPV6ROUTING",
     /* 0x0D */  "FT_RWAUGSNMPOUT",

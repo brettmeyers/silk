@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2001-2014 by Carnegie Mellon University.
+** Copyright (C) 2001-2015 by Carnegie Mellon University.
 **
 ** @OPENSOURCE_HEADER_START@
 **
@@ -63,7 +63,7 @@
 
 #include <silk/silk.h>
 
-RCSIDENT("$SiLK: iptree.c cd598eff62b9 2014-09-21 19:31:29Z mthomas $");
+RCSIDENT("$SiLK: iptree.c b7b8edebba12 2015-01-05 18:05:21Z mthomas $");
 
 #include <silk/iptree.h>
 #include <silk/rwrec.h>
@@ -233,7 +233,7 @@ skIPTreeCheckIntersectIPWildcard(
     const skIPWildcard_t   *ipwild)
 {
     skIPWildcardIterator_t iter;
-    skIPNode_t *node;
+    const skIPNode_t *node;
     skipaddr_t ipaddr;
     uint32_t ipv4;
     uint32_t ipv4_end;
@@ -273,7 +273,7 @@ skIPTreeCheckIntersectIPWildcard(
             /* 16 < prefix < 27 */
             node = ipset->nodes[ipv4 >> 16];
             if (node
-                && memcmp(&node->addressBlock[ipv4 & 0x07FF],
+                && memcmp(&node->addressBlock[(ipv4 & 0xFFFF)>>5],
                           &empty_node,
                           sizeof(uint32_t)*(SKIP_BBLOCK_SIZE >> (prefix-16))))
             {
@@ -1101,7 +1101,7 @@ void
 skIPTreeIteratorReset(
     skIPTreeIterator_t *iter)
 {
-    /* Set everything to zero, then find the first IP address */
+    /* Set everything to zero, then find the first IP non-NULL node */
     iter->top_16 = iter->mid_11 = iter->bot_5 = 0;
 
     FIND_NEXT_ITER_TOP(iter);
@@ -1319,25 +1319,25 @@ skIPTreeCIDRBlockIteratorNext(
                 == 0)
             {
                 /* return whatever CIDR block we built; but first we
-                 * need to find the next bitmap with valid */
+                 * need to find the next /27-bitmap with data */
                 ++iter->mid_11;
                 break;
             }
             if (iter->tree->nodes[iter->top_16]->addressBlock[iter->mid_11]
                 != UINT32_MAX)
             {
-                /* return whatever CIDR block we built; the current
-                 * bitmap has data */
+                /* return whatever CIDR block we built; we know the
+                 * current /27-bitmap has data but it is not full */
                 goto END;
             }
             ++block_iter->count;
             if (block_iter->count == max_slash27) {
-                /* cidr block is at its maximum size; find the next
-                 * bitmap that has data */
+                /* the CIDR block is at its maximum size; find the
+                 * next /27-bitmap that has data */
                 ++iter->mid_11;
                 break;
             }
-
+            /* keep growing the current CIDR block */
             ++iter->mid_11;
             if (iter->mid_11 == SKIP_BBLOCK_SIZE) {
                 iter->mid_11 = 0;
@@ -1353,13 +1353,11 @@ skIPTreeCIDRBlockIteratorNext(
         }
     }
 
-    /* find the next bitmap with data */
+    /* find the next /27-bitmap with data */
     while (iter->top_16 < SKIP_BBLOCK_COUNT) {
-        for (; iter->mid_11 < SKIP_BBLOCK_SIZE;
-             ++iter->mid_11)
-        {
-            if (0 != (iter->tree->nodes[iter->top_16]
-                      ->addressBlock[iter->mid_11]))
+        for ( ; iter->mid_11 < SKIP_BBLOCK_SIZE; ++iter->mid_11) {
+            if (iter->tree->nodes[iter->top_16]->addressBlock[iter->mid_11]
+                != 0)
             {
                 goto END;
             }
@@ -1403,13 +1401,15 @@ skIPTreeCIDRBlockIteratorReset(
 
     /* find first /27 that has data */
     FIND_NEXT_ITER_TOP(iter);
-    if (iter->top_16 < SKIP_BBLOCK_COUNT) {
+    while (iter->top_16 < SKIP_BBLOCK_COUNT) {
         for (iter->mid_11 = 0; iter->mid_11 < SKIP_BBLOCK_SIZE; ++iter->mid_11)
         {
             if (iter->tree->nodes[iter->top_16]->addressBlock[iter->mid_11]) {
                 return;
             }
         }
+        ++iter->top_16;
+        FIND_NEXT_ITER_TOP(iter);
     }
 }
 

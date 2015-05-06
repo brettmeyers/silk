@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2001-2014 by Carnegie Mellon University.
+** Copyright (C) 2001-2015 by Carnegie Mellon University.
 **
 ** @OPENSOURCE_HEADER_START@
 **
@@ -95,7 +95,7 @@
 
 #include <silk/silk.h>
 
-RCSIDENT("$SiLK: rwsort.c cd598eff62b9 2014-09-21 19:31:29Z mthomas $");
+RCSIDENT("$SiLK: rwsort.c 0a0b993ba012 2015-01-23 19:59:04Z mthomas $");
 
 #include "rwsort.h"
 #include <silk/skheap.h>
@@ -436,6 +436,193 @@ fillRecordAndKey(
 
 
 /*
+ *    Create and return a new temporary file, putting the index of the
+ *    file in 'temp_idx'.  Exit the application on failure.
+ */
+static skstream_t *
+sortTempCreate(
+    int                *temp_idx)
+{
+    skstream_t *stream;
+
+    stream = skTempFileCreateStream(tmpctx, temp_idx);
+    if (NULL == stream) {
+        skAppPrintSyserror("Error creating new temporary file");
+        appExit(EXIT_FAILURE);
+    }
+    return stream;
+}
+
+/*
+ *    Re-open the existing temporary file indexed by 'temp_idx'.
+ *    Return the new stream.  Return NULL if we could not open the
+ *    stream due to out-of-memory or out-of-file-handles error.  Exit
+ *    the application on any other error.
+ */
+static skstream_t *
+sortTempReopen(
+    int                 temp_idx)
+{
+    skstream_t *stream;
+
+    stream = skTempFileOpenStream(tmpctx, temp_idx);
+    if (NULL == stream) {
+        if ((errno != EMFILE) && (errno != ENOMEM)) {
+            skAppPrintSyserror(("Error opening existing temporary file '%s'"),
+                               skTempFileGetName(tmpctx, temp_idx));
+            appExit(EXIT_FAILURE);
+        }
+    }
+    return stream;
+}
+
+/*
+ *    Close a temporary file.  Exit the application if stream was open
+ *    for write and closing fails.
+ */
+static void
+sortTempClose(
+    skstream_t         *stream)
+{
+    char errbuf[2 * PATH_MAX];
+    ssize_t rv;
+
+    rv = skStreamClose(stream);
+    switch (rv) {
+      case SKSTREAM_OK:
+      case SKSTREAM_ERR_NOT_OPEN:
+      case SKSTREAM_ERR_CLOSED:
+        skStreamDestroy(&stream);
+        return;
+      case SKSTREAM_ERR_NULL_ARGUMENT:
+        return;
+    }
+
+    skStreamLastErrMessage(stream, rv, errbuf, sizeof(errbuf));
+    skAppPrintErr("Error closing temporary file: %s", errbuf);
+    if (skStreamGetMode(stream) == SK_IO_WRITE) {
+        appExit(EXIT_FAILURE);
+    }
+    skStreamDestroy(&stream);
+}
+
+/*
+ *    Read 'str_size' bytes from 'str_stream' into 'str_buf'.  Return
+ *    'str_size' on success or 0 for other condition (end-of-file,
+ *    short read, error).
+ */
+#define sortTempRead(str_stream, str_buf, str_size)                     \
+    sortTempReadHelper(str_stream, str_buf, str_size, __FILE__, __LINE__)
+
+static ssize_t
+sortTempReadHelper(
+    skstream_t         *stream,
+    void               *buf,
+    size_t              size,
+    const char         *file_name,
+    int                 file_line)
+{
+    ssize_t rv;
+
+    rv = skStreamRead(stream, buf, size);
+    if (rv == (ssize_t)size) {
+        return rv;
+    }
+#if TRACEMSG_LEVEL == 0
+    (void)file_name;
+    (void)file_line;
+#else
+    if (rv == 0) {
+        TRACEMSG(("%s:%d: Failed to read %" SK_PRIuZ " bytes: EOF on '%s'",
+                  file_name, file_line, size, skStreamGetPathname(stream)));
+    } else if (rv > 0) {
+        TRACEMSG(("%s:%d: Failed to read %" SK_PRIuZ " bytes:"
+                  " Short read of %" SK_PRIdZ " on '%s'",
+                  file_name, file_line, size, rv, skStreamGetPathname(stream)));
+    } else {
+        char errbuf[2 * PATH_MAX];
+
+        skStreamLastErrMessage(stream, rv, errbuf, sizeof(errbuf));
+        TRACEMSG(("%s:%d: Failed to read %" SK_PRIuZ " bytes: %s",
+                  file_name, file_line, size, errbuf));
+    }
+#endif
+    return 0;
+}
+
+
+/*
+ *    Write 'stw_size' bytes from 'stw_buf' to 'stw_stream'.  Return
+ *    'stw_size' on success and exit the appliation on error or short
+ *    write.
+ */
+#define sortTempWrite(stw_stream, stw_buf, stw_size)                    \
+    sortTempWriteHelper(stw_stream, stw_buf, stw_size, __FILE__, __LINE__)
+
+static void
+sortTempWriteHelper(
+    skstream_t         *stream,
+    const void         *buf,
+    size_t              size,
+    const char         *file_name,
+    int                 file_line)
+{
+    char errbuf[2 * PATH_MAX];
+    ssize_t rv;
+
+    rv = skStreamWrite(stream, buf, size);
+    if (rv == (ssize_t)size) {
+        return;
+    }
+    skStreamLastErrMessage(stream, rv, errbuf, sizeof(errbuf));
+
+#if TRACEMSG_LEVEL == 0
+    (void)file_name;
+    (void)file_line;
+#else
+    if (rv >= 0) {
+        TRACEMSG(("%s:%d: Failed to write %" SK_PRIuZ " bytes:"
+                  " Short write of %" SK_PRIdZ " on '%s'",
+                  file_name, file_line, size, rv, skStreamGetPathname(stream)));
+    } else {
+        TRACEMSG(("%s:%d: Failed to write %" SK_PRIuZ " bytes: %s",
+                  file_name, file_line, size, errbuf));
+    }
+#endif
+
+    if (rv >= 0) {
+        snprintf(errbuf,sizeof(errbuf),
+                 "Short write of %" SK_PRIdZ " bytes to '%s'",
+                 rv, skStreamGetPathname(stream));
+    }
+    skAppPrintErr("Error writing to temporary file: %s", errbuf);
+    appExit(EXIT_FAILURE);
+}
+
+/*
+ *    Write the contents of 'rec_buffer' to a new temp file, where
+ *    'rec_buffer' contains 'rec_count' records of size 'rec_size'.
+ *    Fill 'tmp_idx' with the new temporary file's index.  Exit the
+ *    application on error.
+ */
+static void
+sortTempWriteBuffer(
+    int                *tmp_idx,
+    const void         *rec_buffer,
+    uint32_t            rec_size,
+    uint32_t            rec_count)
+{
+    if (skTempFileWriteBufferStream(tmpctx, tmp_idx, rec_buffer,
+                                    rec_size, rec_count))
+    {
+        skAppPrintErr("Error saving sorted buffer to temporary file: %s",
+                      strerror(errno));
+        appExit(EXIT_FAILURE);
+    }
+}
+
+
+/*
  *  mergeFiles(temp_file_idx)
  *
  *    Merge the temporary files numbered from 0 to 'temp_file_idx'
@@ -446,7 +633,7 @@ static void
 mergeFiles(
     int                 temp_file_idx)
 {
-    FILE *fps[MAX_MERGE_FILES];
+    skstream_t *fps[MAX_MERGE_FILES];
     uint8_t recs[MAX_MERGE_FILES][MAX_NODE_SIZE];
     int j;
     uint16_t open_count;
@@ -455,10 +642,11 @@ mergeFiles(
     uint16_t lowest;
     int tmp_idx_a;
     int tmp_idx_b;
-    FILE *fp_intermediate = NULL;
+    skstream_t *fp_intermediate = NULL;
     int tmp_idx_intermediate;
-    int no_more_temps = 0;
+    int opened_all_temps = 0;
     skheap_t *heap;
+    uint32_t heap_count;
     int rv;
 
     TRACEMSG(("Merging #%d through #%d into '%s'",
@@ -480,20 +668,12 @@ mergeFiles(
         assert(SKHEAP_ERR_EMPTY==skHeapPeekTop(heap,(skheapnode_t*)&top_heap));
 
         /* the index of the last temp file to merge */
-        if (temp_file_idx - tmp_idx_a < MAX_MERGE_FILES - 1) {
-            tmp_idx_b = temp_file_idx;
-        } else {
-            tmp_idx_b = tmp_idx_a + MAX_MERGE_FILES - 1;
-        }
+        tmp_idx_b = temp_file_idx;
 
         /* open an intermediate temp file.  The merge-sort will have
          * to write records here if there are not enough file handles
          * available to open all the existing tempoary files. */
-        fp_intermediate = skTempFileCreate(tmpctx, &tmp_idx_intermediate,NULL);
-        if (fp_intermediate == NULL) {
-            skAppPrintSyserror("Error creating new temporary file");
-            appExit(EXIT_FAILURE);
-        }
+        fp_intermediate = sortTempCreate(&tmp_idx_intermediate);
 
         /* count number of files we open */
         open_count = 0;
@@ -501,52 +681,57 @@ mergeFiles(
         /* Attempt to open up to MAX_MERGE_FILES, though we an open
          * may fail due to lack of resources (EMFILE or ENOMEM) */
         for (j = tmp_idx_a; j <= tmp_idx_b; ++j) {
-            fps[open_count] = skTempFileOpen(tmpctx, j);
-            if (fps[open_count] == NULL) {
-                if ((open_count > 0)
-                    && ((errno == EMFILE) || (errno == ENOMEM)))
-                {
-                    /* Blast!  We can't open any more temp files.  So,
-                     * we rewind by one to catch this one the next
-                     * time around. */
-                    tmp_idx_b = j - 1;
-                    TRACEMSG((("EMFILE limit hit--"
-                               "merging #%d through #%d into #%d"),
+            fps[open_count] = sortTempReopen(j);
+            if (NULL == fps[open_count]) {
+                if (0 == open_count) {
+                    skAppPrintErr("Unable to open any temporary files");
+                    appExit(EXIT_FAILURE);
+                }
+                /* We cannot open any more files.  Rewind counter by
+                 * one to catch this file on the next merge. */
+                assert(j > 0);
+                tmp_idx_b = j - 1;
+                TRACEMSG(
+                    ("EMFILE limit hit--merging #%d through #%d into #%d: %s",
+                     tmp_idx_a, tmp_idx_b, tmp_idx_intermediate,
+                     strerror(errno)));
+                break;
+            }
+
+            /* read the first record */
+            if (sortTempRead(fps[open_count], recs[open_count], node_size)) {
+                /* insert the file index into the heap */
+                skHeapInsert(heap, &open_count);
+                ++open_count;
+                if (open_count == MAX_MERGE_FILES) {
+                    /* We've reached the limit for this pass.  Set
+                     * tmp_idx_b to the file we just opened. */
+                    tmp_idx_b = j;
+                    TRACEMSG((("MAX_MERGE_FILES limit hit--"
+                               "merging #%d through #%d to #%d"),
                               tmp_idx_a, tmp_idx_b, tmp_idx_intermediate));
                     break;
-                } else {
-                    skAppPrintSyserror(("Error opening existing"
+                }
+            } else {
+                if (skStreamGetLastReturnValue(fps[open_count]) != 0) {
+                    skAppPrintSyserror(("Error reading first record from"
                                         " temporary file '%s'"),
                                        skTempFileGetName(tmpctx, j));
                     appExit(EXIT_FAILURE);
                 }
+                TRACEMSG(("Ignoring empty temporary file '%s'",
+                          skTempFileGetName(tmpctx, j)));
+                skStreamDestroy(&fps[open_count]);
             }
-
-            /* read the first record */
-            if (!fread(recs[open_count], node_size, 1, fps[open_count])) {
-                if (feof(fps[open_count])) {
-                    TRACEMSG(("Ignoring empty temporary file '%s'",
-                              skTempFileGetName(tmpctx, j)));
-                    continue;
-                }
-                skAppPrintSyserror(("Error reading first record from"
-                                    " temporary file '%s'"),
-                                   skTempFileGetName(tmpctx, j));
-                appExit(EXIT_FAILURE);
-            }
-
-            /* insert the file index into the heap */
-            skHeapInsert(heap, &open_count);
-            ++open_count;
         }
 
         /* Here, we check to see if we've opened all temp files.  If
          * so, set a flag so we write data to final destination and
          * break out of the loop after we're done. */
         if (tmp_idx_b == temp_file_idx) {
-            no_more_temps = 1;
+            opened_all_temps = 1;
             /* no longer need the intermediate temp file */
-            fclose(fp_intermediate);
+            sortTempClose(fp_intermediate);
             fp_intermediate = NULL;
         } else {
             /* we could not open all temp files, so merge all opened
@@ -557,9 +742,12 @@ mergeFiles(
 
         TRACEMSG((("Merging %" PRIu16 " temporary files"), open_count));
 
+        heap_count = skHeapGetNumberEntries(heap);
+        assert(heap_count == open_count);
+
         /* exit this while() once we are only processing a single
          * file */
-        while (skHeapGetNumberEntries(heap) > 1) {
+        while (heap_count > 1) {
             /* entry at the top of the heap has the lowest key */
             skHeapPeekTop(heap, (skheapnode_t*)&top_heap);
             lowest = *top_heap;
@@ -567,13 +755,7 @@ mergeFiles(
             /* write the lowest record */
             if (fp_intermediate) {
                 /* write record to intermediate tmp file */
-                if (!fwrite(recs[lowest], node_size, 1, fp_intermediate)) {
-                    skAppPrintSyserror(("Error writing record to"
-                                        " temporary file '%s'"),
-                                       skTempFileGetName(tmpctx,
-                                                         tmp_idx_intermediate));
-                    appExit(EXIT_FAILURE);
-                }
+                sortTempWrite(fp_intermediate, recs[lowest], node_size);
             } else {
                 /* we successfully opened all (remaining) temp files,
                  * write to record to the final destination */
@@ -587,16 +769,17 @@ mergeFiles(
             }
 
             /* replace the record we just wrote */
-            if (fread(recs[lowest], node_size, 1, fps[lowest])) {
+            if (sortTempRead(fps[lowest], recs[lowest], node_size)) {
                 /* read was successful.  "insert" the new entry into
                  * the heap (which has same value as old entry). */
                 skHeapReplaceTop(heap, &lowest, NULL);
             } else {
-                TRACEMSG(("Finished reading records from file #%u",
-                          lowest));
                 /* no more data for this file; remove it from the
                  * heap */
                 skHeapExtractTop(heap, NULL);
+                --heap_count;
+                TRACEMSG(("Finished reading file #%u; %u files remain",
+                          tmp_idx_a + lowest, heap_count));
             }
         }
 
@@ -607,13 +790,8 @@ mergeFiles(
         /* read records from the remaining file */
         if (fp_intermediate) {
             do {
-                if (!fwrite(recs[lowest], node_size, 1, fp_intermediate)) {
-                    skAppPrintErr("Error writing record to temporary file '%s'",
-                                  skTempFileGetName(tmpctx,
-                                                    tmp_idx_intermediate));
-                    appExit(EXIT_FAILURE);
-                }
-            } while (fread(recs[lowest], node_size, 1, fps[lowest]));
+                sortTempWrite(fp_intermediate, recs[lowest], node_size);
+            } while (sortTempRead(fps[lowest], recs[lowest], node_size));
         } else {
             do {
                 rv = skStreamWriteRecord(out_rwios, (rwRec*)recs[lowest]);
@@ -623,16 +801,16 @@ mergeFiles(
                         appExit(EXIT_FAILURE);
                     }
                 }
-            } while (fread(recs[lowest], node_size, 1, fps[lowest]));
+            } while (sortTempRead(fps[lowest], recs[lowest], node_size));
         }
 
-        TRACEMSG(("Finished reading records from file #%u", lowest));
+        TRACEMSG(("Finished reading file #%u; 0 files remain", lowest));
         TRACEMSG((("Finished processing #%d through #%d"),
                   tmp_idx_a, tmp_idx_b));
 
         /* Close all open temp files */
         for (i = 0; i < open_count; ++i) {
-            fclose(fps[i]);
+            sortTempClose(fps[i]);
         }
         /* Delete all temp files we opened (or attempted to open) this
          * time */
@@ -642,19 +820,14 @@ mergeFiles(
 
         /* Close the intermediate temp file. */
         if (fp_intermediate) {
-            if (EOF == fclose(fp_intermediate)) {
-                skAppPrintSyserror("Error closing temporary file '%s'",
-                                   skTempFileGetName(tmpctx,
-                                                     tmp_idx_intermediate));
-                appExit(EXIT_FAILURE);
-            }
+            sortTempClose(fp_intermediate);
             fp_intermediate = NULL;
         }
 
         /* Start the next merge with the next input temp file */
         tmp_idx_a = tmp_idx_b + 1;
 
-    } while (!no_more_temps);
+    } while (!opened_all_temps);
 
     skHeapFree(heap);
 }
@@ -688,10 +861,11 @@ sortPresorted(
     uint16_t open_count;
     uint16_t *top_heap;
     uint16_t lowest;
-    FILE *fp_intermediate = NULL;
+    skstream_t *fp_intermediate = NULL;
     int temp_file_idx = -1;
-    int no_more_inputs = 0;
+    int opened_all_inputs = 0;
     skheap_t *heap;
+    uint32_t heap_count;
     int rv;
 
     memset(rwios, 0, sizeof(rwios));
@@ -710,11 +884,7 @@ sortPresorted(
         /* open an intermediate temp file.  The merge-sort will have
          * to write records here if there are not enough file handles
          * available to open all the input files. */
-        fp_intermediate = skTempFileCreate(tmpctx, &temp_file_idx, NULL);
-        if (fp_intermediate == NULL) {
-            skAppPrintSyserror("Error creating new temporary file");
-            appExit(EXIT_FAILURE);
-        }
+        fp_intermediate = sortTempCreate(&temp_file_idx);
 
         /* Attempt to open up to MAX_MERGE_FILES, though we an open
          * may fail due to lack of resources (EMFILE or ENOMEM) */
@@ -727,12 +897,14 @@ sortPresorted(
         switch (rv) {
           case 1:
             /* successfully opened all (remaining) input files */
-            TRACEMSG(("Opened all (remaining) inputs"));
-            no_more_inputs = 1;
-            if (temp_file_idx == 0) {
+            opened_all_inputs = 1;
+            if (temp_file_idx > 0) {
+                TRACEMSG(("Opened all remaining inputs"));
+            } else {
                 /* we opened all the input files in a single pass.  we
                  * no longer need the intermediate temp file */
-                fclose(fp_intermediate);
+                TRACEMSG(("Opened all inputs in a single pass"));
+                sortTempClose(fp_intermediate);
                 fp_intermediate = NULL;
                 temp_file_idx = -1;
             }
@@ -770,12 +942,14 @@ sortPresorted(
             }
         }
 
-        TRACEMSG((("Merging %" PRIu32 " presorted files"),
-                  skHeapGetNumberEntries(heap)));
+        heap_count = skHeapGetNumberEntries(heap);
+
+        TRACEMSG((("Merging %" PRIu32 " of %" PRIu16 " open presorted files"),
+                  heap_count, open_count));
 
         /* exit this while() once we are only processing a single
          * file */
-        while (skHeapGetNumberEntries(heap) > 1) {
+        while (heap_count > 1) {
             /* entry at the top of the heap has the lowest key */
             skHeapPeekTop(heap, (skheapnode_t*)&top_heap);
             lowest = *top_heap;
@@ -784,13 +958,7 @@ sortPresorted(
             if (fp_intermediate) {
                 /* we are using the intermediate temp file, so
                  * write the record there. */
-                if (!fwrite(recs[lowest], node_size, 1, fp_intermediate)) {
-                    skAppPrintSyserror(("Error writing record to"
-                                        " temporary file '%s'"),
-                                       skTempFileGetName(tmpctx,
-                                                         temp_file_idx));
-                    appExit(EXIT_FAILURE);
-                }
+                sortTempWrite(fp_intermediate, recs[lowest], node_size);
             } else {
                 /* we are not using any temp files, write the
                  * record to the final destination */
@@ -809,11 +977,13 @@ sortPresorted(
                  * the heap (which has same value as old entry). */
                 skHeapReplaceTop(heap, &lowest, NULL);
             } else {
-                TRACEMSG(("Finished reading records from file #%u",
-                          lowest));
                 /* no more data for this file; remove it from the
                  * heap */
                 skHeapExtractTop(heap, NULL);
+                --heap_count;
+                TRACEMSG(("Finished reading records from file #%u;"
+                          " %" PRIu32 " files remain",
+                          lowest, heap_count));
             }
         }
 
@@ -821,13 +991,7 @@ sortPresorted(
         if (SKHEAP_OK == skHeapExtractTop(heap, &lowest)) {
             if (fp_intermediate) {
                 do {
-                    if (!fwrite(recs[lowest], node_size, 1,fp_intermediate)) {
-                        skAppPrintSyserror(("Error writing record to"
-                                            " temporary file '%s'"),
-                                           skTempFileGetName(tmpctx,
-                                                             temp_file_idx));
-                        appExit(EXIT_FAILURE);
-                    }
+                    sortTempWrite(fp_intermediate, recs[lowest], node_size);
                 } while (fillRecordAndKey(rwios[lowest], recs[lowest]));
             } else {
                 do {
@@ -840,7 +1004,7 @@ sortPresorted(
                     }
                 } while (fillRecordAndKey(rwios[lowest], recs[lowest]));
             }
-            TRACEMSG(("Finished reading records from file #%u",
+            TRACEMSG(("Finished reading records from file #%u; 0 files remain",
                       lowest));
         }
 
@@ -851,14 +1015,10 @@ sortPresorted(
 
         /* Close the intermediate temp file. */
         if (fp_intermediate) {
-            if (EOF == fclose(fp_intermediate)) {
-                skAppPrintSyserror("Error closing temporary file '%s'",
-                                   skTempFileGetName(tmpctx, temp_file_idx));
-                appExit(EXIT_FAILURE);
-            }
+            sortTempClose(fp_intermediate);
             fp_intermediate = NULL;
         }
-    } while (!no_more_inputs);
+    } while (!opened_all_inputs);
 
     skHeapFree(heap);
 
@@ -1008,17 +1168,13 @@ sortRandom(
              * failed. */
             if (record_count == buffer_max_recs) {
                 /* Sort */
+                TRACEMSG(("Sorting %" PRIu32 " records...", record_count));
                 skQSort(record_buffer, record_count, node_size, &rwrecCompare);
+                TRACEMSG(("Sorting %" PRIu32 " records...done", record_count));
 
                 /* Write to temp file */
-                if (skTempFileWriteBuffer(tmpctx, &temp_file_idx, record_buffer,
-                                          node_size, record_count))
-                {
-                    skAppPrintSyserror("Error writing sorted buffer to"
-                                       " temporary file");
-                    free(record_buffer);
-                    appExit(EXIT_FAILURE);
-                }
+                sortTempWriteBuffer(&temp_file_idx, record_buffer,
+                                    node_size, record_count);
 
                 /* Reset record buffer to 'empty' */
                 record_count = 0;
@@ -1029,18 +1185,14 @@ sortRandom(
 
     /* Sort (and maybe store) last batch of records */
     if (record_count > 0) {
+        TRACEMSG(("Sorting %" PRIu32 " records...", record_count));
         skQSort(record_buffer, record_count, node_size, &rwrecCompare);
+        TRACEMSG(("Sorting %" PRIu32 " records...done", record_count));
 
         if (temp_file_idx >= 0) {
             /* Write last batch to temp file */
-            if (skTempFileWriteBuffer(tmpctx, &temp_file_idx, record_buffer,
-                                      node_size, record_count))
-            {
-                skAppPrintSyserror("Error writing sorted buffer to"
-                                   " temporary file");
-                free(record_buffer);
-                appExit(EXIT_FAILURE);
-            }
+            sortTempWriteBuffer(&temp_file_idx, record_buffer,
+                                node_size, record_count);
         }
     }
 
@@ -1110,8 +1262,7 @@ int main(int argc, char **argv)
     }
     out_rwios = NULL;
 
-    appExit(EXIT_SUCCESS);
-    return 0; /* NOTREACHED */
+    return 0;
 }
 
 

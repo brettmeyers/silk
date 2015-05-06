@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2006-2014 by Carnegie Mellon University.
+** Copyright (C) 2006-2015 by Carnegie Mellon University.
 **
 ** @OPENSOURCE_HEADER_START@
 **
@@ -62,7 +62,7 @@
 /* NOTE: pull in the sklog source file */
 #include "sklog.c"
 
-RCSIDENTVAR(rcsID_sklog_c, "$SiLK: sklog-test.c cd598eff62b9 2014-09-21 19:31:29Z mthomas $");
+RCSIDENTVAR(rcsID_sklog_c, "$SiLK: sklog-test.c b7b8edebba12 2015-01-05 18:05:21Z mthomas $");
 
 
 /* LOCAL DEFINES AND TYPEDEFS */

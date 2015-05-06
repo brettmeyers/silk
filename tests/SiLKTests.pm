@@ -1,4 +1,4 @@
-#  Copyright (C) 2009-2014 by Carnegie Mellon University.
+#  Copyright (C) 2009-2015 by Carnegie Mellon University.
 #
 #  See end of file for License
 #######################################################################
@@ -8,7 +8,7 @@
 #  March 2009
 #
 #######################################################################
-#  RCSIDENT("$SiLK: SiLKTests.pm e8b53f382b2e 2014-08-25 16:08:10Z mthomas $")
+#  RCSIDENT("$SiLK: SiLKTests.pm b7b8edebba12 2015-01-05 18:05:21Z mthomas $")
 #######################################################################
 #
 #    Perl module used by the scripts that "make check" runs.
@@ -1872,7 +1872,7 @@ sub make_packer_sensor_conf
 __END__
 
 #######################################################################
-# Copyright (C) 2009-2014 by Carnegie Mellon University.
+# Copyright (C) 2009-2015 by Carnegie Mellon University.
 #
 # @OPENSOURCE_HEADER_START@
 #

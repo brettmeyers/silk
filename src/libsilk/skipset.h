@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2008-2014 by Carnegie Mellon University.
+** Copyright (C) 2008-2015 by Carnegie Mellon University.
 **
 ** @OPENSOURCE_HEADER_START@
 **
@@ -66,7 +66,7 @@ extern "C" {
 
 #include <silk/silk.h>
 
-RCSIDENTVAR(rcsID_SKIPSET_H, "$SiLK: skipset.h cd598eff62b9 2014-09-21 19:31:29Z mthomas $");
+RCSIDENTVAR(rcsID_SKIPSET_H, "$SiLK: skipset.h b7b8edebba12 2015-01-05 18:05:21Z mthomas $");
 
 #include <silk/silk_types.h>
 #include <silk/iptree.h>

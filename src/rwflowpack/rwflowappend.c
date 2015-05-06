@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2006-2014 by Carnegie Mellon University.
+** Copyright (C) 2006-2015 by Carnegie Mellon University.
 **
 ** @OPENSOURCE_HEADER_START@
 **
@@ -58,7 +58,7 @@
 
 #include <silk/silk.h>
 
-RCSIDENT("$SiLK: rwflowappend.c cd598eff62b9 2014-09-21 19:31:29Z mthomas $");
+RCSIDENT("$SiLK: rwflowappend.c b7b8edebba12 2015-01-05 18:05:21Z mthomas $");
 
 #include <silk/redblack.h>
 #include <silk/rwrec.h>
@@ -869,8 +869,11 @@ openOutputStream(
 
     found = NULL;
 
-    /* in necessary, wait for another other thread to finish modifying
-     * this hourly file */
+    /* insert 'state' into the red-black tree to denote that this
+     * thread is writing to state->out_basename.  If another thread is
+     * already modifying that hourly file, the rbsearch() call will
+     * return that thread's state, and this thread then waits on the
+     * condition variable. */
     pthread_mutex_lock(&appender_tree_mutex);
     while (!shuttingdown
            && ((found = rbsearch(state, appender_tree)) != state))
@@ -1156,6 +1159,7 @@ appender_main(
         rv = openOutputStream(state, in_hdr);
         if (1 == rv) {
             /* shutting down */
+            skStreamDestroy(&state->in_stream);
             continue;
         } else if (rv) {
             /* Error opening output file. */

@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2008-2014 by Carnegie Mellon University.
+** Copyright (C) 2008-2015 by Carnegie Mellon University.
 **
 ** @OPENSOURCE_HEADER_START@
 **
@@ -59,7 +59,7 @@
 
 #include <silk/silk.h>
 
-RCSIDENT("$SiLK: rwfilterthread.c cd598eff62b9 2014-09-21 19:31:29Z mthomas $");
+RCSIDENT("$SiLK: rwfilterthread.c b7b8edebba12 2015-01-05 18:05:21Z mthomas $");
 
 #include "rwfilter.h"
 
@@ -83,6 +83,9 @@ typedef struct filter_thread_st {
 
 
 /* LOCAL VARIABLE DEFINITIONS */
+
+/* the main thread */
+static pthread_t main_thread;
 
 static pthread_mutex_t next_file_mutex = PTHREAD_MUTEX_INITIALIZER;
 
@@ -489,8 +492,10 @@ workerThread(
     int rv = 0;
     int i;
 
-    /* ignore all signals */
-    skthread_ignore_signals();
+    /* ignore all signals unless this thread is the main thread */
+    if (!pthread_equal(main_thread, ((filter_thread_t*)v_thread)->thread)) {
+        skthread_ignore_signals();
+    }
 
     memset(recbuf_count, 0, sizeof(recbuf_count));
 
@@ -536,6 +541,9 @@ threadedFilter(
     uint32_t j;
     int rv = 0;
 
+    /* get the main thread */
+    main_thread = pthread_self();
+
     /* set a signal handler */
     if (skAppSetSignalHandler(&appHandleSignal)) {
         skAppPrintErr("Unable to set signal handler");
@@ -565,6 +573,9 @@ threadedFilter(
             }
         }
     }
+
+    /* thread[0] is the main_thread */
+    thread[0].thread = main_thread;
 
     /* create the threads, skip 0 since that is the main thread */
     for (j = 1; j < thread_count; ++j) {

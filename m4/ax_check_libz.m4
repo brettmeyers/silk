@@ -1,4 +1,4 @@
-dnl Copyright (C) 2004-2014 by Carnegie Mellon University.
+dnl Copyright (C) 2004-2015 by Carnegie Mellon University.
 dnl
 dnl @OPENSOURCE_HEADER_START@
 dnl
@@ -48,13 +48,16 @@ dnl contract clause at 252.227.7013.
 dnl
 dnl @OPENSOURCE_HEADER_END@
 
-dnl RCSIDENT("$SiLK: ax_check_libz.m4 1c87fe1a22f7 2014-01-06 15:24:30Z mthomas $")
+dnl RCSIDENT("$SiLK: ax_check_libz.m4 b7b8edebba12 2015-01-05 18:05:21Z mthomas $")
 
 # ---------------------------------------------------------------------------
 # AX_CHECK_LIBZ
 #
-#    Determine how to use zlib
+#    Determine how to use the zlib (gzip) compression library
 #
+#    Substitutions: SK_ENABLE_ZLIB
+#    Output defines: ENABLE_ZLIB
+
 AC_DEFUN([AX_CHECK_LIBZ],[
     ENABLE_ZLIB=0
 
@@ -146,7 +149,7 @@ AC_DEFUN([AX_CHECK_LIBZ],[
         [Define to 1 build with support for zlib compression.  Define
          to 0 otherwise.  Requires the libz library and the <zlib.h>
          header file.])
-    AM_CONDITIONAL(HAVE_ZLIB, [test "x$ENABLE_ZLIB" = x1])
+    AC_SUBST([SK_ENABLE_ZLIB], [$ENABLE_ZLIB])
 ])# AX_CHECK_LIBZ
 
 dnl Local Variables:

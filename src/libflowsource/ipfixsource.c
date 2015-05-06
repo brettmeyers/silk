@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2006-2014 by Carnegie Mellon University.
+** Copyright (C) 2006-2015 by Carnegie Mellon University.
 **
 ** @OPENSOURCE_HEADER_START@
 **
@@ -60,7 +60,7 @@
 #define LIBFLOWSOURCE_SOURCE 1
 #include <silk/silk.h>
 
-RCSIDENT("$SiLK: ipfixsource.c cd598eff62b9 2014-09-21 19:31:29Z mthomas $");
+RCSIDENT("$SiLK: ipfixsource.c 2b1355d69f79 2015-02-13 23:12:41Z mthomas $");
 
 #include <silk/libflowsource.h>
 #include <silk/redblack.h>
@@ -232,6 +232,11 @@ RCSIDENT("$SiLK: ipfixsource.c cd598eff62b9 2014-09-21 19:31:29Z mthomas $");
 #define SK_IPFIX_ERROR_CONN    1
 
 
+/* Name of environment variable that, when set, cause SiLK to ignore
+ * any G_LOG_LEVEL_WARNING messages. */
+#define SK_ENV_FIXBUF_SUPPRESS_WARNING "SILK_LIBFIXBUF_SUPPRESS_WARNINGS"
+
+
 /* Various macros for handling yaf stats */
 
 /* compute difference of fields at current time 'stats' and previous
@@ -281,6 +286,28 @@ RCSIDENT("$SiLK: ipfixsource.c cd598eff62b9 2014-09-21 19:31:29Z mthomas $");
                  (stats).expiredFragmentCount,          \
                  (stats).packetTotalCount,              \
                  (stats).exportedFlowRecordTotalCount))
+
+
+/*
+ *  SILK_PROTO_TO_FIXBUF_TRANSPORT(silk_proto, &fb_trans);
+ *
+ *    Set the fbTransport_t value in the memory referenced by
+ *    'fb_trans' based on the SiLK protocol value 'silk_proto'.
+ */
+#define SILK_PROTO_TO_FIXBUF_TRANSPORT(silk_proto, fb_trans)    \
+    switch (silk_proto) {                                       \
+      case SKPC_PROTO_SCTP:                                     \
+        *(fb_trans) = FB_SCTP;                                  \
+        break;                                                  \
+      case SKPC_PROTO_TCP:                                      \
+        *(fb_trans) = FB_TCP;                                   \
+        break;                                                  \
+      case SKPC_PROTO_UDP:                                      \
+        *(fb_trans) = FB_UDP;                                   \
+        break;                                                  \
+      default:                                                  \
+        skAbortBadCase(silk_proto);                             \
+    }
 
 
 /* forward declarations */
@@ -339,10 +366,6 @@ struct skIPFIXSource_st {
     const skpc_probe_t     *probe;
     const char             *name;
 
-    /* set of addresses from which this source accepts data, when
-     * reading from the network */
-    const sk_sockaddr_array_t *from_addresses;
-
     /* when reading from the network, 'data_buffer' holds packets
      * collected for this probe but not yet requested.
      * 'current_record' is the current location in the
@@ -386,31 +409,35 @@ struct skIPFIXSourceBase_st {
     /* when a probe does not have an accept-from-host clause, any peer
      * may connect, and there is a one-to-one mapping between a source
      * object and a base object.  The 'any' member points to the
-     * source, and the 'addr_to_source' member will be NULL. */
+     * source, and the 'addr_to_source' member must be NULL. */
     skIPFIXSource_t    *any;
 
     /* if there is an accept-from clause, the 'addr_to_source'
      * red-black tree maps the address of the peer to a particular
-     * source object, and the 'any' member must be NULL. */
+     * source object (via 'peeraddr_source_t' objects), and the 'any'
+     * member must be NULL. */
     struct rbtree      *addr_to_source;
 
     /* address we are listening to. This is an array to support a
      * hostname that maps to multiple IPs (e.g. IPv4 and IPv6). */
     const sk_sockaddr_array_t *listen_address;
 
-    /* the listener and connection objects from libfixbuf */
-    fbListener_t       *listener;
-    fbConnSpec_t       *connspec;
-
     pthread_t           thread;
     pthread_mutex_t     mutex;
     pthread_cond_t      cond;
+
+    /* the listener and connection objects from libfixbuf */
+    fbListener_t       *listener;
+    fbConnSpec_t       *connspec;
 
     /* A count of sources associated with this base object */
     uint32_t            source_count;
 
     /* whether the source is in the process of being destroyed */
     unsigned            destroyed : 1;
+
+    /* Whether the reading thread was started */
+    unsigned            started   : 1;
 
     /* Whether the reading thread is currently running */
     unsigned            running   : 1;
@@ -428,12 +455,28 @@ typedef struct skIPFIXConnection_st {
 } skIPFIXConnection_t;
 
 
+/*
+ *    The 'addr_to_source' member of 'skIPFIXSourceBase_t' is a
+ *    red-black tree whose data members are 'peeraddr_source_t'
+ *    objects.  The tree is used when multiple sources listen on the
+ *    same port and the accept-from-host addresses are used to choose
+ *    the source based on the peer address of the sender.
+ *
+ *    The 'addr_to_source' tree uses the peeraddr_compare() comparison
+ *    function.
+ */
+typedef struct peeraddr_source_st {
+    const sk_sockaddr_t *addr;
+    skIPFIXSource_t     *source;
+} peeraddr_source_t;
+
+
 /* LOCAL VARIABLE DEFINITIONS */
 
 /* Mutex around calls to skiCreateListener. */
 static pthread_mutex_t create_listener_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-/* Mutex around use of global rbtrees. */
+/* Mutex around listener_to_source_base tree and count. */
 static pthread_mutex_t global_tree_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 /* Map from listeners to skIPFIXSourceBase_t objects.  Objects in
@@ -465,37 +508,23 @@ listener_to_source_base_find(
 
 
 /*
- *     The source_find() function is used as the comparison function
- *     for the skIPFIXSourceBase_t's connection red-black tree.
- *     Stores objects of type skIPFIXSource_t, orders by its
- *     from_address.  Comparison is equal if any two addresses in the
- *     skSockaddrArray_t are equivalent, Otherwise uses comparison of
- *     the first addresses in the arrays.
+ *     The peeraddr_compare() function is used as the comparison
+ *     function for the skIPFIXSourceBase_t's red-black tree,
+ *     addr_to_source.
+ *
+ *     The tree stores peeraddr_source_t objects, keyed by
+ *     sk_sockaddr_t address of the accepted peers.
  */
 static int
-source_find(
+peeraddr_compare(
     const void         *va,
     const void         *vb,
     const void  UNUSED(*ctx))
 {
-    const sk_sockaddr_array_t *a;
-    const sk_sockaddr_array_t *b;
+    const sk_sockaddr_t *a = ((const peeraddr_source_t *)va)->addr;
+    const sk_sockaddr_t *b = ((const peeraddr_source_t *)vb)->addr;
 
-    a = ((const skIPFIXSource_t *)va)->from_addresses;
-    b = ((const skIPFIXSource_t *)vb)->from_addresses;
-
-    assert(a);
-    assert(b);
-    assert(skSockaddrArraySize(a));
-    assert(skSockaddrArraySize(b));
-
-    if (skSockaddrArrayMatches(a, b, SK_SOCKADDRCOMP_NOPORT)) {
-        return 0;
-    }
-
-    return skSockaddrCompare(skSockaddrArrayGet(a, 0),
-                             skSockaddrArrayGet(b, 0),
-                             SK_SOCKADDRCOMP_NOPORT);
+    return skSockaddrCompare(a, b, SK_SOCKADDRCOMP_NOPORT);
 }
 
 
@@ -579,11 +608,11 @@ fixbufConnect(
     char addr_buf[2 * SK_NUM2DOT_STRLEN];
     skIPFIXSourceBase_t target_base;
     skIPFIXSourceBase_t *base;
-    skIPFIXSource_t target_source;
+    const peeraddr_source_t *found_peer;
+    peeraddr_source_t target_peer;
     skIPFIXSource_t *source;
     skIPFIXConnection_t *conn = NULL;
     sk_sockaddr_t addr;
-    sk_sockaddr_array_t addr_array = {NULL, &addr, 1};
     gboolean retval = 0;
 
     TRACE_ENTRY;
@@ -642,10 +671,10 @@ fixbufConnect(
         /* Using the address of the incoming connection, search for
          * the source object associated with this address. */
         assert(base->addr_to_source);
-        target_source.from_addresses = &addr_array;
-        source = ((skIPFIXSource_t *)
-                  rbfind(&target_source, base->addr_to_source));
-        if (source == NULL) {
+        target_peer.addr = &addr;
+        found_peer = ((const peeraddr_source_t*)
+                      rbfind(&target_peer, base->addr_to_source));
+        if (NULL == found_peer) {
             /* Reject hosts that do not appear in accept-from-host */
             TRACEMSG(1, (("ipfixsource rejected connection from '%s':"
                           " host prohibited"), addr_buf));
@@ -654,6 +683,7 @@ fixbufConnect(
             free(conn);
             goto END;
         }
+        source = found_peer->source;
     }
 
     if (source->stopped) {
@@ -669,13 +699,13 @@ fixbufConnect(
      * skIPFIXConnection_t in the red-black tree on the source so we
      * can log about missing NetFlowV9/sFlow packets. */
     if (source->connections) {
-        skIPFIXConnection_t *found;
+        skIPFIXConnection_t *found_conn;
 
         pthread_mutex_lock(&source->stats_mutex);
-        found = ((skIPFIXConnection_t*)
-                 rbsearch(conn, source->connections));
+        found_conn = ((skIPFIXConnection_t*)
+                      rbsearch(conn, source->connections));
         pthread_mutex_unlock(&source->stats_mutex);
-        if (found != conn) {
+        if (found_conn != conn) {
             TRACEMSG(1, (("ipfixsource rejected connection from '%s':"
                           " unable to store connection on source"), addr_buf));
             g_set_error(err, SK_IPFIXSOURCE_DOMAIN, SK_IPFIX_ERROR_CONN,
@@ -795,7 +825,7 @@ ipfix_reader(
 {
 #define IS_UDP (base->connspec->transport == FB_UDP)
     skIPFIXSourceBase_t *base = (skIPFIXSourceBase_t *)vsource_base;
-    skIPFIXConnection_t *conn;
+    skIPFIXConnection_t *conn = NULL;
     skIPFIXSource_t *source = NULL;
     GError *err = NULL;
     fBuf_t *ipfix_buf = NULL;
@@ -810,6 +840,7 @@ ipfix_reader(
     /* Communicate that the thread has started */
     pthread_mutex_lock(&base->mutex);
     pthread_cond_signal(&base->cond);
+    base->started = 1;
     base->running = 1;
     DEBUGMSG("fixbuf listener started for [%s]:%s",
              base->connspec->host ? base->connspec->host : "*",
@@ -1368,10 +1399,10 @@ ipfixSourceCreateFromFile(
 
   ERROR:
     g_clear_error(&err);
-    if (NULL != source->fileptr.of_fp) {
-        skFileptrClose(&source->fileptr, &WARNINGMSG);
-    }
     if (source) {
+        if (NULL != source->fileptr.of_fp) {
+            skFileptrClose(&source->fileptr, &WARNINGMSG);
+        }
         if (source->readbuf) {
             fBufFree(source->readbuf);
         }
@@ -1381,6 +1412,107 @@ ipfixSourceCreateFromFile(
         free(base);
     }
     TRACE_RETURN(NULL);
+}
+
+
+/*
+ *    Add the 'source' object to the 'base' object (or for an
+ *    alternate view, have the 'source' wrap the 'base').  Return 0 on
+ *    success, or -1 on failure.
+ */
+static int
+ipfixSourceBaseAddIPFIXSource(
+    skIPFIXSourceBase_t *base,
+    skIPFIXSource_t     *source)
+{
+    const sk_sockaddr_array_t **accept_from;
+    peeraddr_source_t *peeraddr;
+    const peeraddr_source_t *found;
+    fbTransport_t transport;
+    uint32_t accept_from_count;
+    uint32_t i;
+    uint32_t j;
+    int rv = -1;
+
+    TRACE_ENTRY;
+
+    assert(base);
+    assert(source);
+    assert(source->probe);
+    assert(NULL == source->base);
+
+    accept_from_count = skpcProbeGetAcceptFromHost(source->probe,&accept_from);
+
+    /* Lock the base */
+    pthread_mutex_lock(&base->mutex);
+
+    /* Base must not be configured to accept packets from any host. */
+    if (base->any) {
+        goto END;
+    }
+    if (NULL == accept_from || 0 == accept_from_count) {
+        /* When no accept-from-host is specified, this source accepts
+         * packets from any address and there should be a one-to-one
+         * mapping between source and base */
+        if (base->addr_to_source) {
+            /* The base already references another source. */
+            goto END;
+        }
+        base->any = source;
+        source->base = base;
+        ++base->source_count;
+    } else {
+        /* Make sure the sources's protocol match the base's protocol */
+        SILK_PROTO_TO_FIXBUF_TRANSPORT(
+            skpcProbeGetProtocol(source->probe), &transport);
+        if (base->connspec->transport != transport) {
+            goto END;
+        }
+
+        /* Connect the base to the source */
+        source->base = base;
+
+        if (NULL == base->addr_to_source) {
+            base->addr_to_source = rbinit(peeraddr_compare, NULL);
+            if (base->addr_to_source == NULL) {
+                goto END;
+            }
+        }
+
+        /* Add a mapping on the base for each accept-from-host address
+         * on this source. */
+        for (j = 0; j < accept_from_count; ++j) {
+            for (i = 0; i < skSockaddrArraySize(accept_from[j]); ++i) {
+                peeraddr = ((peeraddr_source_t*)
+                            calloc(1, sizeof(peeraddr_source_t)));
+                if (peeraddr == NULL) {
+                    goto END;
+                }
+                peeraddr->source = source;
+                peeraddr->addr = skSockaddrArrayGet(accept_from[j], i);
+                found = ((const peeraddr_source_t*)
+                         rbsearch(peeraddr, base->addr_to_source));
+                if (found != peeraddr) {
+                    if (found && (found->source == peeraddr->source)) {
+                        /* Duplicate address, same connection */
+                        free(peeraddr);
+                        continue;
+                    }
+                    /* Memory error adding to tree */
+                    free(peeraddr);
+                    goto END;
+                }
+            }
+        }
+
+        ++base->source_count;
+    }
+
+    rv = 0;
+
+  END:
+    pthread_mutex_unlock(&base->mutex);
+    TRACE_RETURN(rv);
 }
 
 
@@ -1399,31 +1531,36 @@ ipfixSourceCreateFromSockaddr(
     uint32_t            max_flows)
 {
     skIPFIXSource_t *source = NULL;
-    const skIPFIXSource_t *found;
-    skIPFIXSource_t  target;
     skIPFIXSourceBase_t *localbase = NULL;
     skIPFIXSourceBase_t *base;
     const sk_sockaddr_array_t *listen_address;
-    const sk_sockaddr_array_t *accept_from;
+    const sk_sockaddr_array_t **accept_from;
+    peeraddr_source_t target;
+    const peeraddr_source_t *found;
     skpc_proto_t protocol;
     GError *err = NULL;
     char port_string[7];
+    uint32_t accept_from_count;
+    uint32_t i;
+    uint32_t j;
     int rv;
 
     TRACE_ENTRY;
+
+    /* Check the protocol */
+    protocol = skpcProbeGetProtocol(probe);
+
+    /* Get the list of accept-from-host addresses. */
+    accept_from_count = skpcProbeGetAcceptFromHost(probe, &accept_from);
 
     /* Get the listen address. */
     rv = skpcProbeGetListenOnSockaddr(probe, &listen_address);
     if (rv == -1) {
         goto ERROR;
     }
-    /* Get the accept address. */
-    rv = skpcProbeGetAcceptFromHost(probe, &accept_from);
-    if (rv == -1) {
-        accept_from = NULL;
-    }
 
-    /* Find an existing base object for that address, if possible */
+    /* Check to see if there is an existing base object for that
+     * listen address */
     pthread_mutex_lock(&global_tree_mutex);
     if (!listener_to_source_base) {
         base = NULL;
@@ -1444,23 +1581,33 @@ ipfixSourceCreateFromSockaddr(
     }
     pthread_mutex_unlock(&global_tree_mutex);
 
-    if (base && base->any) {
-        /* Already have a listener, and it's a promiscuous one.  Can't
-         * create a new source.  */
-        goto ERROR;
-    }
-
-    /* Error if there is already a matching source object */
     if (base) {
         if (accept_from == NULL) {
+            /* The new listener wants to be promiscuous but another
+             * listener already exists. */
             goto ERROR;
         }
-        target.from_addresses = accept_from;
-        source = (skIPFIXSource_t *)rbfind(&target, base->addr_to_source);
-        if (source != NULL) {
-            source = NULL;
+
+        pthread_mutex_lock(&base->mutex);
+        if (base->any) {
+            /* Already have a listener, and it is promiscuous. */
+            pthread_mutex_unlock(&base->mutex);
             goto ERROR;
         }
+
+        /* Ensure the accept-from addresses are unique. */
+        for (j = 0; j < accept_from_count; ++j) {
+            for (i = 0; i < skSockaddrArraySize(accept_from[j]); ++i) {
+                target.addr = skSockaddrArrayGet(accept_from[j], i);
+                found = ((const peeraddr_source_t*)
+                         rbfind(&target, base->addr_to_source));
+                if (found != NULL) {
+                    pthread_mutex_unlock(&base->mutex);
+                    goto ERROR;
+                }
+            }
+        }
+        pthread_mutex_unlock(&base->mutex);
     }
 
     /* Create a new source object */
@@ -1468,7 +1615,6 @@ ipfixSourceCreateFromSockaddr(
     if (source == NULL) {
         goto ERROR;
     }
-    source->from_addresses = accept_from;
 
     /* Keep a handle the probe and the probe's name */
     source->probe = probe;
@@ -1497,50 +1643,13 @@ ipfixSourceCreateFromSockaddr(
 
     pthread_mutex_init(&source->stats_mutex, NULL);
 
-    /* Get the protocol */
-    protocol = skpcProbeGetProtocol(probe);
-    if (protocol == SKPC_PROTO_UNSET) {
-        goto ERROR;
-    }
-
-    if (base != NULL) {         /* If there is an existing base... */
-
-        /* Make sure our protocol match the current base's protocol */
-        switch (protocol) {
-          case SKPC_PROTO_SCTP:
-            if (base->connspec->transport != FB_SCTP) {
-                goto ERROR;
-            }
-            break;
-          case SKPC_PROTO_TCP:
-            if (base->connspec->transport != FB_TCP) {
-                goto ERROR;
-            }
-            break;
-          case SKPC_PROTO_UDP:
-            if (base->connspec->transport != FB_UDP) {
-                goto ERROR;
-            }
-            break;
-          default:
-            skAbortBadCase(protocol);
-        }
-
-        /* Connect the base to the source */
-        source->base = base;
-
-        /* Add the source to the base, using the 'accept_from' address
-         * as the key. */
-        pthread_mutex_lock(&base->mutex);
-        found = (const skIPFIXSource_t*)rbsearch(source, base->addr_to_source);
-        if (found != source) {
-            pthread_mutex_unlock(&base->mutex);
+    if (base != NULL) {
+        /* If there is an existing base, add the source to it. */
+        if (ipfixSourceBaseAddIPFIXSource(base, source)) {
             goto ERROR;
         }
-        ++base->source_count;
-        pthread_mutex_unlock(&base->mutex);
-
-    } else {                    /* No existing base, create a new one */
+    } else {
+        /* No existing base, create a new one */
 
         /* Create the base object */
         base = localbase = ipfixSourceCreateBase();
@@ -1556,19 +1665,6 @@ ipfixSourceCreateFromSockaddr(
         if (base->connspec == NULL) {
             goto ERROR;
         }
-        switch (protocol) {
-          case SKPC_PROTO_SCTP:
-            base->connspec->transport = FB_SCTP;
-            break;
-          case SKPC_PROTO_TCP:
-            base->connspec->transport = FB_TCP;
-            break;
-          case SKPC_PROTO_UDP:
-            base->connspec->transport = FB_UDP;
-            break;
-          default:
-            skAbortBadCase(protocol);
-        }
         if (skSockaddrArrayName(listen_address)) {
             base->connspec->host = strdup(skSockaddrArrayName(listen_address));
             if (base->connspec->host == NULL) {
@@ -1582,6 +1678,7 @@ ipfixSourceCreateFromSockaddr(
         if (base->connspec->svc == NULL) {
             goto ERROR;
         }
+        SILK_PROTO_TO_FIXBUF_TRANSPORT(protocol, &base->connspec->transport);
 
         /* Create the listener */
         pthread_mutex_lock(&create_listener_mutex);
@@ -1658,26 +1755,10 @@ ipfixSourceCreateFromSockaddr(
         pthread_mutex_init(&base->mutex, NULL);
         pthread_cond_init(&base->cond, NULL);
 
-        /* Connect the base to the source */
-        source->base = base;
-
-        /* Add source to base */
-        if (accept_from == NULL) {
-            base->any = source;
-        } else {
-            /* If there's an accept_from clause, add the source to the
-             * red-black tree using accept_from as the key. */
-            base->addr_to_source = rbinit(source_find, NULL);
-            if (base->addr_to_source == NULL) {
-                goto ERROR;
-            }
-            found = ((const skIPFIXSource_t*)
-                     rbsearch(source, base->addr_to_source));
-            if (found != source) {
-                goto ERROR;
-            }
+        /* add the source to the base */
+        if (ipfixSourceBaseAddIPFIXSource(base, source)) {
+            goto ERROR;
         }
-        ++base->source_count;
 
         /* Add base to list of bases */
         pthread_mutex_lock(&global_tree_mutex);
@@ -1710,7 +1791,9 @@ ipfixSourceCreateFromSockaddr(
         }
 
         /* Wait for the thread to really begin */
-        pthread_cond_wait(&base->cond, &base->mutex);
+        do {
+            pthread_cond_wait(&base->cond, &base->mutex);
+        } while (!base->started);
         pthread_mutex_unlock(&base->mutex);
     }
 
@@ -1782,6 +1865,19 @@ ipfixGLogHandler(
     }
 }
 
+/*
+ *    GLib Log handler to discard messages.
+ */
+static void
+ipfixGLogHandlerVoid(
+    const gchar     UNUSED(*log_domain),
+    GLogLevelFlags   UNUSED(log_level),
+    const gchar     UNUSED(*message),
+    gpointer         UNUSED(user_data))
+{
+    return;
+}
+
 
 /*
  *  ipfixSourceGlibInitialize();
@@ -1814,6 +1910,7 @@ int
 skIPFIXSourcesSetup(
     void)
 {
+    const char *env;
     GLogLevelFlags log_levels = (GLogLevelFlags)(G_LOG_LEVEL_CRITICAL
                                                  | G_LOG_LEVEL_WARNING
                                                  | G_LOG_LEVEL_MESSAGE
@@ -1832,10 +1929,22 @@ skIPFIXSourcesSetup(
     }
 #endif
 
-    /* set a log handler for messages from fixbuf and glib.
-     * http://developer.gnome.org/glib/2.30/glib-Message-Logging.html */
-    g_log_set_handler(NULL, log_levels, &ipfixGLogHandler, NULL);
+    /* set a log handler for messages from glib, which we always want
+     * to include in our log file.
+     * http://developer.gnome.org/glib/stable/glib-Message-Logging.html */
     g_log_set_handler("GLib", log_levels, &ipfixGLogHandler, NULL);
+
+    /* set a log handler for messages from fixbuf, maybe using a void
+     * handler for warnings. */
+    env = getenv(SK_ENV_FIXBUF_SUPPRESS_WARNING);
+    if (env && *env && 0 == strcmp("1", env)) {
+        /* suppress warnings by setting a void handler */
+        log_levels = (GLogLevelFlags)((unsigned int)log_levels
+                                      & ~(unsigned int)G_LOG_LEVEL_WARNING);
+        g_log_set_handler(
+            NULL, G_LOG_LEVEL_WARNING, &ipfixGLogHandlerVoid, NULL);
+    }
+    g_log_set_handler(NULL, log_levels, &ipfixGLogHandler, NULL);
 
     return 0;
 }
@@ -1916,10 +2025,21 @@ skIPFIXSourceDestroy(
     skIPFIXSource_t    *source)
 {
     skIPFIXSourceBase_t *base;
+    const sk_sockaddr_array_t **accept_from;
+    peeraddr_source_t target;
+    const peeraddr_source_t *found;
+    uint32_t accept_from_count;
+    uint32_t i;
+    uint32_t j;
 
     TRACE_ENTRY;
 
-    assert(source);
+    if (!source) {
+        TRACE_RETURN;
+    }
+
+    accept_from_count = skpcProbeGetAcceptFromHost(source->probe,&accept_from);
+
     assert(source->base);
 
     base = source->base;
@@ -1927,8 +2047,19 @@ skIPFIXSourceDestroy(
     pthread_mutex_lock(&base->mutex);
 
     /* Remove the source from the red-black tree */
-    if (base->addr_to_source) {
-        rbdelete(source, base->addr_to_source);
+    if (base->addr_to_source && accept_from) {
+        /* Remove the source's accept-from-host addresses from
+         * base->addr_to_source */
+        for (j = 0; j < accept_from_count; ++j) {
+            for (i = 0; i < skSockaddrArraySize(accept_from[j]); ++i) {
+                target.addr = skSockaddrArrayGet(accept_from[j], i);
+                found = ((const peeraddr_source_t*)
+                         rbdelete(&target, base->addr_to_source));
+                if (found && (found->source == source)) {
+                    free((void*)found);
+                }
+            }
+        }
     }
 
     /* Stop the source */

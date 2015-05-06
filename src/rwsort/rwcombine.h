@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2001-2014 by Carnegie Mellon University.
+** Copyright (C) 2001-2015 by Carnegie Mellon University.
 **
 ** @OPENSOURCE_HEADER_START@
 **
@@ -64,7 +64,7 @@ extern "C" {
 
 #include <silk/silk.h>
 
-RCSIDENTVAR(rcsID_RWCOMBINE_H, "$SiLK: rwcombine.h 6dc464c27dd9 2014-09-23 13:15:24Z mthomas $");
+RCSIDENTVAR(rcsID_RWCOMBINE_H, "$SiLK: rwcombine.h b7b8edebba12 2015-01-05 18:05:21Z mthomas $");
 
 #include <silk/rwascii.h>
 #include <silk/rwrec.h>
@@ -147,7 +147,8 @@ extern int64_t max_idle_time;
 
 void
 appExit(
-    int                 status);
+    int                 status)
+    NORETURN;
 void
 appSetup(
     int                 argc,

@@ -1,4 +1,4 @@
-# RCSIDENT("$SiLK: Makefile.am f162742a8f51 2014-05-09 18:47:33Z mthomas $");
+# RCSIDENT("$SiLK: Makefile.am 3c4d6696a20e 2014-10-15 19:18:45Z mthomas $");
 
 # Installed Targets
 
@@ -97,7 +97,7 @@ include $(top_srcdir)/lib-deps.mk
 # Tests
 
 # Required files; variables defined in ../../build.mk
-check_DATA = $(SILK_TESTSDIR) $(SILK_TESTDATA) $(SILK_TESTPDU)
+check_DATA = $(SILK_TESTSDIR) $(SILK_TESTDATA) $(SILK_TESTPDU) $(SILK_TESTSETS)
 
 EXTRA_DIST += $(TESTS)
 EXTRA_DIST += \
@@ -163,6 +163,8 @@ TESTS += \
 	tests/rwflowpack-pack-multiple2.pl \
 	tests/rwflowpack-pack-silk-discard-when.pl \
 	tests/rwflowpack-pack-silk-discard-unless.pl \
+	tests/rwflowpack-pack-silk-discard-when-ipset-v4.pl \
+	tests/rwflowpack-pack-silk-discard-when-ipset-v6.pl \
 	tests/rwflowpack-pack-bad-silk.pl \
 	tests/rwflowpack-pack-bad-fcfile.pl \
 	tests/rwflowpack-pack-bad-pdu.pl \

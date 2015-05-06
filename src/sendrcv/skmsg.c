@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2006-2014 by Carnegie Mellon University.
+** Copyright (C) 2006-2015 by Carnegie Mellon University.
 **
 ** @OPENSOURCE_HEADER_START@
 **
@@ -58,7 +58,7 @@
 
 #include <silk/silk.h>
 
-RCSIDENT("$SiLK: skmsg.c cd598eff62b9 2014-09-21 19:31:29Z mthomas $");
+RCSIDENT("$SiLK: skmsg.c b7b8edebba12 2015-01-05 18:05:21Z mthomas $");
 
 #include "intdict.h"
 #include "multiqueue.h"
@@ -4291,6 +4291,7 @@ skMsgQueueScatterSendMessageNoCopy(
         size += segments[i].iov_len;
         msg->segments++;
         if (size > UINT16_MAX) {
+            memset(&msg->hdr, 0, sizeof(msg->hdr));
             skMsgDestroy(msg);
             rv = -1;
             goto end;

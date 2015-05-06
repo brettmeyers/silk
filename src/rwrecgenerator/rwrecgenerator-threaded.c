@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2011-2014 by Carnegie Mellon University.
+** Copyright (C) 2011-2015 by Carnegie Mellon University.
 **
 ** @OPENSOURCE_HEADER_START@
 **
@@ -101,7 +101,7 @@
 
 #include <silk/silk.h>
 
-RCSIDENT("$SiLK: rwrecgenerator-threaded.c cd598eff62b9 2014-09-21 19:31:29Z mthomas $");
+RCSIDENT("$SiLK: rwrecgenerator-threaded.c b7b8edebba12 2015-01-05 18:05:21Z mthomas $");
 
 #include <silk/rwascii.h>
 #include <silk/rwrec.h>
@@ -1014,20 +1014,19 @@ appOptionsHandler(
 {
     skPrefixMapErr_t pmap_err;
     uint64_t tmp64;
-    int precision;
     int ispipe;
     int rv;
 
     switch ((appOptionsEnum)opt_index) {
       case OPT_START_TIME:
-        rv = skStringParseDatetime(&start_time, opt_arg, &precision);
+        rv = skStringParseDatetime(&start_time, opt_arg, NULL);
         if (rv) {
             goto PARSE_ERROR;
         }
         break;
 
       case OPT_END_TIME:
-        rv = skStringParseDatetime(&end_time, opt_arg, &precision);
+        rv = skStringParseDatetime(&end_time, opt_arg, NULL);
         if (rv) {
             goto PARSE_ERROR;
         }

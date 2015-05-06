@@ -160,7 +160,8 @@ L<B<IPv4Addr>|/IPv4Addr Object> and L<B<IPv6Addr>|/IPv6Addr Object>.
 The constructor takes a string I<address>, which must be a string
 representation of either an IPv4 or IPv6 address, or an IPAddr object.
 IPv6 addresses are only accepted if
-L<silk.B<ipv6_enabled()>|/ipv6_enabled> returns B<True>.  The
+L<silk.B<ipv6_enabled()>|/silk.B<ipv6_enabled(>I<>B<)>> returns
+B<True>.  The
 B<IPAddr> object that the constructor returns will be either an
 B<IPv4Addr> object or an B<IPv6Addr> object.
 
@@ -260,6 +261,11 @@ padded with zeroes.  With IPv4, it will return a string of the form
 "xxx.xxx.xxx.xxx".  With IPv6, it will return a string of the form
 "xxxx:xxxx:xxxx:xxxx:xxxx:xxxx:xxxx:xxxx".
 
+=item I<addr>.octets(I<>)
+
+Return a tuple of integers representing the octets of I<addr>.  The
+tuple's length is 4 for an IPv4 address and 16 for an IPv6 address.
+
 =item I<addr>.mask(I<mask>)
 
 Return a copy of I<addr> masked by the IPAddr I<mask>.
@@ -287,7 +293,8 @@ I<prefix> is 32 for an B<IPv4Addr>, and 128 for an B<IPv6Addr>.
 Return the two character country code associated with I<addr>.  If no
 country code is associated with I<addr>, return B<None>.  The country
 code association is initialized by the
-L<silk.B<init_country_codes()>|/init_country_codes> function.  If
+L<silk.B<init_country_codes()>|/silk.B<init_country_codes(>I<filename>=B<None>B<)>>
+function.  If
 B<init_country_codes()> is not called before calling this method, it
 will act as if B<init_country_codes()> was called with no argument.
 
@@ -319,18 +326,6 @@ Examples:
  >>> addr2 = IPv4Addr(IPAddr('::ffff:12.34.56.78'))
  >>> addr3 = IPv4Addr(addr1)
  >>> addr4 = IPv4Addr(0x10000000)
-
-=back
-
-Supported operations and methods:
-
-=over 4
-
-=item I<addr>.octets(I<>)
-
-Return a tuple of the octets of I<addr>.  This will be a tuple of
-length 4 for IPv4 addresses, and a tuple of length 16 for IPv6
-addresses.
 
 =back
 
@@ -384,7 +379,8 @@ octet (IPv4) or hexadectet (IPv6) represented by one of following: a
 value, a range of values, a comma separated list of values and ranges,
 or the character 'x' used to represent the entire octet or hexadectet.
 IPv6 wildcard addresses are only accepted if
-L<silk.B<ipv6_enabled()>|/ipv6_enabled> returns B<True>.  The
+L<silk.B<ipv6_enabled()>|/silk.B<ipv6_enabled(>I<>B<)>> returns
+B<True>.  The
 I<wildcard> element can also be an IPWildcard, in which case a
 duplicate reference is returned.
 
@@ -725,7 +721,9 @@ I<rec> is supplied, the constructor will create a copy of it.  The
 variable I<rec> can be a dictionary, such as that supplied by the
 B<as_dict()> method.  Initial values for record fields can be
 included.  Note that setting or accessing certain attributes on an
-B<RWRec> causes the L<silk.site.B<init_site()>|/init_site> function to
+B<RWRec> causes the
+L<silk.site.B<init_site()>|/silk.site.B<init_site(>I<siteconf>=B<None>B<,> I<rootdir>=B<None>B<)>>
+function to
 be called with no argument if it has not yet been called successfully.
 
 Example:
@@ -757,7 +755,9 @@ The default bytes value is 0.
 =item I<rec>.classname
 
 (READ ONLY) The class name of assigned to the flow I<rec>, a string.
-Calls L<silk.site.B<init_site()>|/init_site>.  The default classname
+Calls
+L<silk.site.B<init_site()>|/silk.site.B<init_site(>I<siteconf>=B<None>B<,> I<rootdir>=B<None>B<)>>.
+The default classname
 is C<?>.  The classname cannot be modified by itself.  In order to
 modify the classname, you also need to modify the typename.  See the
 L<I<rec>.classtype|/rec.classtype> attribute.
@@ -765,8 +765,11 @@ L<I<rec>.classtype|/rec.classtype> attribute.
 =item I<rec>.classtype
 
 A tuple of the classname and the typename of the flow I<rec>.
-Implicitly calls L<silk.site.B<init_site()>|/init_site> with no
-arguments if L<silk.site.B<have_site_config()>|/have_site_config>
+Implicitly calls
+L<silk.site.B<init_site()>|/silk.site.B<init_site(>I<siteconf>=B<None>B<,> I<rootdir>=B<None>B<)>>
+with no
+arguments if
+L<silk.site.B<have_site_config()>|/silk.site.B<have_site_config(>I<>B<)>>
 returns B<False>.
 
 =item I<rec>.classtype_id
@@ -840,7 +843,8 @@ not 6 (TCP) will raise an B<AttributeError>.
 
 The ICMP code of the flow I<rec>, an 8-bit integer.  The default
 icmpcode value is 0.  The value is only meaningful when
-I<rec>.protocol is ICMP (1) or when B<is_ipv6()|/is_ipv6> is B<True>
+I<rec>.protocol is ICMP (1) or when B<is_ipv6()|/I<rec>.is_ipv6(I<>)>
+is B<True>
 and I<rec>.protocol is ICMPv6 (58).  Since a record's ICMP type and
 code are stored in the destination port, setting this value may modify
 I<rec>.dport.
@@ -849,7 +853,8 @@ I<rec>.dport.
 
 The ICMP type of the flow I<rec>, an 8-bit integer.  The default
 icmptype value is 0.  The value is only meaningful when
-I<rec>.protocol is ICMP (1) or when B<is_ipv6()|/is_ipv6> is B<True>
+I<rec>.protocol is ICMP (1) or when B<is_ipv6()|/I<rec>.is_ipv6(I<>)>
+is B<True>
 and I<rec>.protocol is ICMPv6 (58).  Since a record's ICMP type and
 code are stored in the destination port, setting this value may modify
 I<rec>.dport.
@@ -888,8 +893,11 @@ set to B<None>.
 =item I<rec>.sensor
 
 The name of the sensor where the flow I<rec> was collected, a string.
-Implicitly calls L<silk.site.B<init_site()>|/init_site> with no
-arguments if L<silk.site.B<have_site_config()>|/have_site_config>
+Implicitly calls
+L<silk.site.B<init_site()>|/silk.site.B<init_site(>I<siteconf>=B<None>B<,> I<rootdir>=B<None>B<)>>
+with no
+arguments if
+L<silk.site.B<have_site_config()>|/silk.site.B<have_site_config(>I<>B<)>>
 returns B<False>.  The default sensor value is C<?>.
 
 =item I<rec>.sensor_id
@@ -965,8 +973,11 @@ boolean.  The default timeout_started value is B<False>.
 =item I<rec>.typename
 
 (READ ONLY) The type name of the flow I<rec>, a string.  Implicitly
-calls L<silk.site.B<init_site()>|/init_site> with no arguments if
-L<silk.site.B<have_site_config()>|/have_site_config> returns B<False>.
+calls
+L<silk.site.B<init_site()>|/silk.site.B<init_site(>I<siteconf>=B<None>B<,> I<rootdir>=B<None>B<)>>
+with no arguments if
+L<silk.site.B<have_site_config()>|/silk.site.B<have_site_config(>I<>B<)>>
+returns B<False>.
 The default typename is 255.  The typename cannot be modified by
 itself.  In order to modify the typename, you also need to modify the
 classname.  See the L<I<rec>.classtype|/rec.classtype> attribute.
@@ -985,7 +996,8 @@ Supported operations and methods:
 =item I<rec>.is_icmp(I<>)
 
 Return B<True> if the protocol of I<rec> is 1 (ICMP) or if the
-protocol of I<rec> is 58 (ICMPv6) and B<is_ipv6()/is_ipv6> is B<True>.
+protocol of I<rec> is 58 (ICMPv6) and B<is_ipv6()/I<rec>.is_ipv6(I<>)>
+is B<True>.
 Return B<False> otherwise.
 
 =item I<rec>.is_ipv6(I<>)
@@ -1003,8 +1015,11 @@ of 80, 443, or 8080.
 =item I<rec>.as_dict(I<>)
 
 Return a dictionary representing the contents of I<rec>.  Implicitly
-calls L<silk.site.B<init_site()>|/init_site> with no arguments if
-L<silk.site.B<have_site_config()>|/have_site_config> returns B<False>.
+calls
+L<silk.site.B<init_site()>|/silk.site.B<init_site(>I<siteconf>=B<None>B<,> I<rootdir>=B<None>B<)>>
+with no arguments if
+L<silk.site.B<have_site_config()>|/silk.site.B<have_site_config(>I<>B<)>>
+returns B<False>.
 
 =item I<rec>.to_ipv4(I<>)
 
@@ -1121,7 +1136,7 @@ Return only IPv6 flows that were marked as IPv6
 The I<compression> parameter may be one of the following constants.
 (This list assumes SiLK was built with the required libraries.  To check
 which compression methods are available at your site, see
-L<silk.B<get_configuration("COMPRESSION_METHODS")>|get_configuration>).
+L<silk.B<get_configuration("COMPRESSION_METHODS")>|/silk.B<get_configuration(>I<name>=B<None>B<)>>).
 
 =over 4
 
@@ -1161,7 +1176,9 @@ This function takes an integer file descriptor, a mode, and a set of
 optional keyword parameters.  It returns a B<SilkFile> object.  The
 I<filename> parameter is used to set the value of the I<name>
 attribute of the resulting object.  All other parameters work as
-described in the L<silk.B<silkfile_open()>|/silkfile_open> function.
+described in the
+L<silk.B<silkfile_open()>|/silk.B<silkfile_open(>I<filename>B<,> I<mode>B<,> I<compression>=B<DEFAULT>B<,> I<notes>=[]B<,> I<invocations>=[]B<)>>
+function.
 
 =back
 
@@ -1172,10 +1189,11 @@ Deprecated constructor:
 =item class silk.B<SilkFile(>I<filename>B<,> I<mode>B<,> I<compression>=B<DEFAULT>B<,> I<notes>=[]B<,> I<invocations>=[]B<)>
 
 This constructor creates a B<SilkFile> object.  The parameters are
-identical to those used by the L<B<silkfile_open()>|/silkfile_open>
+identical to those used by the
+L<B<silkfile_open()>|/silk.B<silkfile_open(>I<filename>B<,> I<mode>B<,> I<compression>=B<DEFAULT>B<,> I<notes>=[]B<,> I<invocations>=[]B<)>>
 function.  This constructor is deprecated as of SiLK 3.0.0.  For
 future compatibility, please use the
-L<B<silkfile_open()>|/silkfile_open> function instead of the
+B<silkfile_open()> function instead of the
 B<SilkFile()> constructor to create B<SilkFile> objects.
 
 =back
@@ -1342,13 +1360,15 @@ bytes that will represent values of I<key_type>.  The I<key_type>
 argument is case-insensitive.
 
 If I<key_type> is not specified, it defaults to 'any-ipv6', unless
-L<silk.B<ipv6_enabled()>|/ipv6_enabled> is B<False>, in which case the
+L<silk.B<ipv6_enabled()>|/silk.B<ipv6_enabled(>I<>B<)>> is B<False>,
+in which case the
 default is 'any-ipv4'.  The one exception to this is when I<key_type>
 is not specified, but I<key_len> is specified with a value of less
 than 16.  In this case, the default type is 'custom'.
 
 B<Note:> Key types that specify IPv6 addresses are not valid if
-L<silk.B<ipv6_enabled()>|/ipv6_enabled> returns B<False>.  An error
+L<silk.B<ipv6_enabled()>|/silk.B<ipv6_enabled(>I<>B<)>> returns
+B<False>.  An error
 will be thrown if they are used in this case.
 
 If I<key_len> is not specified, it defaults to the default number of
@@ -1459,7 +1479,8 @@ Other constructors, all class methods:
 =item silk.B<Bag.ipaddr(>I<mapping>B<,> I<counter_type>=B<None>B<,> I<counter_len>=B<None>B<)>
 
 Creates a B<Bag> using 'any-ipv6' as the key type (or 'any-ipv4' if
-L<silk.B<ipv6_enabled()>|/ipv6_enabled> is B<False>).  I<counter_type>
+L<silk.B<ipv6_enabled()>|/silk.B<ipv6_enabled(>I<>B<)>> is B<False>).
+I<counter_type>
 and I<counter_len> are used as in the standard B<Bag> constructor.
 Equivalent to B<Bag(>I<mapping>B<)>.
 
@@ -2023,11 +2044,13 @@ B<rwfglob(1)> program.  The FGlob object assumes that the B<rwfglob>
 program is in the PATH, and will raise an exception when used if not.
 
 B<Note:> It is generally better to use the
-L<silk.site.B<repository_iter()>|/repository_iter> function from the
+L<silk.site.B<repository_iter()>|/silk.site.B<repository_iter(>I<start>=B<None>B<,> I<end>=B<None>B<,> I<classname>=B<None>B<,> I<types>=B<None>B<,> I<classtypes>=B<None>B<,> I<sensors>=B<None>B<)>>
+function from the
 L<silk.site Module> instead of the B<FGlob> object, as that function
 does not require the external B<rwfglob> program.  However, the
 B<FGlob> constructor allows you to use a different site configuration
-file every time, whereas the L<silk.site.B<init_site()>|/init_site>
+file every time, whereas the
+L<silk.site.B<init_site()>|/silk.site.B<init_site(>I<siteconf>=B<None>B<,> I<rootdir>=B<None>B<)>>
 function only supports a single site configuration file.
 
 =over 4
@@ -2142,14 +2165,16 @@ found.  If a I<siteconf> parameter was specified but not found, or if
 a site configuration file was found but did not parse properly, an
 exception will be raised instead.  Once I<init_site()> has been
 successfully invoked,
-L<silk.site.B<have_site_config()>|/have_site_config> will return
+L<silk.site.B<have_site_config()>|/silk.site.B<have_site_config(>I<>B<)>>
+will return
 B<True>, and subsequent invocations of B<init_site()> will raise a
 B<RuntimeError> exception.
 
 Some B<silk.site> methods and L<B<RWRec>|/RWRec Object> members
 require information from the F<silk.conf> file, and when these methods
 are called or members accessed, the
-L<silk.site.B<init_site()>|/init_site> function is implicitly invoked
+L<silk.site.B<init_site()>|/silk.site.B<init_site(>I<siteconf>=B<None>B<,> I<rootdir>=B<None>B<)>>
+function is implicitly invoked
 with no arguments if it has not yet been called successfully.  The
 list of functions, methods, and attributes that exhibit this behavior
 include: silk.site.B<sensors()>, silk.site.B<classtypes()>,
@@ -2166,7 +2191,9 @@ and B<I<rwrec>.sensor>.
 
 =item silk.site.B<have_site_config(>I<>B<)>
 
-Return B<True> if L<silk.site.B<init_site()>|/init_site> has been
+Return B<True> if
+L<silk.site.B<init_site()>|/silk.site.B<init_site(>I<siteconf>=B<None>B<,> I<rootdir>=B<None>B<)>>
+has been
 called and was able to successfully find and load a SiLK configuration
 file, B<False> otherwise.
 
@@ -2176,16 +2203,20 @@ Change the current SiLK data root directory once the F<silk.conf> file
 has been loaded.  This function can be used to change the directory
 used by the B<silk.site> iterator functions.  To change the SiLK data
 root directory before loading the F<silk.conf> file, call
-L<silk.site.B<init_site()>|/init_site> with a I<rootdir> argument.
+L<silk.site.B<init_site()>|/silk.site.B<init_site(>I<siteconf>=B<None>B<,> I<rootdir>=B<None>B<)>>
+with a I<rootdir> argument.
 B<set_data_rootdir()> implicitly calls
-L<silk.site.B<init_site()>|/init_site> with no arguments before
+L<silk.site.B<init_site()>|/silk.site.B<init_site(>I<siteconf>=B<None>B<,> I<rootdir>=B<None>B<)>>
+with no arguments before
 changing the root directory if
-L<silk.site.B<have_site_config()>|/have_site_config> returns B<False>.
+L<silk.site.B<have_site_config()>|/silk.site.B<have_site_config(>I<>B<)>>
+returns B<False>.
 
 =item silk.site.B<get_site_config(>I<>B<)>
 
 Return the current path to the SiLK site configuration file.  Before
-L<silk.site.B<init_site()>|/init_site> is called successfully, this
+L<silk.site.B<init_site()>|/silk.site.B<init_site(>I<siteconf>=B<None>B<,> I<rootdir>=B<None>B<)>>
+is called successfully, this
 will return the place that B<init_site()> called with no arguments
 will first look for a configuration file.  After B<init_site()> has
 been successfully called, this will return the path to the file that
@@ -2198,93 +2229,125 @@ Return the current SiLK data root directory.
 =item silk.site.B<sensors(>I<>B<)>
 
 Return a tuple of valid sensor names.  Implicitly calls
-L<silk.site.B<init_site()>|/init_site> with no arguments if
-L<silk.site.B<have_site_config()>|/have_site_config> returns B<False>.
+L<silk.site.B<init_site()>|/silk.site.B<init_site(>I<siteconf>=B<None>B<,> I<rootdir>=B<None>B<)>>
+with no arguments if
+L<silk.site.B<have_site_config()>|/silk.site.B<have_site_config(>I<>B<)>>
+returns B<False>.
 Returns an empty tuple if no site file is available.
 
 =item silk.site.B<classes(>I<>B<)>
 
 Return a tuple of valid class names.  Implicitly calls
-L<silk.site.B<init_site()>|/init_site> with no arguments if
-L<silk.site.B<have_site_config()>|/have_site_config> returns B<False>.
+L<silk.site.B<init_site()>|/silk.site.B<init_site(>I<siteconf>=B<None>B<,> I<rootdir>=B<None>B<)>>
+with no arguments if
+L<silk.site.B<have_site_config()>|/silk.site.B<have_site_config(>I<>B<)>>
+returns B<False>.
 Returns an empty tuple if no site file is available.
 
 =item silk.site.B<types(>I<class>B<)>
 
 Return a tuple of valid type names for class I<class>.  Implicitly
-calls L<silk.site.B<init_site()>|/init_site> with no arguments if
-L<silk.site.B<have_site_config()>|/have_site_config> returns B<False>.
+calls
+L<silk.site.B<init_site()>|/silk.site.B<init_site(>I<siteconf>=B<None>B<,> I<rootdir>=B<None>B<)>>
+with no arguments if
+L<silk.site.B<have_site_config()>|/silk.site.B<have_site_config(>I<>B<)>>
+returns B<False>.
 Throws B<KeyError> if no site file is available or if I<class> is not
 a valid class.
 
 =item silk.site.B<classtypes(>I<>B<)>
 
 Return a tuple of valid (class name, type name) tuples.  Implicitly
-calls L<silk.site.B<init_site()>|/init_site> with no arguments if
-L<silk.site.B<have_site_config()>|/have_site_config> returns B<False>.
+calls
+L<silk.site.B<init_site()>|/silk.site.B<init_site(>I<siteconf>=B<None>B<,> I<rootdir>=B<None>B<)>>
+with no arguments if
+L<silk.site.B<have_site_config()>|/silk.site.B<have_site_config(>I<>B<)>>
+returns B<False>.
 Returns an empty tuple if no site file is available.
 
 =item silk.site.B<default_class(>I<>B<)>
 
 Return the default class name.  Implicitly calls
-L<silk.site.B<init_site()>|/init_site> with no arguments if
-L<silk.site.B<have_site_config()>|/have_site_config> returns B<False>.
+L<silk.site.B<init_site()>|/silk.site.B<init_site(>I<siteconf>=B<None>B<,> I<rootdir>=B<None>B<)>>
+with no arguments if
+L<silk.site.B<have_site_config()>|/silk.site.B<have_site_config(>I<>B<)>>
+returns B<False>.
 Returns B<None> if no site file is available.
 
 =item silk.site.B<default_types(>I<class>B<)>
 
 Return a tuple of default types associated with class I<class>.
-Implicitly calls L<silk.site.B<init_site()>|/init_site> with no
-arguments if L<silk.site.B<have_site_config()>|/have_site_config>
+Implicitly calls
+L<silk.site.B<init_site()>|/silk.site.B<init_site(>I<siteconf>=B<None>B<,> I<rootdir>=B<None>B<)>>
+with no
+arguments if
+L<silk.site.B<have_site_config()>|/silk.site.B<have_site_config(>I<>B<)>>
 returns B<False>.  Throws B<KeyError> if no site file is available or
 if I<class> is not a valid class.
 
 =item silk.site.B<class_sensors(>I<class>B<)>
 
 Return a tuple of sensors that are in class I<class>.  Implicitly
-calls L<silk.site.B<init_site()>|/init_site> with no arguments if
-L<silk.site.B<have_site_config()>|/have_site_config> returns B<False>.
+calls
+L<silk.site.B<init_site()>|/silk.site.B<init_site(>I<siteconf>=B<None>B<,> I<rootdir>=B<None>B<)>>
+with no arguments if
+L<silk.site.B<have_site_config()>|/silk.site.B<have_site_config(>I<>B<)>>
+returns B<False>.
 Throws B<KeyError> if no site file is available or if I<class> is not
 a valid class.
 
 =item silk.site.B<sensor_classes(>I<sensor>B<)>
 
 Return a tuple of classes that are associated with I<sensor>.
-Implicitly calls L<silk.site.B<init_site()>|/init_site> with no
-arguments if L<silk.site.B<have_site_config()>|/have_site_config>
+Implicitly calls
+L<silk.site.B<init_site()>|/silk.site.B<init_site(>I<siteconf>=B<None>B<,> I<rootdir>=B<None>B<)>>
+with no
+arguments if
+L<silk.site.B<have_site_config()>|/silk.site.B<have_site_config(>I<>B<)>>
 returns B<False>.  Throws B<KeyError> if no site file is available or
 if I<sensor> is not a valid sensor.
 
 =item silk.site.B<sensor_description(>I<sensor>B<)>
 
 Return the sensor description as a string, or B<None> if there is no
-description.  Implicitly calls L<silk.site.B<init_site()>|/init_site>
+description.  Implicitly calls
+L<silk.site.B<init_site()>|/silk.site.B<init_site(>I<siteconf>=B<None>B<,> I<rootdir>=B<None>B<)>>
 with no arguments if
-L<silk.site.B<have_site_config()>|/have_site_config> returns B<False>.
+L<silk.site.B<have_site_config()>|/silk.site.B<have_site_config(>I<>B<)>>
+returns B<False>.
 Throws B<KeyError> if no site file is available or if I<sensor> is not
 a valid sensor.
 
 =item silk.site.B<sensor_id(>I<sensor>B<)>
 
 Return the numeric sensor ID associated with the string I<sensor>.
-Implicitly calls L<silk.site.B<init_site()>|/init_site> with no
-arguments if L<silk.site.B<have_site_config()>|/have_site_config>
+Implicitly calls
+L<silk.site.B<init_site()>|/silk.site.B<init_site(>I<siteconf>=B<None>B<,> I<rootdir>=B<None>B<)>>
+with no
+arguments if
+L<silk.site.B<have_site_config()>|/silk.site.B<have_site_config(>I<>B<)>>
 returns B<False>.  Throws B<KeyError> if no site file is available or
 if I<sensor> is not a valid sensor.
 
 =item silk.site.B<sensor_from_id(>I<id>B<)>
 
 Return the sensor name associated with the numeric sensor ID I<id>.
-Implicitly calls L<silk.site.B<init_site()>|/init_site> with no
-arguments if L<silk.site.B<have_site_config()>|/have_site_config>
+Implicitly calls
+L<silk.site.B<init_site()>|/silk.site.B<init_site(>I<siteconf>=B<None>B<,> I<rootdir>=B<None>B<)>>
+with no
+arguments if
+L<silk.site.B<have_site_config()>|/silk.site.B<have_site_config(>I<>B<)>>
 returns B<False>.  Throws B<KeyError> if no site file is available or
 if I<id> is not a valid sensor identifier.
 
 =item silk.site.B<classtype_id( (>I<class>B<,> I<type>B<) )>
 
 Return the numeric ID associated with the tuple (I<class>, I<type>).
-Implicitly calls L<silk.site.B<init_site()>|/init_site> with no
-arguments if L<silk.site.B<have_site_config()>|/have_site_config>
+Implicitly calls
+L<silk.site.B<init_site()>|/silk.site.B<init_site(>I<siteconf>=B<None>B<,> I<rootdir>=B<None>B<)>>
+with no
+arguments if
+L<silk.site.B<have_site_config()>|/silk.site.B<have_site_config(>I<>B<)>>
 returns B<False>.  Throws B<KeyError> if no site file is available, if
 I<class> is not a valid class, or if I<type> is not a valid type in
 I<class>.
@@ -2292,9 +2355,11 @@ I<class>.
 =item silk.site.B<classtype_from_id(>I<id>B<)>
 
 Return the (I<class>, I<type>) name pair associated with the numeric
-ID I<id>.  Implicitly calls L<silk.site.B<init_site()>|/init_site>
+ID I<id>.  Implicitly calls
+L<silk.site.B<init_site()>|/silk.site.B<init_site(>I<siteconf>=B<None>B<,> I<rootdir>=B<None>B<)>>
 with no arguments if
-L<silk.site.B<have_site_config()>|/have_site_config> returns B<False>.
+L<silk.site.B<have_site_config()>|/silk.site.B<have_site_config(>I<>B<)>>
+returns B<False>.
 Throws B<KeyError> if no site file is available or if I<id> is not a
 valid identifier.
 
@@ -2302,13 +2367,19 @@ valid identifier.
 
 Return an iterator over file names in a SiLK repository.  The
 repository is assumed to be in the data root directory that is
-returned by L<silk.site.B<get_data_rootdir()>|/get_data_rootdir> and
+returned by
+L<silk.site.B<get_data_rootdir()>|/silk.site.B<get_data_rootdir(>I<>B<)>>
+and
 to conform to the format of the current site configuration.  This
-function implicitly calls L<silk.site.B<init_site()>|/init_site> with
-no arguments if L<silk.site.B<have_site_config()>|/have_site_config>
+function implicitly calls
+L<silk.site.B<init_site()>|/silk.site.B<init_site(>I<siteconf>=B<None>B<,> I<rootdir>=B<None>B<)>>
+with
+no arguments if
+L<silk.site.B<have_site_config()>|/silk.site.B<have_site_config(>I<>B<)>>
 returns B<False>.  See also
-L<silk.site.B<repository_full_iter()>|/repository_full_iter> and
-L<silk.site.B<repository_silkfile_iter()>|/repository_silkfile_iter>.
+L<silk.site.B<repository_full_iter()>|/silk.site.B<repository_full_iter(>I<start>=B<None>B<,> I<end>=B<None>B<,> I<classname>=B<None>B<,> I<types>=B<None>B<,> I<classtypes>=B<None>B<,> I<sensors>=B<None>B<)>>
+and
+L<silk.site.B<repository_silkfile_iter()>|/silk.site.B<repository_silkfile_iter(>I<start>=B<None>B<,> I<end>=B<None>B<,> I<classname>=B<None>B<,> I<types>=B<None>B<,> I<classtypes>=B<None>B<,> I<sensors>=B<None>B<)>>.
 
 The following types are accepted for I<start> and I<end>:
 
@@ -2328,7 +2399,7 @@ precision
 
 a string in the SiLK date format C<YYYY/MM/DD[:HH]>, where the
 timezone depends on how SiLK was compiled; check the value of
-L<silk.B<get_configuration("TIMEZONE_SUPPORT")>|get_configuration>.
+L<silk.B<get_configuration("TIMEZONE_SUPPORT")>|/silk.B<get_configuration(>I<name>=B<None>B<)>>.
 
 =back
 
@@ -2374,9 +2445,11 @@ parameters or use the I<classtypes> parameter.  It is an error to use
 I<classname> or I<types> when I<classtypes> is specified.
 
 The I<classname> parameter should be a named class that appears in
-L<silk.site.B<classes()>|/classes>.  If neither I<classname> nor
+L<silk.site.B<classes()>|/silk.site.B<classes(>I<>B<)>>.
+If neither I<classname> nor
 I<classtypes> are specified, I<classname> will default to that
-returned by L<silk.site.B<default_class()>|/default_class>.
+returned by
+L<silk.site.B<default_class()>|/silk.site.B<default_class(>I<>B<)>>.
 
 The I<types> parameter should be either a named type that appears in
 silk.site.B<types(>I<classname>B<)> or a sequence of said named types.
@@ -2385,23 +2458,26 @@ default to silk.site.B<default_types(>I<classname>B<)>.
 
 The I<classtypes> parameter should be a sequence of (I<classname>,
 I<type>) pairs.  These pairs must be in the sequence returned by
-L<silk.site.B<classtypes()>|/classtypes>.
+L<silk.site.B<classtypes()>|/silk.site.B<classtypes(>I<>B<)>>.
 
 The I<sensors> parameter should be either a sensor name or a sequence
 of sensor names from the sequence returned by
-L<silk.site.B<sensors()>|/sensors>.  If I<sensors> is left
+L<silk.site.B<sensors()>|/silk.site.B<sensors(>I<>B<)>>.  If
+I<sensors> is left
 unspecified, it will default to the list of sensors supported by the
 given class(es).
 
 =item silk.site.B<repository_silkfile_iter(>I<start>=B<None>B<,> I<end>=B<None>B<,> I<classname>=B<None>B<,> I<types>=B<None>B<,> I<classtypes>=B<None>B<,> I<sensors>=B<None>B<)>
 
-Works similarly to L<silk.site.B<repository_iter()>|/repository_iter>
+Works similarly to
+L<silk.site.B<repository_iter()>|/silk.site.B<repository_iter(>I<start>=B<None>B<,> I<end>=B<None>B<,> I<classname>=B<None>B<,> I<types>=B<None>B<,> I<classtypes>=B<None>B<,> I<sensors>=B<None>B<)>>
 except the file names that B<repository_iter()> would return are
 opened as L<B<SilkFile>|/SilkFile Object> objects and returned.
 
 =item silk.site.B<repository_full_iter(>I<start>=B<None>B<,> I<end>=B<None>B<,> I<classname>=B<None>B<,> I<types>=B<None>B<,> I<classtypes>=B<None>B<,> I<sensors>=B<None>B<)>
 
-Works similarly to L<silk.site.B<repository_iter()>|/repository_iter>.
+Works similarly to
+L<silk.site.B<repository_iter()>|/silk.site.B<repository_iter(>I<start>=B<None>B<,> I<end>=B<None>B<,> I<classname>=B<None>B<,> I<types>=B<None>B<,> I<classtypes>=B<None>B<,> I<sensors>=B<None>B<)>>.
 Unlike B<repository_iter()>, this iterator's output will include the
 names of files that do not exist in the repository.  The iterator
 returns (I<filename>, I<bool>) pairs where the I<bool> value
@@ -2566,7 +2642,8 @@ suite.
 
 This environment variable contains the location of the site
 configuration file, F<silk.conf>.  This variable will be used by
-L<silk.site.B<init_site()>|/init_site> if no argument is passed to
+L<silk.site.B<init_site()>|/silk.site.B<init_site(>I<siteconf>=B<None>B<,> I<rootdir>=B<None>B<)>>
+if no argument is passed to
 that method.
 
 =item SILK_DATA_ROOTDIR
@@ -2576,14 +2653,16 @@ SiLK Flow files is maintained, overriding the location that is
 compiled into the tools (@SILK_DATA_ROOTDIR@).  This variable will be
 used by the L<B<FGlob>|/FGlob Object> constructor unless an explicit
 B<data_rootdir> value is specified.  In addition, the
-L<silk.site.B<init_site()>|/init_site> may search for the site
+L<silk.site.B<init_site()>|/silk.site.B<init_site(>I<siteconf>=B<None>B<,> I<rootdir>=B<None>B<)>>
+may search for the site
 configuration file, F<silk.conf>, in this directory.
 
 =item SILK_COUNTRY_CODES
 
 This environment variable gives the location of the country code
 mapping file that the
-L<silk.B<init_country_codes()>|/init_country_codes> function will use
+L<silk.B<init_country_codes()>|/silk.B<init_country_codes(>I<filename>=B<None>B<)>>
+function will use
 when no name is given to that function.  The value of this environment
 variable may be a complete path or a file relative to the SILK_PATH.
 See the L</FILES> section for standard locations of this file.
@@ -2628,9 +2707,11 @@ PATH.
 
 When a SiLK installation is built to use the local timezone (to
 determine if this is the case, check the value of
-L<silk.B<get_configuration("TIMEZONE_SUPPORT")>|get_configuration>),
+L<silk.B<get_configuration("TIMEZONE_SUPPORT")>|/silk.B<get_configuration(>I<name>=B<None>B<)>>),
 the value of the TZ environment variable determines the timezone in
-which L<silk.site.B<repository_iter()>|/repository_iter> parses
+which
+L<silk.site.B<repository_iter()>|/silk.site.B<repository_iter(>I<start>=B<None>B<,> I<end>=B<None>B<,> I<classname>=B<None>B<,> I<types>=B<None>B<,> I<classtypes>=B<None>B<,> I<sensors>=B<None>B<)>>
+parses
 timestamp strings.  If the TZ environment variable is not set, the
 default timezone is used.  Setting TZ to 0 or the empty string causes
 timestamps to be parsed as UTC.  The value of the TZ environment
@@ -2657,7 +2738,7 @@ information on the TZ variable, see B<tzset(3)>.
 
 Possible locations for the SiLK site configuration file which are
 checked when no argument is passed to
-L<silk.site.B<init_site()>|/init_site>.
+L<silk.site.B<init_site()>|/silk.site.B<init_site(>I<siteconf>=B<None>B<,> I<rootdir>=B<None>B<)>>.
 
 =item F<${SILK_COUNTRY_CODES}>
 
@@ -2670,7 +2751,8 @@ L<silk.site.B<init_site()>|/init_site>.
 =item F<@prefix@/share/country_codes.pmap>
 
 Possible locations for the country code mapping file used by
-L<silk.B<init_country_codes()>|/init_country_codes> when no name is
+L<silk.B<init_country_codes()>|/silk.B<init_country_codes(>I<filename>=B<None>B<)>>
+when no name is
 given to the function.
 
 =item F<${SILK_DATA_ROOTDIR}/>
@@ -2678,7 +2760,8 @@ given to the function.
 =item F<@SILK_DATA_ROOTDIR@/>
 
 Locations for the root directory of the data repository.  The
-L<silk.site.B<init_site()>|/init_site> may search for the site
+L<silk.site.B<init_site()>|/silk.site.B<init_site(>I<siteconf>=B<None>B<,> I<rootdir>=B<None>B<)>>
+may search for the site
 configuration file, F<silk.conf>, in this directory.
 
 =back
@@ -2693,7 +2776,7 @@ B<python(1)>, B<gzip(1)>, B<yaf(1)>, L<http://docs.python.org/>
 
 =cut
 
-$SiLK: pysilk.pod 7ed42ea5166b 2014-08-08 14:53:18Z mwd $
+$SiLK: pysilk.pod 290f8cd333a8 2015-01-14 22:58:34Z mthomas $
 
 Local Variables:
 mode:text

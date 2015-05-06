@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2001-2014 by Carnegie Mellon University.
+** Copyright (C) 2001-2015 by Carnegie Mellon University.
 **
 ** @OPENSOURCE_HEADER_START@
 **
@@ -59,11 +59,11 @@
 
 #include <silk/silk.h>
 
-RCSIDENT("$SiLK: sktempfile.c cd598eff62b9 2014-09-21 19:31:29Z mthomas $");
+RCSIDENT("$SiLK: sktempfile.c 68120faf4b40 2015-02-19 21:10:20Z mthomas $");
 
-#include <silk/utils.h>
-#include <silk/skvector.h>
 #include <silk/sktempfile.h>
+#include <silk/skvector.h>
+#include <silk/utils.h>
 
 
 /* TYPDEFS AND DEFINES */
@@ -83,6 +83,9 @@ struct sk_tempfilectx_st {
 
     /* whether to enable debugging */
     unsigned     print_debug :1;
+
+    /* true when in teardown; avoids some print_debug messages */
+    unsigned     in_teardown :1;
 };
 
 
@@ -208,6 +211,10 @@ skTempFileTeardown(
         t = *tmpctx;
         *tmpctx = NULL;
 
+        t->in_teardown = 1;
+
+        TEMPFILE_DEBUG1(t, "Tearing down '%s'...", t->tf_template);
+
         if (t->tf_names) {
             for (i = skVectorGetCount(t->tf_names)-1; i >= 0; --i) {
                 skTempFileRemove(t, i);
@@ -234,9 +241,18 @@ skTempFileCreate(
     char *name;
     int fd;
 
+    if (NULL == tmpctx || NULL == tmp_idx) {
+        errno = 0;
+        return NULL;
+    }
+
     /* copy template name */
     name = strdup(tmpctx->tf_template);
     if (NULL == name) {
+        saved_errno = errno;
+        TEMPFILE_DEBUG1(tmpctx, "Failed to strdup(): %s",
+                        strerror(errno));
+        errno = saved_errno;
         return NULL;
     }
 
@@ -251,13 +267,14 @@ skTempFileCreate(
         return NULL;
     }
 
-    /* convert descriptor to pointer */
-    fp = fdopen(fd, "w");
+    /* convert descriptor to FILE pointer */
+    fp = fdopen(fd, "w+");
     if (fp == NULL) {
         saved_errno = errno;
         TEMPFILE_DEBUG3(tmpctx, "Failed to fdopen(%d ['%s']): %s",
                         fd, name, strerror(errno));
         close(fd);
+        unlink(name);
         free(name);
         errno = saved_errno;
         return NULL;
@@ -268,11 +285,13 @@ skTempFileCreate(
         saved_errno = errno;
         TEMPFILE_DEBUG1(tmpctx, "Failed to skVectorAppendValue(): %s",
                         strerror(errno));
-        close(fd);
+        fclose(fp);
+        unlink(name);
         free(name);
         errno = saved_errno;
         return NULL;
     }
+
     *tmp_idx = skVectorGetCount(tmpctx->tf_names) - 1;
 
     TEMPFILE_DEBUG2(tmpctx, "Created new temp %d => '%s'", *tmp_idx, name);
@@ -280,7 +299,104 @@ skTempFileCreate(
     if (out_name) {
         *out_name = name;
     }
+
     return fp;
+}
+
+
+/* create new file as an skstream */
+skstream_t *
+skTempFileCreateStream(
+    sk_tempfilectx_t   *tmpctx,
+    int                *tmp_idx)
+{
+    char errbuf[2 * PATH_MAX];
+    skstream_t *stream = NULL;
+    sk_file_header_t *hdr;
+    sk_compmethod_t compmethod;
+    const char *name;
+    ssize_t rv;
+    int saved_errno;
+
+    compmethod = SK_COMPMETHOD_BEST;
+
+    if (NULL == tmpctx || NULL == tmp_idx) {
+        errno = 0;
+        return NULL;
+    }
+
+    /* should only fail due to an allocation error */
+    if (skStreamCreate(&stream, SK_IO_WRITE, SK_CONTENT_SILK)) {
+        saved_errno = errno;
+        TEMPFILE_DEBUG1(tmpctx, "Cannot create stream object: %s",
+                        strerror(errno));
+        goto ERROR;
+    }
+
+    /* could fail due to an allocation error */
+    if ((rv = skStreamBind(stream, tmpctx->tf_template))) {
+        saved_errno = skStreamGetLastErrno(stream);
+        skStreamLastErrMessage(stream, rv, errbuf, sizeof(errbuf));
+        TEMPFILE_DEBUG1(tmpctx, "Cannot bind name to stream: %s", errbuf);
+        goto ERROR;
+    }
+
+    /* setting the header normally should not fail */
+    hdr = skStreamGetSilkHeader(stream);
+    if ((rv = skHeaderSetFileFormat(hdr, FT_TEMPFILE))
+        || (rv = skHeaderSetRecordVersion(hdr, 1))
+        || (rv = skHeaderSetRecordLength(hdr, 1))
+        || (rv = skHeaderSetCompressionMethod(hdr, compmethod)))
+    {
+        saved_errno = skStreamGetLastErrno(stream);
+        skStreamLastErrMessage(stream, rv, errbuf, sizeof(errbuf));
+        TEMPFILE_DEBUG1(tmpctx, "Cannot set file header: %s", errbuf);
+        goto ERROR;
+    }
+
+    /* open the file */
+    if ((rv = skStreamMakeTemp(stream))) {
+        saved_errno = skStreamGetLastErrno(stream);
+        skStreamLastErrMessage(stream, rv, errbuf, sizeof(errbuf));
+        TEMPFILE_DEBUG1(tmpctx, "Cannot create temporary file: %s", errbuf);
+        goto ERROR;
+    }
+
+    /* write the header */
+    if ((rv = skStreamWriteSilkHeader(stream))) {
+        saved_errno = skStreamGetLastErrno(stream);
+        skStreamLastErrMessage(stream, rv, errbuf, sizeof(errbuf));
+        TEMPFILE_DEBUG1(tmpctx, "Cannot write the file's header: %s", errbuf);
+        unlink(skStreamGetPathname(stream));
+        goto ERROR;
+    }
+
+    /* copy the file's name and append it to the vector */
+    name = strdup(skStreamGetPathname(stream));
+    if (NULL == name) {
+        saved_errno = errno;
+        TEMPFILE_DEBUG1(tmpctx, "Cannot copy string: %s", strerror(errno));
+        unlink(skStreamGetPathname(stream));
+        goto ERROR;
+    }
+    if (skVectorAppendValue(tmpctx->tf_names, &name)) {
+        saved_errno = errno;
+        TEMPFILE_DEBUG1(tmpctx, "Cannot append to vector: %s",
+                        strerror(errno));
+        unlink(name);
+        goto ERROR;
+    }
+
+    *tmp_idx = skVectorGetCount(tmpctx->tf_names) - 1;
+
+    TEMPFILE_DEBUG2(tmpctx, "Created new temp %d => '%s'", *tmp_idx, name);
+
+    return stream;
+
+  ERROR:
+    skStreamDestroy(&stream);
+    errno = saved_errno;
+    return NULL;
 }
 
 
@@ -291,6 +407,8 @@ skTempFileGetName(
     int                     tmp_idx)
 {
     char **name;
+
+    assert(tmpctx);
 
     name = (char**)skVectorGetValuePointer(tmpctx->tf_names, tmp_idx);
     if (name && *name) {
@@ -312,9 +430,73 @@ skTempFileOpen(
     TEMPFILE_DEBUG2(tmpctx, "Opening existing temp %d => '%s'", tmp_idx, name);
 
     if (name == sktempfile_null) {
+        errno = 0;
         return NULL;
     }
-    return fopen(name, "r");
+    return fopen(name, "r+");
+}
+
+
+skstream_t *
+skTempFileOpenStream(
+    const sk_tempfilectx_t *tmpctx,
+    int                     tmp_idx)
+{
+    char errbuf[2 * PATH_MAX];
+    skstream_t *stream = NULL;
+    sk_file_header_t *hdr;
+    const char *name;
+    ssize_t rv;
+    int saved_errno;
+
+    name = skTempFileGetName(tmpctx, tmp_idx);
+    TEMPFILE_DEBUG2(tmpctx, "Opening existing temp %d => '%s'", tmp_idx, name);
+
+    if (name == sktempfile_null) {
+        errno = 0;
+        return NULL;
+    }
+
+    if ((rv = skStreamCreate(&stream, SK_IO_READ, SK_CONTENT_SILK))) {
+        saved_errno = errno;
+        TEMPFILE_DEBUG1(tmpctx, "Cannot create stream object: %s",
+                        strerror(errno));
+        goto ERROR;
+    }
+
+    if ((rv = skStreamBind(stream, name))) {
+        saved_errno = skStreamGetLastErrno(stream);
+        skStreamLastErrMessage(stream, rv, errbuf, sizeof(errbuf));
+        TEMPFILE_DEBUG1(tmpctx, "Cannot bind name to stream: %s", errbuf);
+        goto ERROR;
+    }
+
+    if ((rv = skStreamOpen(stream))) {
+        saved_errno = skStreamGetLastErrno(stream);
+        skStreamLastErrMessage(stream, rv, errbuf, sizeof(errbuf));
+        TEMPFILE_DEBUG1(tmpctx, "Cannot open existing file: %s", errbuf);
+        goto ERROR;
+    }
+
+    if ((rv = skStreamReadSilkHeader(stream, &hdr))) {
+        saved_errno = skStreamGetLastErrno(stream);
+        skStreamLastErrMessage(stream, rv, errbuf, sizeof(errbuf));
+        TEMPFILE_DEBUG1(tmpctx, "Cannot read the file's header: %s", errbuf);
+        goto ERROR;
+    }
+
+    if ((rv = skStreamCheckSilkHeader(stream, FT_TEMPFILE, 1, 1, NULL))) {
+        saved_errno = 0;
+        TEMPFILE_DEBUG1(tmpctx, "Unexpected header on file: %s", errbuf);
+        goto ERROR;
+    }
+
+    return stream;
+
+  ERROR:
+    skStreamDestroy(&stream);
+    errno = saved_errno;
+    return NULL;
 }
 
 
@@ -328,7 +510,9 @@ skTempFileRemove(
 
     name = skTempFileGetName(tmpctx, tmp_idx);
     if (name == sktempfile_null) {
-        TEMPFILE_DEBUG2(tmpctx, "Removing temp %d => '%s'", tmp_idx, name);
+        if (!tmpctx->in_teardown) {
+            TEMPFILE_DEBUG2(tmpctx, "Removing temp %d => '%s'", tmp_idx, name);
+        }
         return;
     }
 
@@ -365,7 +549,7 @@ skTempFileWriteBuffer(
     int saved_errno = 0;
     FILE* temp_filep = NULL;
     char *name;
-    int rv = -1; /* return value */
+    ssize_t rv = -1; /* return value */
 
     temp_filep = skTempFileCreate(tmpctx, tmp_idx, &name);
     if (temp_filep == NULL) {
@@ -373,8 +557,11 @@ skTempFileWriteBuffer(
         goto END;
     }
 
-    TEMPFILE_DEBUG3(tmpctx, "Writing %" PRIu32 " records to temp %d => '%s'",
-                    rec_count, *tmp_idx, name);
+    TEMPFILE_DEBUG4(
+        tmpctx,
+        "Writing %" PRIu32 " %" PRIu32 "-byte records to temp %d => '%s'",
+        rec_count, rec_size, *tmp_idx, name);
+
     if (rec_count != fwrite(rec_buffer, rec_size, rec_count, temp_filep)) {
         /* error writing */
         saved_errno = errno;
@@ -401,6 +588,76 @@ skTempFileWriteBuffer(
     }
     errno = saved_errno;
     return rv;
+}
+
+
+int
+skTempFileWriteBufferStream(
+    sk_tempfilectx_t   *tmpctx,
+    int                *tmp_idx,
+    const void         *rec_buffer,
+    uint32_t            rec_size,
+    uint32_t            rec_count)
+{
+    char errbuf[2 * PATH_MAX];
+    int saved_errno = 0;
+    skstream_t *stream = NULL;
+    uint64_t bytes;
+    size_t part;
+    const uint8_t *b;
+    ssize_t rv = -1; /* return value */
+
+    stream = skTempFileCreateStream(tmpctx, tmp_idx);
+    if (NULL == stream) {
+        return -1;
+    }
+
+    TEMPFILE_DEBUG4(
+        tmpctx,
+        "Writing %" PRIu32 " %" PRIu32 "-byte records to temp %d => '%s'",
+        rec_count, rec_size, *tmp_idx, skStreamGetPathname(stream));
+
+    bytes = rec_size * rec_count;
+    b = (const uint8_t*)rec_buffer;
+    do {
+        part = (bytes > SSIZE_MAX) ? SSIZE_MAX : bytes;
+        rv = skStreamWrite(stream, b, part);
+        if (rv != (ssize_t)part) {
+            /* error writing */
+            saved_errno = skStreamGetLastErrno(stream);
+            skStreamLastErrMessage(stream, rv, errbuf, sizeof(errbuf));
+            TEMPFILE_DEBUG2(
+                tmpctx, "Cannot write %" SK_PRIdZ " bytes to stream: %s",
+                part, errbuf);
+            goto ERROR;
+        }
+        bytes -= part;
+        b += part;
+    } while (bytes > 0);
+
+    rv = skStreamClose(stream);
+    if (rv) {
+        saved_errno = skStreamGetLastErrno(stream);
+        skStreamLastErrMessage(stream, rv, errbuf, sizeof(errbuf));
+        TEMPFILE_DEBUG1(tmpctx, "Cannot write close stream: %s", errbuf);
+        goto ERROR;
+    }
+
+    TEMPFILE_DEBUG4(
+        tmpctx, "Stored %" PRIu64 " bytes as %" PRId64 " bytes (%.3f%%) in '%s'",
+        (uint64_t)rec_size * (uint64_t)rec_count,
+        skFileSize(skStreamGetPathname(stream)),
+        ((double)skFileSize(skStreamGetPathname(stream))
+         / (double)rec_size * 100.0 / (uint64_t)rec_count),
+        skStreamGetPathname(stream));
+
+    skStreamDestroy(&stream);
+    return 0;
+
+  ERROR:
+    skStreamDestroy(&stream);
+    errno = saved_errno;
+    return -1;
 }
 
 

@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2006-2014 by Carnegie Mellon University.
+** Copyright (C) 2006-2015 by Carnegie Mellon University.
 **
 ** @OPENSOURCE_HEADER_START@
 **
@@ -62,7 +62,7 @@
 
 #include <silk/silk.h>
 
-RCSIDENT("$SiLK: skheader.c cd598eff62b9 2014-09-21 19:31:29Z mthomas $");
+RCSIDENT("$SiLK: skheader.c b7b8edebba12 2015-01-05 18:05:21Z mthomas $");
 
 #include <silk/skbag.h>
 #include <silk/skheader.h>
@@ -308,6 +308,11 @@ skHeaderCopy(
 
             rv = skHeaderAddEntry(dst_hdr, dst_hentry);
             if (rv) {
+                sk_hentry_callback_fn_t free_fn;
+                free_fn = ((htype && htype->het_free)
+                           ? htype->het_free
+                           : &skHentryDefaultFree);
+                free_fn(dst_hentry);
                 break;
             }
 
@@ -365,6 +370,11 @@ skHeaderCopyEntries(
 
         rv = skHeaderAddEntry(dst_hdr, dst_hentry);
         if (rv) {
+            sk_hentry_callback_fn_t free_fn;
+            free_fn = ((htype && htype->het_free)
+                       ? htype->het_free
+                       : &skHentryDefaultFree);
+            free_fn(dst_hentry);
             break;
         }
     } while (!HENTRY_SPEC_EOH(src_hentry));
@@ -1156,7 +1166,9 @@ skHeaderSetRecordLength(
     sk_file_header_t   *hdr,
     size_t              rec_len)
 {
-    if (hdr == NULL)
+    if (hdr == NULL) {
+        return SKHEADER_ERR_NULL_ARGUMENT;
+    }
 
     /* Do not modify a locked header */
     if (hdr->header_lock) {

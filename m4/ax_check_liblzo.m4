@@ -1,4 +1,4 @@
-dnl Copyright (C) 2004-2014 by Carnegie Mellon University.
+dnl Copyright (C) 2004-2015 by Carnegie Mellon University.
 dnl
 dnl @OPENSOURCE_HEADER_START@
 dnl
@@ -48,7 +48,7 @@ dnl contract clause at 252.227.7013.
 dnl
 dnl @OPENSOURCE_HEADER_END@
 
-dnl RCSIDENT("$SiLK: ax_check_liblzo.m4 1c87fe1a22f7 2014-01-06 15:24:30Z mthomas $")
+dnl RCSIDENT("$SiLK: ax_check_liblzo.m4 b7b8edebba12 2015-01-05 18:05:21Z mthomas $")
 
 
 # ---------------------------------------------------------------------------
@@ -60,8 +60,8 @@ dnl RCSIDENT("$SiLK: ax_check_liblzo.m4 1c87fe1a22f7 2014-01-06 15:24:30Z mthoma
 #    "lzo" subdirectory (DarwinPorts uses an lzo2 subdirectory) while
 #    version 1 did not.
 #
+#    Substitutions: SK_ENABLE_LZO
 #    Output defines: ENABLE_LZO, LZO_HEADER_NAME
-#    Conditionals: HAVE_LZO
 #
 AC_DEFUN([AX_CHECK_LIBLZO],[
     ENABLE_LZO=0
@@ -208,7 +208,7 @@ lzo1x_1_15_compress (src, src_len, dst, dst_len, wrkmem);
         [Define to 1 to build with support for LZO compression.
          Define to 0 otherwise.  Requires the liblzo or liblzo2 library
          and the <lzo1x.h> header file.])
-    AM_CONDITIONAL(HAVE_LZO,  [test "x$ENABLE_LZO" = x1])
+    AC_SUBST([SK_ENABLE_LZO],[$ENABLE_LZO])
 ])# AX_CHECK_LIBLZO
 
 dnl Local Variables:

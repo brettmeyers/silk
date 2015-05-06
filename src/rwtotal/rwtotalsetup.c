@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2001-2014 by Carnegie Mellon University.
+** Copyright (C) 2001-2015 by Carnegie Mellon University.
 **
 ** @OPENSOURCE_HEADER_START@
 **
@@ -58,7 +58,7 @@
 
 #include <silk/silk.h>
 
-RCSIDENT("$SiLK: rwtotalsetup.c cd598eff62b9 2014-09-21 19:31:29Z mthomas $");
+RCSIDENT("$SiLK: rwtotalsetup.c b7b8edebba12 2015-01-05 18:05:21Z mthomas $");
 
 #include "rwtotal.h"
 
@@ -192,7 +192,7 @@ appUsageLong(
      "\tare given on the command line, flows are read from STDIN.\n")
 
     FILE *fh = USAGE_FH;
-    int i;
+    unsigned int i;
 
     fprintf(fh, "%s %s", skAppName(), USAGE_MSG);
     fprintf(fh, "\nKEY:\n");

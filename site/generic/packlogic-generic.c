@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2005-2014 by Carnegie Mellon University.
+** Copyright (C) 2005-2015 by Carnegie Mellon University.
 **
 ** @OPENSOURCE_HEADER_START@
 **
@@ -57,7 +57,7 @@
 
 #include <silk/silk.h>
 
-RCSIDENT("$SiLK: packlogic-generic.c cd598eff62b9 2014-09-21 19:31:29Z mthomas $");
+RCSIDENT("$SiLK: packlogic-generic.c b7b8edebba12 2015-01-05 18:05:21Z mthomas $");
 
 #include <silk/rwflowpack.h>
 #include <silk/rwrec.h>
@@ -305,29 +305,34 @@ packLogicVerifySensor(
     /* Verify that we have enough information to determine the
      * flowtype for every flow.  These are the rules:
      *
-     * 1. Either external-interface or external-ipblock must be specified.
+     * 1. One of external-interface, external-ipblock, or
+     * external-ipset must be specified.
      *
-     * 2. You cannot mix ipblocks and interfaces, with the excption
-     * that a null-interface which is always allowed.
+     * 2. You cannot mix interfaces, ipblocks, and ipsets, with the
+     * excption that a null-interface which is always allowed.
      *
      * 3. Only one network may claim the remainder.
      *
-     * 4. Using remainder for an ipblock requires that another
-     * interface has set an IPblock
+     * 4. Using remainder for an ipblock or ipset requires that
+     * another interface has set an IPblock or an IPset.
      */
     switch (sensor->decider[NETWORK_EXTERNAL].nd_type) {
       case SKPC_UNSET:
         /* It is an error when neither SNMP interfaces nor IP-blocks
          * were specified for the external network. */
         skAppPrintErr(("Cannot verify sensor '%s':\n"
-                       "\tMust specify %s-interface or %s-ipblock"),
+                       "\tMust specify %s-interface, %s-ipblock, or %s-ipset"),
                       sensor->sensor_name,
+                      net_names[NETWORK_EXTERNAL],
                       net_names[NETWORK_EXTERNAL],
                       net_names[NETWORK_EXTERNAL]);
         return -1;
 
       case SKPC_NEG_IPBLOCK:
         skAppPrintErr("Negated IPblock logic not implemented");
+        exit(EXIT_FAILURE);
+      case SKPC_NEG_IPSET:
+        skAppPrintErr("Negated IPset logic not implemented");
         exit(EXIT_FAILURE);
 
       case SKPC_IPBLOCK:
@@ -343,12 +348,25 @@ packLogicVerifySensor(
           case SKPC_NEG_IPBLOCK:
             skAppPrintErr("Negated IPblock logic not implemented");
             exit(EXIT_FAILURE);
+          case SKPC_NEG_IPSET:
+            skAppPrintErr("Negated IPset logic not implemented");
+            exit(EXIT_FAILURE);
 
           case SKPC_INTERFACE:
           case SKPC_REMAIN_INTERFACE:
             /* Bad mix */
             skAppPrintErr(("Cannot verify sensor '%s':\n"
                            "\tCannot mix %s-ipblock and %s-interface"),
+                          sensor->sensor_name,
+                          net_names[NETWORK_EXTERNAL],
+                          net_names[NETWORK_INTERNAL]);
+            return -1;
+
+          case SKPC_IPSET:
+          case SKPC_REMAIN_IPSET:
+            /* Bad mix */
+            skAppPrintErr(("Cannot verify sensor '%s':\n"
+                           "\tCannot mix %s-ipblock and %s-ipset"),
                           sensor->sensor_name,
                           net_names[NETWORK_EXTERNAL],
                           net_names[NETWORK_INTERNAL]);
@@ -365,6 +383,9 @@ packLogicVerifySensor(
 
           case SKPC_NEG_IPBLOCK:
             skAppPrintErr("Negated IPblock logic not implemented");
+            exit(EXIT_FAILURE);
+          case SKPC_NEG_IPSET:
+            skAppPrintErr("Negated IPset logic not implemented");
             exit(EXIT_FAILURE);
 
           case SKPC_REMAIN_IPBLOCK:
@@ -383,6 +404,16 @@ packLogicVerifySensor(
             /* Bad mix */
             skAppPrintErr(("Cannot verify sensor '%s':\n"
                            "\tCannot mix %s-ipblock and %s-interface"),
+                          sensor->sensor_name,
+                          net_names[NETWORK_EXTERNAL],
+                          net_names[NETWORK_INTERNAL]);
+            return -1;
+
+          case SKPC_IPSET:
+          case SKPC_REMAIN_IPSET:
+            /* Bad mix */
+            skAppPrintErr(("Cannot verify sensor '%s':\n"
+                           "\tCannot mix %s-ipblock and %s-ipset"),
                           sensor->sensor_name,
                           net_names[NETWORK_EXTERNAL],
                           net_names[NETWORK_INTERNAL]);
@@ -409,6 +440,16 @@ packLogicVerifySensor(
                               net_names[NETWORK_EXTERNAL],
                               net_names[NETWORK_NULL]);
                 return -1;
+              case SKPC_IPSET:
+              case SKPC_NEG_IPSET:
+              case SKPC_REMAIN_IPSET:
+                /* Bad mix */
+                skAppPrintErr(("Cannot verify sensor '%s':\n"
+                               "\tCannot mix %s-interface and %s-ipset"),
+                              sensor->sensor_name,
+                              net_names[NETWORK_EXTERNAL],
+                              net_names[NETWORK_NULL]);
+                return -1;
               default:
                 break;
             }
@@ -420,6 +461,103 @@ packLogicVerifySensor(
             /* Bad mix */
             skAppPrintErr(("Cannot verify sensor '%s':\n"
                            "\tCannot mix %s-interface and %s-ipblock"),
+                          sensor->sensor_name,
+                          net_names[NETWORK_EXTERNAL],
+                          net_names[NETWORK_INTERNAL]);
+            return -1;
+
+          case SKPC_IPSET:
+          case SKPC_NEG_IPSET:
+          case SKPC_REMAIN_IPSET:
+            /* Bad mix */
+            skAppPrintErr(("Cannot verify sensor '%s':\n"
+                           "\tCannot mix %s-interface and %s-ipset"),
+                          sensor->sensor_name,
+                          net_names[NETWORK_EXTERNAL],
+                          net_names[NETWORK_INTERNAL]);
+            return -1;
+        }
+        break;
+
+      case SKPC_IPSET:
+        /* Fine as long as INTERNAL is either empty or also contains
+         * IPsets */
+        switch (sensor->decider[NETWORK_INTERNAL].nd_type) {
+          case SKPC_UNSET:
+          case SKPC_IPSET:
+          case SKPC_REMAIN_IPSET:
+            /* These are fine */
+            break;
+
+          case SKPC_NEG_IPSET:
+            skAppPrintErr("Negated IPset logic not implemented");
+            exit(EXIT_FAILURE);
+          case SKPC_NEG_IPBLOCK:
+            skAppPrintErr("Negated IPblock logic not implemented");
+            exit(EXIT_FAILURE);
+
+          case SKPC_INTERFACE:
+          case SKPC_REMAIN_INTERFACE:
+            /* Bad mix */
+            skAppPrintErr(("Cannot verify sensor '%s':\n"
+                           "\tCannot mix %s-ipset and %s-interface"),
+                          sensor->sensor_name,
+                          net_names[NETWORK_EXTERNAL],
+                          net_names[NETWORK_INTERNAL]);
+            return -1;
+
+          case SKPC_IPBLOCK:
+          case SKPC_REMAIN_IPBLOCK:
+            /* Bad mix */
+            skAppPrintErr(("Cannot verify sensor '%s':\n"
+                           "\tCannot mix %s-ipset and %s-ipblock"),
+                          sensor->sensor_name,
+                          net_names[NETWORK_EXTERNAL],
+                          net_names[NETWORK_INTERNAL]);
+            return -1;
+        }
+        break;
+
+      case SKPC_REMAIN_IPSET:
+        switch (sensor->decider[NETWORK_INTERNAL].nd_type) {
+          case SKPC_UNSET:
+            /* Accept for now, though this will be an error if
+             * NETWORK_NULL does not define an IPset */
+            break;
+
+          case SKPC_NEG_IPSET:
+            skAppPrintErr("Negated IPset logic not implemented");
+            exit(EXIT_FAILURE);
+          case SKPC_NEG_IPBLOCK:
+            skAppPrintErr("Negated IPblock logic not implemented");
+            exit(EXIT_FAILURE);
+
+          case SKPC_REMAIN_IPSET:
+            /* Cannot have multiple things requesting "remainder" */
+            skAppPrintErr(("Cannot verify sensor '%s':\n"
+                           "\tOnly one network value may use 'remainder'"),
+                          sensor->sensor_name);
+            return -1;
+
+          case SKPC_IPSET:
+            /* This is fine */
+            break;
+
+          case SKPC_INTERFACE:
+          case SKPC_REMAIN_INTERFACE:
+            /* Bad mix */
+            skAppPrintErr(("Cannot verify sensor '%s':\n"
+                           "\tCannot mix %s-ipset and %s-interface"),
+                          sensor->sensor_name,
+                          net_names[NETWORK_EXTERNAL],
+                          net_names[NETWORK_INTERNAL]);
+            return -1;
+
+          case SKPC_IPBLOCK:
+          case SKPC_REMAIN_IPBLOCK:
+            /* Bad mix */
+            skAppPrintErr(("Cannot verify sensor '%s':\n"
+                           "\tCannot mix %s-ipset and %s-ipblock"),
                           sensor->sensor_name,
                           net_names[NETWORK_EXTERNAL],
                           net_names[NETWORK_INTERNAL]);

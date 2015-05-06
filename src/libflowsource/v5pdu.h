@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2004-2014 by Carnegie Mellon University.
+** Copyright (C) 2004-2015 by Carnegie Mellon University.
 **
 ** @OPENSOURCE_HEADER_START@
 **
@@ -57,7 +57,7 @@ extern "C" {
 
 #include <silk/silk.h>
 
-RCSIDENTVAR(rcsID_V5PDU_H, "$SiLK: v5pdu.h 1c87fe1a22f7 2014-01-06 15:24:30Z mthomas $");
+RCSIDENTVAR(rcsID_V5PDU_H, "$SiLK: v5pdu.h b7b8edebba12 2015-01-05 18:05:21Z mthomas $");
 
 
 /*

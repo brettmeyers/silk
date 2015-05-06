@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2004-2014 by Carnegie Mellon University.
+** Copyright (C) 2004-2015 by Carnegie Mellon University.
 **
 ** @OPENSOURCE_HEADER_START@
 **
@@ -57,7 +57,7 @@ extern "C" {
 
 #include <silk/silk.h>
 
-RCSIDENTVAR(rcsID_CIRCBUF_H, "$SiLK: circbuf.h cd598eff62b9 2014-09-21 19:31:29Z mthomas $");
+RCSIDENTVAR(rcsID_CIRCBUF_H, "$SiLK: circbuf.h b7b8edebba12 2015-01-05 18:05:21Z mthomas $");
 
 /*
 **  circbuf.h
@@ -99,7 +99,7 @@ circBufStop(
     circBuf_t          *buf);
 
 /*
- *    Destroys a circular buffer.
+ *    Destroys a circular buffer.  Does nothing if 'buf' is NULL.
  */
 void
 circBufDestroy(

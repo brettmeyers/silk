@@ -4,6 +4,11 @@
 
 use strict;
 use SiLKTests;
+use File::Find;
+
+# name of this script
+my $NAME = $0;
+$NAME =~ s,.*/,,;
 
 my $rwallformats = check_silk_app('rwallformats');
 my $rwfilter = check_silk_app('rwfilter');
@@ -21,7 +26,8 @@ if (!check_exit_status($cmd)) {
     exit 1;
 }
 
-# get list of expected MD5s for each file
+# get list of expected MD5s for each file from the end of this file;
+# some files have multiple checksums due to differences in LZO
 my %checksums;
 while (<DATA>) {
     next unless /\w/;
@@ -30,38 +36,104 @@ while (<DATA>) {
     if (exists $checksums{$tail_name}) {
         push @{$checksums{$tail_name}}, $expect;
     }
+    elsif (!$SiLKTests::SK_ENABLE_ZLIB && $tail_name =~ /-c1-/) {
+        # skip
+    }
+    elsif (!$SiLKTests::SK_ENABLE_LZO && $tail_name =~ /-c2-/) {
+        # skip
+    }
     else {
         $checksums{$tail_name} = [$expect];
     }
 }
 
-# compute MD5 of each file and compare to expected value; if there is
-# no match, put name into @mismatch.
+# array to store names of files that do not match
 my @mismatch;
-for my $tail_name (keys %checksums) {
-    my $file = "$tmpdir/$base_name-$tail_name";
-    next unless -f $file;
-    my $md5;
-    compute_md5(\$md5, "cat $file", 0);
-    next if grep {$_ eq $md5} @{$checksums{$tail_name}};
-    push @mismatch, $tail_name;
-}
+# array to store names of files that are unknown to this script
+my @unknown;
+
+# find the files in the data directory and compare their MD5 hashes
+File::Find::find({wanted => \&check_file, no_chdir => 1}, $tmpdir);
 
 # print names of first few files that don't match
 if (@mismatch) {
-    my $NAME = $0;
-    $NAME =~ s,.*/,,;
+    my $max = 4;
     if (@mismatch == 1) {
         die "$NAME: Found 1 checksum miss: @mismatch\n";
     }
-    elsif (@mismatch < 5) {
+    elsif (@mismatch <= $max) {
         die("$NAME: Found ", scalar(@mismatch), " checksum misses: ",
             join(", ", @mismatch), "\n");
     }
     else {
         die("$NAME: Found ", scalar(@mismatch), " checksum misses: ",
-            join(", ", @mismatch[0..4], "..."), "\n");
+            join(", ", @mismatch[0..$max], "..."), "\n");
     }
+}
+
+# print names of unknown files
+if (@unknown) {
+    my $max = 2;
+    if (@unknown == 1) {
+        die "$NAME: Found 1 unknown file: @unknown\n";
+    }
+    elsif (@unknown <= $max) {
+        die("$NAME: Found ", scalar(@unknown), " unknown files: ",
+            join(", ", @unknown), "\n");
+    }
+    else {
+        die("$NAME: Found ", scalar(@unknown), " unknown files: ",
+            join(", ", @unknown[0..$max], "..."), "\n");
+    }
+}
+
+# print names of files we did not find
+if (keys %checksums) {
+    my @missing = keys %checksums;
+    my $max = 2;
+    if (@missing == 1) {
+        die "$NAME: There is 1 missing file: @missing\n";
+    }
+    elsif (@missing <= $max) {
+        die("$NAME: There are ", scalar(@missing), " missing files: ",
+            join(", ", @missing), "\n");
+    }
+    else {
+        die("$NAME: There are ", scalar(@missing), " missing files: ",
+            join(", ", @missing[0..$max], "..."), "\n");
+    }
+}
+
+# successful!
+exit 0;
+
+
+# This function is called by File::Find::find.  The full path to the
+# file is in the $_ variable.
+#
+# The function computes the MD5 of each file and compares it to the
+# expected value; if the values do not match, it puts the file name
+# into the @mismatch array
+sub check_file
+{
+    # skip anything that is not a file
+    return unless -f $_;
+    my $path = $_;
+    my $tail_name = $_;
+    # set $tail_name to be the varying part of the filename; that is,
+    # remove the directory and base_name
+    $tail_name =~ s,^$tmpdir/$base_name-,,;
+    unless (exists $checksums{$tail_name}) {
+        push @unknown, $path;
+        return;
+    }
+    my @sums = @{$checksums{$tail_name}};
+    delete $checksums{$tail_name};
+
+    my $md5;
+    compute_md5(\$md5, "cat $path", 0);
+    return if grep {$_ eq $md5} @sums;
+    push @mismatch, $tail_name;
 }
 
 
@@ -306,6 +378,12 @@ f2c65c5fabba2f150acb324ebdb26b51  FT_RWIPV6ROUTING-v1-c2-B.dat
 95207e7656f6e575ba0363f9db673592  FT_RWIPV6ROUTING-v2-c1-L.dat
 ba749a6064c4b274960437ca1b1d11c8  FT_RWIPV6ROUTING-v2-c2-B.dat
 7d0990a104def93b4350ed12bab74e69  FT_RWIPV6ROUTING-v2-c2-L.dat
+df514250db00d79242f13463b7245c70  FT_RWIPV6ROUTING-v3-c0-B.dat
+041296f90b30ede7da5f81d7c3864074  FT_RWIPV6ROUTING-v3-c0-L.dat
+d68e6034f3621bfad96967aec9e753c9  FT_RWIPV6ROUTING-v3-c1-B.dat
+f695cab19a9a761ffcf918db10d936d8  FT_RWIPV6ROUTING-v3-c1-L.dat
+4d7af74d80435e84e6775f09ea41ddb6  FT_RWIPV6ROUTING-v3-c2-B.dat
+aa9f2303e3c62bb5ac60e4bd404b41bf  FT_RWIPV6ROUTING-v3-c2-L.dat
 63ab6740566b8c6af7d43c2948ee8e82  FT_RWNOTROUTED-v1-c0-B.dat
 c0fe797de574e9d2fd85447032910ff6  FT_RWNOTROUTED-v1-c0-L.dat
 d305bcb80c26979cfa5aaaa19c74530c  FT_RWNOTROUTED-v1-c1-B.dat
@@ -517,6 +595,8 @@ e8ddb9c4f05b74741207c9857e24ecc1  FT_RWGENERIC-v3-c2-L.dat
 36feaefacfeae8f026d3d99c6e987331  FT_RWIPV6ROUTING-v1-c2-L.dat
 ab52c004814044775ace0d261355a2c7  FT_RWIPV6ROUTING-v2-c2-B.dat
 c9fb85772fa528ac9ed27e20b6790c28  FT_RWIPV6ROUTING-v2-c2-L.dat
+900f4e183068efc6e799d3462995ea6a  FT_RWIPV6ROUTING-v3-c2-B.dat
+12c3ca82a05a3929d25fb0375a374f38  FT_RWIPV6ROUTING-v3-c2-L.dat
 83e009f3e2ccade295f10b0d059936b6  FT_RWNOTROUTED-v1-c2-B.dat
 0e255acc3bed430a78f894f092db26de  FT_RWNOTROUTED-v1-c2-L.dat
 1dab0016c7378a3ae899c437c098b402  FT_RWNOTROUTED-v2-c2-B.dat

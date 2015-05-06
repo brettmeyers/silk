@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2001-2014 by Carnegie Mellon University.
+** Copyright (C) 2001-2015 by Carnegie Mellon University.
 **
 ** @OPENSOURCE_HEADER_START@
 **
@@ -54,7 +54,7 @@
 
 #include <silk/silk.h>
 
-RCSIDENT("$SiLK: hashlib.c cd598eff62b9 2014-09-21 19:31:29Z mthomas $");
+RCSIDENT("$SiLK: hashlib.c b7b8edebba12 2015-01-05 18:05:21Z mthomas $");
 
 #include <silk/hashlib.h>
 #include <silk/utils.h>
@@ -459,6 +459,10 @@ hashlib_free_table(
     HashTable          *table_ptr)
 {
     int i;
+
+    if (NULL == table_ptr) {
+        return;
+    }
 
     /* Free all the blocks in the table */
     for (i = 0; i < table_ptr->num_blocks; i++) {

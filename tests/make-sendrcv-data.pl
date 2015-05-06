@@ -1,7 +1,7 @@
 #! /usr/bin/perl -w
 #
 #######################################################################
-#  Copyright (C) 2010-2014 by Carnegie Mellon University.
+#  Copyright (C) 2010-2015 by Carnegie Mellon University.
 #
 #  See end of file
 #######################################################################
@@ -15,7 +15,7 @@
 #  Mark Thomas
 #  March 2010
 #######################################################################
-#  RCSIDENT("$SiLK: make-sendrcv-data.pl 1c87fe1a22f7 2014-01-06 15:24:30Z mthomas $")
+#  RCSIDENT("$SiLK: make-sendrcv-data.pl b7b8edebba12 2015-01-05 18:05:21Z mthomas $")
 #######################################################################
 
 use strict;
@@ -261,7 +261,7 @@ EOF
 __END__
 
 #######################################################################
-# Copyright (C) 2010-2014 by Carnegie Mellon University.
+# Copyright (C) 2010-2015 by Carnegie Mellon University.
 #
 # @OPENSOURCE_HEADER_START@
 #

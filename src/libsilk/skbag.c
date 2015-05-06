@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2004-2014 by Carnegie Mellon University.
+** Copyright (C) 2004-2015 by Carnegie Mellon University.
 **
 ** @OPENSOURCE_HEADER_START@
 **
@@ -59,7 +59,7 @@
 
 #include <silk/silk.h>
 
-RCSIDENT("$SiLK: skbag.c cd598eff62b9 2014-09-21 19:31:29Z mthomas $");
+RCSIDENT("$SiLK: skbag.c b7b8edebba12 2015-01-05 18:05:21Z mthomas $");
 
 #include <silk/hashlib.h>
 #include <silk/redblack.h>
@@ -1055,6 +1055,7 @@ bagIterCreate(
     rv = skBagIteratorReset(*iter);
     if (SKBAG_OK != rv) {
         skBagIteratorDestroy(*iter);
+        *iter = NULL;
     }
     return rv;
 }
@@ -2172,6 +2173,9 @@ skBagCopy(
             uint64_t counter;
 
             rv = skBagIteratorCreate(src, &iter);
+            if (rv) {
+                goto END;
+            }
             while (bagtreeIterNext(iter, &key, &counter)) {
                 if (bagOperationTree(bag, key, counter, 0, BAG_OP_SET)) {
                     rv = SKBAG_ERR_MEMORY;
@@ -2401,8 +2405,13 @@ skBagCounterFieldName(
     const bag_field_info_t *bf;
 
     bf = BAG_GET_FIELD_INFO(bag->counter_type);
-    strncpy(buf, bf->name, buflen);
-    buf[buflen-1] = '\0';
+    if (NULL == bf) {
+        bf = &bag_field_info_custom;
+    }
+    if (buf && buflen) {
+        strncpy(buf, bf->name, buflen);
+        buf[buflen-1] = '\0';
+    }
 
     return bag->counter_type;
 }
@@ -3297,8 +3306,13 @@ skBagKeyFieldName(
     const bag_field_info_t *bf;
 
     bf = BAG_GET_FIELD_INFO(bag->key_type);
-    strncpy(buf, bf->name, buflen);
-    buf[buflen-1] = '\0';
+    if (NULL == bf) {
+        bf = &bag_field_info_custom;
+    }
+    if (buf && buflen) {
+        strncpy(buf, bf->name, buflen);
+        buf[buflen-1] = '\0';
+    }
 
     return bag->key_type;
 }
@@ -3320,7 +3334,7 @@ skBagLoad(
 {
     skstream_t *stream = NULL;
     skBagErr_t err = SKBAG_OK;
-    int rv;
+    ssize_t rv;
 
     if (NULL == filename || NULL == bag) {
         return SKBAG_ERR_INPUT;
@@ -3338,7 +3352,7 @@ skBagLoad(
     err = skBagRead(bag, stream);
 
   END:
-    rv = skStreamDestroy(&stream);
+    skStreamDestroy(&stream);
     return err;
 }
 
@@ -3502,7 +3516,7 @@ skBagProcessStreamTyped(
         uint16_t    u16;
         uint8_t     u8;
     } val;
-    int rv;
+    ssize_t rv;
 
     if (NULL == stream_in) {
         return SKBAG_ERR_INPUT;
@@ -3785,7 +3799,7 @@ skBagSave(
 {
     skstream_t *stream = NULL;
     skBagErr_t err = SKBAG_OK;
-    int rv;
+    ssize_t rv;
 
     if (NULL == filename || NULL == bag) {
         return SKBAG_ERR_INPUT;
@@ -3809,7 +3823,7 @@ skBagSave(
     }
 
   END:
-    rv = skStreamDestroy(&stream);
+    skStreamDestroy(&stream);
     return err;
 }
 
@@ -3900,6 +3914,9 @@ skBagWrite(
       case 2:
       case 4:
         rv = skBagIteratorCreate(bag, &iter);
+        if (rv) {
+            return SKBAG_ERR_MEMORY;
+        }
         while (bagtreeIterNext(iter, &key, &counter)) {
             rv = skStreamWrite(stream_out, &key, sizeof(uint32_t));
             rv += skStreamWrite(stream_out, &counter, sizeof(uint64_t));

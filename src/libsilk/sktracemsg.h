@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2010-2014 by Carnegie Mellon University.
+** Copyright (C) 2010-2015 by Carnegie Mellon University.
 **
 ** @OPENSOURCE_HEADER_START@
 **
@@ -65,7 +65,7 @@ extern "C" {
 
 #include <silk/silk.h>
 
-RCSIDENTVAR(rcsID_SKTRACEMSG_H, "$SiLK: sktracemsg.h 412b51a029ce 2014-01-28 22:59:06Z mthomas $");
+RCSIDENTVAR(rcsID_SKTRACEMSG_H, "$SiLK: sktracemsg.h b7b8edebba12 2015-01-05 18:05:21Z mthomas $");
 
 /*
 **    The tracemsg facility works as follows:

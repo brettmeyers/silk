@@ -1,6 +1,6 @@
 %{
 /*
-** Copyright (C) 2005-2014 by Carnegie Mellon University.
+** Copyright (C) 2005-2015 by Carnegie Mellon University.
 **
 ** @OPENSOURCE_HEADER_START@
 **
@@ -58,7 +58,7 @@
 
 #include <silk/silk.h>
 
-RCSIDENT("$SiLK: probeconfparse.y cd598eff62b9 2014-09-21 19:31:29Z mthomas $");
+RCSIDENT("$SiLK: probeconfparse.y 2b1355d69f79 2015-02-13 23:12:41Z mthomas $");
 
 #include <silk/libflowsource.h>
 #include <silk/probeconf.h>
@@ -159,7 +159,7 @@ static void probe_listen_on_usocket(sk_vector_t *v);
 static void probe_read_from_file(sk_vector_t *v);
 static void probe_poll_directory(sk_vector_t *v);
 static void probe_accept_from_host(sk_vector_t *v);
-static void probe_log_flags(uint32_t n);
+static void probe_log_flags(sk_vector_t *v);
 static void probe_interface_values(sk_vector_t *v);
 static void probe_quirks(sk_vector_t *v);
 
@@ -172,8 +172,11 @@ static void sensor_interface(char *name, sk_vector_t *list);
 static void
 sensor_ipblock(
     char               *name,
-    sk_vector_t        *wl,
-    int                 negated);
+    sk_vector_t        *wl);
+static void
+sensor_ipset(
+    char               *name,
+    sk_vector_t        *wl);
 static void sensor_filter(skpc_filter_t filter, sk_vector_t *v);
 static void sensor_network(skpc_direction_t direction, char *name);
 static void sensor_probes(char *probe_type, sk_vector_t *v);
@@ -202,11 +205,8 @@ add_values_to_group(
 static uint32_t parse_int_u16(char *s);
 static int vectorSingleString(sk_vector_t *v, char **s);
 static int parse_ip_addr(char *s, uint32_t *ip);
+static skipset_t *parse_ipset_filename(char *s);
 static skIPWildcard_t *parse_wildcard_addr(char *s);
-static uint32_t parse_log_flag(char *s);
-
-/* add a new flag to the log flags */
-static uint32_t log_flags_add_flag(uint32_t old_val, uint32_t value);
 
 
 %}
@@ -229,6 +229,7 @@ static uint32_t log_flags_add_flag(uint32_t old_val, uint32_t value);
 %token INTERFACES_T
 %token INTERFACE_VALUES_T
 %token IPBLOCKS_T
+%token IPSETS_T
 %token ISP_IP_T
 %token LISTEN_AS_HOST_T
 %token LISTEN_ON_PORT_T
@@ -245,6 +246,7 @@ static uint32_t log_flags_add_flag(uint32_t old_val, uint32_t value);
 %token <string> ID
 %token <string> NET_NAME_INTERFACE
 %token <string> NET_NAME_IPBLOCK
+%token <string> NET_NAME_IPSET
 %token <string> PROBES
 %token <string> QUOTED_STRING
 %token <net_dir> NET_DIRECTION
@@ -252,7 +254,6 @@ static uint32_t log_flags_add_flag(uint32_t old_val, uint32_t value);
 
 %token ERR_STR_TOO_LONG
 
-%type <u32>         log_flags
 %type <vector>      id_list
 
 
@@ -428,7 +429,7 @@ stmt_probe_accept_host:                   ACCEPT_FROM_HOST_T id_list EOL
 };
 
 
-stmt_probe_log_flags:                     LOG_FLAGS_T log_flags EOL
+stmt_probe_log_flags:                     LOG_FLAGS_T id_list EOL
 {
     probe_log_flags($2);
 }
@@ -470,6 +471,7 @@ sensor_stmts:                           /* empty */
 sensor_stmt:                              stmt_sensor_isp_ip
                                         | stmt_sensor_interface
                                         | stmt_sensor_ipblock
+                                        | stmt_sensor_ipset
                                         | stmt_sensor_filter
                                         | stmt_sensor_network
                                         | stmt_sensor_probes
@@ -535,11 +537,11 @@ stmt_sensor_interface:                    NET_NAME_INTERFACE id_list EOL
 
 stmt_sensor_ipblock:                      NET_NAME_IPBLOCK id_list EOL
 {
-    sensor_ipblock($1, $2, 0);
+    sensor_ipblock($1, $2);
 }
                                         | NET_NAME_IPBLOCK REMAINDER_T EOL
 {
-    sensor_ipblock($1, NULL, 0);
+    sensor_ipblock($1, NULL);
 }
                                         | NET_NAME_IPBLOCK EOL
 {
@@ -549,9 +551,26 @@ stmt_sensor_ipblock:                      NET_NAME_IPBLOCK id_list EOL
     }
 };
 
+stmt_sensor_ipset:                        NET_NAME_IPSET id_list EOL
+{
+    sensor_ipset($1, $2);
+}
+                                        | NET_NAME_IPSET REMAINDER_T EOL
+{
+    sensor_ipset($1, NULL);
+}
+                                        | NET_NAME_IPSET EOL
+{
+    missing_value();
+    if ($1) {
+        free($1);
+    }
+};
+
 stmt_sensor_filter:                       FILTER id_list EOL
 {
-    /* discard-{when,unless} {source,destination,any}-{interfaces,ipblocks} */
+    /* discard-{when,unless}
+     * {source,destination,any}-{interfaces,ipblocks,ipsets} */
     sensor_filter($1, $2);
 }
                                         | FILTER EOL
@@ -594,6 +613,7 @@ group_stmts:                            /* empty */
 
 group_stmt:                               stmt_group_interfaces
                                         | stmt_group_ipblocks
+                                        | stmt_group_ipsets
                                         | error
 {
     ++defn_errors;
@@ -638,12 +658,20 @@ stmt_group_interfaces:                    INTERFACES_T id_list EOL
     missing_value();
 };
 
-
 stmt_group_ipblocks:                      IPBLOCKS_T id_list EOL
 {
     group_add_data($2, SKPC_GROUP_IPBLOCK);
 }
                                         | IPBLOCKS_T EOL
+{
+    missing_value();
+};
+
+stmt_group_ipsets:                        IPSETS_T id_list EOL
+{
+    group_add_data($2, SKPC_GROUP_IPSET);
+}
+                                        | IPSETS_T EOL
 {
     missing_value();
 };
@@ -673,28 +701,6 @@ id_list:                                  ID
     char *s = $3;
     skVectorAppendValue($1, &s);
     $$ = $1;
-};
-
-
-    /*
-     *  Parse log flags: either a single flag or a list of flags
-     */
-
-log_flags:                                ID
-{
-    $$ = parse_log_flag($1);
-}
-                                        | log_flags ID
-{
-    uint32_t n = parse_log_flag($2);
-    n = log_flags_add_flag($1, n);
-    $$ = n;
-}
-                                        | log_flags COMMA ID
-{
-    uint32_t n = parse_log_flag($3);
-    n = log_flags_add_flag($1, n);
-    $$ = n;
 };
 
 
@@ -1036,7 +1042,7 @@ probe_listen_as_host(
         return;
     }
     if (listen_as_address != NULL) {
-        free(s);
+        free(listen_as_address);
     }
     listen_as_address = s;
 
@@ -1138,61 +1144,123 @@ probe_poll_directory(
 
 
 /*
- *  probe_accept_from_host(s);
+ *  probe_accept_from_host(list);
  *
- *    Set the global probe to accept data from the host s.
+ *    Set the global probe to accept data from the hosts in 'list'.
  */
 static void
 probe_accept_from_host(
     sk_vector_t        *v)
 {
+    sk_vector_t *addr_vec;
     sk_sockaddr_array_t *sa;
-    int rv;
+    size_t count = skVectorGetCount(v);
+    size_t i;
+    int rv = -1;
     char *s;
 
-    if (vectorSingleString(v, &s)) {
-        return;
-    }
-
-    rv = skStringParseHostPortPair(&sa, s, HOST_REQUIRED | PORT_PROHIBITED);
-    if (rv != 0) {
-        skpcParseErr("Unable to resolve %s value '%s': %s",
-                     pcscan_clause, s, skStringParseStrerror(rv));
+    /* get a vector to use for the sockaddr_array objects */
+    addr_vec = vectorPoolGet(ptr_pool);
+    if (addr_vec == NULL) {
+        skpcParseErr("Allocation error near %s", pcscan_clause);
         ++defn_errors;
-        free(s);
-        return;
+        goto END;
     }
 
-    rv = skpcProbeSetAcceptFromHost(probe, sa);
+    /* parse each address */
+    for (i = 0; i < count; ++i) {
+        skVectorGetValue(&s, v, i);
+        rv = skStringParseHostPortPair(&sa, s, HOST_REQUIRED | PORT_PROHIBITED);
+        if (rv != 0) {
+            skpcParseErr("Unable to resolve %s value '%s': %s",
+                         pcscan_clause, s, skStringParseStrerror(rv));
+            ++defn_errors;
+            goto END;
+        }
+        if (skVectorAppendValue(addr_vec, &sa)) {
+            skpcParseErr("Allocation error near %s", pcscan_clause);
+            ++defn_errors;
+            goto END;
+        }
+    }
+
+    rv = skpcProbeSetAcceptFromHost(probe, addr_vec);
     if (rv != 0) {
         skpcParseErr("Error setting %s value for probe '%s'",
                      pcscan_clause, skpcProbeGetName(probe));
         ++defn_errors;
+        goto END;
     }
-    free(s);
+
+  END:
+    for (i = 0; i < count; ++i) {
+        skVectorGetValue(&s, v, i);
+        free(s);
+    }
+    if (addr_vec) {
+        /* free the sockaddr-array elements on error */
+        if (rv != 0) {
+            count = skVectorGetCount(addr_vec);
+            for (i = 0; i < count; ++i) {
+                skVectorGetValue(&sa, addr_vec, i);
+                skSockaddrArrayDestroy(sa);
+            }
+        }
+        vectorPoolPut(ptr_pool, addr_vec);
+    }
+    vectorPoolPut(ptr_pool, v);
 }
 
 
 /*
- *  probe_log_flags(n);
+ *  probe_log_flags(list);
  *
  *    Set the log flags on the probe to 'n';
  */
 static void
 probe_log_flags(
-    uint32_t            n)
+    sk_vector_t        *v)
 {
-    if (n == UINT16_NO_VALUE) {
-        /* some error in parsing log flags */
-        ++defn_errors;
-        return;
-    }
+    const char none[] = "none";
+    size_t count = skVectorGetCount(v);
+    size_t i;
+    char **s;
+    int rv;
+    int none_seen = 0;
 
-    if (skpcProbeSetLogFlags(probe, n)) {
-        skpcParseErr("Error setting %s value for probe '%s'",
-                     pcscan_clause, skpcProbeGetName(probe));
-        ++defn_errors;
+    /* clear any existing log flags */
+    skpcProbeClearLogFlags(probe);
+
+    /* loop over the list of log-flags and add each to the probe */
+    for (i = 0; i < count; ++i) {
+        s = (char**)skVectorGetValuePointer(v, i);
+        rv = skpcProbeAddLogFlag(probe, *s);
+        switch (rv) {
+          case -1:
+            skpcParseErr("Do not recognize %s value '%s' on probe '%s'",
+                         pcscan_clause, *s, skpcProbeGetName(probe));
+            ++defn_errors;
+            break;
+          case 0:
+            if (0 == strcmp(*s, none)) {
+                none_seen = 1;
+                break;
+            }
+            if (0 == none_seen) {
+                break;
+            }
+            /* FALLTHROUGH */
+          case -2:
+            skpcParseErr("Cannot mix %s '%s' with other values on probe '%s'",
+                         pcscan_clause, none, skpcProbeGetName(probe));
+            ++defn_errors;
+            break;
+          default:
+            skAbortBadCase(rv);
+        }
+        free(*s);
     }
+    vectorPoolPut(ptr_pool, v);
 }
 
 
@@ -1237,9 +1305,9 @@ probe_interface_values(
 
 
 /*
- *  probe_quirks(s);
+ *  probe_quirks(list);
  *
- *    Set the "quirks" field on the global probe.
+ *    Set the "quirks" field on the global probe to the values in list.
  */
 static void
 probe_quirks(
@@ -1249,6 +1317,7 @@ probe_quirks(
     size_t i;
     char **s;
     int rv;
+    int none_seen = 0;
 
     /* clear any existing quirks */
     skpcProbeClearQuirks(probe);
@@ -1256,22 +1325,29 @@ probe_quirks(
     /* loop over the list of quirks and add to the probe */
     for (i = 0; i < count; ++i) {
         s = (char**)skVectorGetValuePointer(v, i);
-        rv = skpcProbeAddQuirk(probe, *s);
-        switch (rv) {
-          case 0:
-            break;
-          case -1:
-            skpcParseErr("Invalid %s value '%s'",
-                         pcscan_clause, *s);
-            ++defn_errors;
-            break;
-          case -2:
-            skpcParseErr("Invalid %s combination",
-                         pcscan_clause);
-            ++defn_errors;
-            break;
-          default:
-            skAbortBadCase(rv);
+        if (0 == strcmp(*s, "none")) {
+            none_seen = 1;
+        } else {
+            rv = skpcProbeAddQuirk(probe, *s);
+            switch (rv) {
+              case -1:
+                skpcParseErr("Invalid %s value '%s'",
+                             pcscan_clause, *s);
+                ++defn_errors;
+                break;
+              case 0:
+                if (0 == none_seen) {
+                    break;
+                }
+                /* FALLTHROUGH */
+              case -2:
+                skpcParseErr("Invalid %s combination",
+                             pcscan_clause);
+                ++defn_errors;
+                break;
+              default:
+                skAbortBadCase(rv);
+            }
         }
         free(*s);
     }
@@ -1455,7 +1531,9 @@ sensor_interface(
 
     /* NULL vector indicates want to set network to 'remainder' */
     if (v == NULL) {
-        if (skpcSensorSetToRemainderInterfaces(sensor, network->id)) {
+        if (skpcSensorSetNetworkRemainder(
+                sensor, network->id, SKPC_GROUP_INTERFACE))
+        {
             ++defn_errors;
         }
     } else {
@@ -1467,7 +1545,7 @@ sensor_interface(
                 if (NULL == g) {
                     goto END;
                 }
-                if (skpcSensorSetInterfaces(sensor, network->id, g)) {
+                if (skpcSensorSetNetworkGroup(sensor, network->id, g)) {
                     ++defn_errors;
                 }
                 goto END;
@@ -1494,7 +1572,7 @@ sensor_interface(
             ++defn_errors;
             goto END;
         }
-        if (skpcSensorSetInterfaces(sensor, network->id, g)) {
+        if (skpcSensorSetNetworkGroup(sensor, network->id, g)) {
             ++defn_errors;
         }
     }
@@ -1514,23 +1592,19 @@ sensor_interface(
 
 
 /*
- *  sensor_ipblock(name, ip_list, negated);
+ *  sensor_ipblock(name, ip_list);
  *
  *    When 'ip_list' is NULL, set a flag for the network 'name' noting
  *    that its ipblock list should be set to any IP addresses not
  *    covered by other IP blocks; ie., the remaining ipblocks.
  *
- *    When 'negated' is 0, set the ipblocks for the 'name' network of
- *    the global sensor to 'ip_list'.
- *
- *    When negated is non-zero, set the ipblocks for the 'name'
+ *    Otherwise, set the ipblocks for the 'name'
  *    network of the global sensor to the inverse of 'ip_list'.
  */
 static void
 sensor_ipblock(
     char               *name,
-    sk_vector_t        *v,
-    int                 negated)
+    sk_vector_t        *v)
 {
     const size_t count = (v ? skVectorGetCount(v) : 0);
     const skpc_network_t *network = NULL;
@@ -1555,7 +1629,9 @@ sensor_ipblock(
 
     /* NULL vector indicates want to set network to 'remainder' */
     if (v == NULL) {
-        if (skpcSensorSetToRemainderIpBlocks(sensor, network->id)) {
+        if (skpcSensorSetNetworkRemainder(
+                sensor, network->id, SKPC_GROUP_IPBLOCK))
+        {
             ++defn_errors;
         }
     } else {
@@ -1567,7 +1643,7 @@ sensor_ipblock(
                 if (NULL == g) {
                     goto END;
                 }
-                if (skpcSensorSetIpBlocks(sensor, network->id, g, negated)) {
+                if (skpcSensorSetNetworkGroup(sensor, network->id, g)) {
                     ++defn_errors;
                 }
                 goto END;
@@ -1594,7 +1670,106 @@ sensor_ipblock(
             ++defn_errors;
             goto END;
         }
-        if (skpcSensorSetIpBlocks(sensor, network->id, g, negated)) {
+        if (skpcSensorSetNetworkGroup(sensor, network->id, g)) {
+            ++defn_errors;
+            goto END;
+        }
+    }
+
+  END:
+    if (name) {
+        free(name);
+    }
+    if (v) {
+        for (i = 0; i < count; ++i) {
+            s = (char**)skVectorGetValuePointer(v, i);
+            free(*s);
+        }
+        vectorPoolPut(ptr_pool, v);
+    }
+}
+
+
+/*
+ *  sensor_ipset(name, ip_list);
+ *
+ *    When 'ip_list' is NULL, set a flag for the network 'name' noting
+ *    that its ipset list should be set to any IP addresses not
+ *    covered by other IP sets; ie., the remaining ipsets.
+ *
+ *    Otherwise, set the ipsets for the 'name' network of the global
+ *    sensor to the inverse of 'ip_list'.
+ */
+static void
+sensor_ipset(
+    char               *name,
+    sk_vector_t        *v)
+{
+    const size_t count = (v ? skVectorGetCount(v) : 0);
+    const skpc_network_t *network = NULL;
+    skpc_group_t *g;
+    size_t i;
+    char **s;
+
+    if (name == NULL) {
+        skpcParseErr("IP Set list '%s' gives a NULL name", pcscan_clause);
+        skAbort();
+    }
+
+    /* convert the name to a network */
+    network = skpcNetworkLookupByName(name);
+    if (network == NULL) {
+        skpcParseErr(("Cannot set %s for sensor '%s' because\n"
+                      "\tthe '%s' network is not defined"),
+                     pcscan_clause, skpcSensorGetName(sensor), name);
+        ++defn_errors;
+        goto END;
+    }
+
+    /* NULL vector indicates want to set network to 'remainder' */
+    if (v == NULL) {
+        if (skpcSensorSetNetworkRemainder(
+                sensor, network->id, SKPC_GROUP_IPSET))
+        {
+            ++defn_errors;
+        }
+    } else {
+        /* determine if we are using a single existing group */
+        if (1 == count) {
+            s = (char**)skVectorGetValuePointer(v, 0);
+            if ('@' == **s) {
+                g = get_group((*s)+1, SKPC_GROUP_IPSET);
+                if (NULL == g) {
+                    goto END;
+                }
+                if (skpcSensorSetNetworkGroup(sensor, network->id, g)) {
+                    ++defn_errors;
+                }
+                goto END;
+            }
+        }
+
+        /* not a single group, so need to create a new group */
+        if (skpcGroupCreate(&g)) {
+            skpcParseErr("Allocation error near %s", pcscan_clause);
+            ++defn_errors;
+            goto END;
+        }
+        skpcGroupSetType(g, SKPC_GROUP_IPSET);
+
+        /* parse the strings and add them to the group */
+        if (add_values_to_group(g, v, SKPC_GROUP_IPSET)) {
+            v = NULL;
+            goto END;
+        }
+        v = NULL;
+
+        /* add the group to the sensor */
+        if (skpcGroupFreeze(g)) {
+            ++defn_errors;
+            goto END;
+        }
+        if (skpcSensorSetNetworkGroup(sensor, network->id, g)) {
             ++defn_errors;
             goto END;
         }
@@ -1621,7 +1796,6 @@ sensor_filter(
 {
     const size_t count = (v ? skVectorGetCount(v) : 0);
     skpc_group_t *g;
-    skpc_group_type_t g_type;
     size_t i;
     char **s;
 
@@ -1632,19 +1806,16 @@ sensor_filter(
         goto END;
     }
 
-    /* get the type of data to expect */
-    g_type = (filter.f_wildcard ? SKPC_GROUP_IPBLOCK : SKPC_GROUP_INTERFACE);
-
     /* determine if we are using a single existing group */
     if (1 == count) {
         s = (char**)skVectorGetValuePointer(v, 0);
         if ('@' == **s) {
-            g = get_group((*s) + 1, g_type);
+            g = get_group((*s) + 1, filter.f_group_type);
             if (NULL == g) {
                 goto END;
             }
             if (skpcSensorAddFilter(sensor, g, filter.f_type,
-                                    filter.f_discwhen, filter.f_wildcard))
+                                    filter.f_discwhen, filter.f_group_type))
             {
                 ++defn_errors;
             }
@@ -1658,10 +1829,10 @@ sensor_filter(
         ++defn_errors;
         goto END;
     }
-    skpcGroupSetType(g, g_type);
+    skpcGroupSetType(g, filter.f_group_type);
 
     /* parse the strings in 'v' and add them to the group */
-    if (add_values_to_group(g, v, g_type)) {
+    if (add_values_to_group(g, v, filter.f_group_type)) {
         v = NULL;
         goto END;
     }
@@ -1673,7 +1844,7 @@ sensor_filter(
         goto END;
     }
     if (skpcSensorAddFilter(sensor, g, filter.f_type, filter.f_discwhen,
-                            filter.f_wildcard))
+                            filter.f_group_type))
     {
         ++defn_errors;
     }
@@ -1713,7 +1884,7 @@ sensor_network(
         goto END;
     }
 
-    if (skpcSensorSetNetwork(sensor, network->id, direction)) {
+    if (skpcSensorSetNetworkDirection(sensor, network->id, direction)) {
         skpcParseErr("Cannot set %s for sensor '%s' to %s",
                      pcscan_clause, skpcSensorGetName(sensor), name);
         ++defn_errors;
@@ -1902,7 +2073,8 @@ group_begin(
  *   If the global group's type is not set, the value to 'g_type' and
  *   append the values.
  *
- *   Used by 'stmt_group_interfaces' and 'stmt_group_ipblocks'
+ *   Used by 'stmt_group_interfaces', 'stmt_group_ipblocks', and
+ *   'stmt_group_ipsets'
  */
 static void
 group_add_data(
@@ -1922,6 +2094,9 @@ group_add_data(
         break;
       case SKPC_GROUP_IPBLOCK:
         g_type_str = "ipblocks";
+        break;
+      case SKPC_GROUP_IPSET:
+        g_type_str = "ipsets";
         break;
     }
 
@@ -1963,17 +2138,21 @@ add_values_to_group(
     size_t i = 0;
     uint32_t n;
     skIPWildcard_t *ipwild;
+    skipset_t *ipset;
     int rv = -1;
 
     /* determine the vector pool to use for the parsed values */
     if (SKPC_GROUP_INTERFACE == g_type) {
         /* parse numbers and/or groups */
         pool = u32_pool;
-    } else {
-        assert(SKPC_GROUP_IPBLOCK == g_type);
-
+    } else if (SKPC_GROUP_IPBLOCK == g_type) {
         /* parse ipblocks and/or groups */
         pool = ptr_pool;
+    } else if (SKPC_GROUP_IPSET == g_type) {
+        /* parse ipsets and/or groups */
+        pool = ptr_pool;
+    } else {
+        skAbortBadCase(g_type);
     }
 
     /* get a vector from the pool */
@@ -2010,7 +2189,16 @@ add_values_to_group(
                 goto END;
             }
             skVectorAppendValue(vec, &ipwild);
-        } else {
+        } else if (g_type == SKPC_GROUP_IPSET) {
+            assert(pool == ptr_pool);
+            ipset = parse_ipset_filename(*s);
+            if (ipset == NULL) {
+                ++defn_errors;
+                ++i;
+                goto END;
+            }
+            skVectorAppendValue(vec, &ipset);
+        } else if (SKPC_GROUP_INTERFACE == g_type) {
             assert(g_type == SKPC_GROUP_INTERFACE);
             assert(pool == u32_pool);
             n = parse_int_u16(*s);
@@ -2039,6 +2227,14 @@ add_values_to_group(
         vectorPoolPut(ptr_pool, v);
     }
     if (vec) {
+        if (g_type == SKPC_GROUP_IPSET) {
+            for (i = 0; i < skVectorGetCount(vec); ++i) {
+                skVectorGetValue(&ipset, vec, i);
+                if (ipset) {
+                    skIPSetDestroy(&ipset);
+                }
+            }
+        }
         vectorPoolPut(pool, vec);
     }
     return rv;
@@ -2060,11 +2256,8 @@ get_group(
         return NULL;
     }
     if (skpcGroupGetType(g) != g_type) {
-        skpcParseErr(("Error in %s: the '%s' group does not contain %s"),
-                     pcscan_clause, g_name,
-                     ((g_type == SKPC_GROUP_IPBLOCK)
-                      ? "ipblocks"
-                      : "interfaces"));
+        skpcParseErr(("Error in %s: the '%s' group does not contain %ss"),
+                     pcscan_clause, g_name, skpcGrouptypeEnumtoName(g_type));
         ++defn_errors;
         return NULL;
     }
@@ -2207,63 +2400,40 @@ parse_ip_addr(
 
 
 /*
- *  new_flags = log_flags_add_flag(old_flags, flag);
+ *  ipset = parse_ipset_filename(filename);
  *
- *    Add 'flag' to the 'old_flags' and return the new flags.  Warn if
- *    either value is explicitly "NONE".
+ *    Treat 'filename' as the name of an IPset file.  Load the file
+ *    and return a pointer to it.  Return NULL on failure.
  */
-static uint32_t
-log_flags_add_flag(
-    uint32_t            old_flags,
-    uint32_t            flag)
-{
-    if ((old_flags == SOURCE_LOG_NONE) || (flag == SOURCE_LOG_NONE)) {
-        skpcParseErr(("Cannot mix %s 'none' with other values on probe '%s'"),
-                     pcscan_clause, skpcProbeGetName(probe));
-        ++defn_errors;
-    }
-
-    return (old_flags | flag);
-}
-
-
-/*
- *  flag = parse_log_flag(s);
- *
- *    Parse the string 's' as a log flag.
- */
-static uint32_t
-parse_log_flag(
+static skipset_t *
+parse_ipset_filename(
     char               *s)
 {
-    int rv = UINT16_NO_VALUE;
+    skipset_t *ipset;
+    ssize_t rv;
 
-    if (!s || !*s) {
-        skpcParseErr("Missing value for %s on probe '%s'",
-                     pcscan_clause, skpcProbeGetName(probe));
-        ++defn_errors;
-    } else if (0 == strcmp(s, "all")) {
-        rv = SOURCE_LOG_ALL;
-    } else if (0 == strcmp(s, "bad")) {
-        rv = SOURCE_LOG_BAD;
-    } else if (0 == strcmp(s, "missing")) {
-        rv = SOURCE_LOG_MISSING;
-    } else if (0 == strcmp(s, "none")) {
-        rv = SOURCE_LOG_NONE;
-    } else if (0 == strcmp(s, "sampling")) {
-        rv = SOURCE_LOG_SAMPLING;
-    } else if (0 == strcmp(s, "firewall-event")) {
-        rv = SOURCE_LOG_FIREWALL;
-    } else {
-        skpcParseErr("Do not recognize %s value '%s' on probe '%s'",
-                     pcscan_clause, s, skpcProbeGetName(probe));
-        ++defn_errors;
+    /* reject standard input */
+    if (0 == strcmp(s, "-") || (0 == strcmp(s, "stdin"))) {
+        skpcParseErr("May not read an IPset from the standard input");
+        ipset = NULL;
+        goto END;
     }
 
-    if (s) {
-        free(s);
+    rv = skIPSetLoad(&ipset, s);
+    if (rv) {
+        skpcParseErr("Unable to read IPset from '%s': %s",
+                     s, skIPSetStrerror(rv));
+        ipset = NULL;
     }
-    return rv;
+    if (skIPSetCountIPs(ipset, NULL) == 0) {
+        skpcParseErr("May not use the IPset in '%s': IPset is empty", s);
+        skIPSetDestroy(&ipset);
+        ipset = NULL;
+    }
+
+  END:
+    free(s);
+    return ipset;
 }
 
 

@@ -1,20 +1,33 @@
 /*
-   Redblack balanced tree algorithm
-   Copyright (C) Damian Ivereigh 2000
+ *    Redblack balanced tree algorithm
+ *    Copyright (C) Damian Ivereigh 2000
+ *
+ *    This program is free software; you can redistribute it and/or
+ *    modify it under the terms of the GNU Lesser General Public
+ *    License as published by the Free Software Foundation; either
+ *    version 2.1 of the License, or (at your option) any later
+ *    version. See the file COPYING for details.
+ *
+ *    This program is distributed in the hope that it will be useful,
+ *    but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *    GNU General Public License for more details.
+ *
+ *    You should have received a copy of the GNU Lesser General Public
+ *    License along with this program; if not, write to the Free
+ *    Software Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139,
+ *    USA.
+ */
 
-   This program is free software; you can redistribute it and/or modify
-   it under the terms of the GNU Lesser General Public License as published by
-   the Free Software Foundation; either version 2.1 of the License, or
-   (at your option) any later version. See the file COPYING for details.
-
-   This program is distributed in the hope that it will be useful,
-   but WITHOUT ANY WARRANTY; without even the implied warranty of
-   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-   GNU General Public License for more details.
-
-   You should have received a copy of the GNU Lesser General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+/*
+ *    Includes modifications made by Carnegie Mellon Univeristy,
+ *    December 3, 2014, to work in a multi-threaded environment.
+ *
+ *    Original source code is available from
+ *    http://sourceforge.net/projects/libredblack/files/
+ *
+ *    Documentation for the original source code is available at
+ *    http://libredblack.sourceforge.net/
  */
 
 /* Implement the red/black tree structure. It is designed to emulate
@@ -24,9 +37,10 @@
 
 #include <silk/silk.h>
 
-RCSIDENT("$SiLK: redblack.c 19247794edb2 2013-05-30 13:40:06Z mthomas $");
+RCSIDENT("$SiLK: redblack.c 9f00e19adb68 2014-12-03 23:15:22Z mthomas $");
 
 #include <silk/redblack.h>
+
 
 /* Uncomment this if you would rather use a raw sbrk to get memory
 ** (however the memory is never released again (only re-used). Can't
@@ -36,8 +50,7 @@ RCSIDENT("$SiLK: redblack.c 19247794edb2 2013-05-30 13:40:06Z mthomas $");
 
 enum nodecolour { BLACK, RED };
 
-struct rbnode
-{
+struct rbnode {
     struct rbnode      *left;       /* Left down */
     struct rbnode      *right;      /* Right down */
     struct rbnode      *up;         /* Up */
@@ -45,12 +58,6 @@ struct rbnode
     const void         *key;        /* Pointer to user's key (and data) */
 };
 
-/* Dummy (sentinel) node, so that we can make X->left->up = X
-** We then use this instead of NULL to mean the top or bottom
-** end of the rb tree. It is a black node.
-*/
-struct rbnode rb_null = {&rb_null, &rb_null, &rb_null, BLACK, NULL};
-#define RBNULL (&rb_null)
 
 #if defined(USE_SBRK)
 
@@ -66,17 +73,105 @@ static void rb_free(struct rbnode *);
 
 static struct rbnode *rb_traverse(int, const void *, struct rbtree *);
 static struct rbnode *rb_lookup(int, const void *, struct rbtree *);
-static void rb_destroy(struct rbnode *);
-static void rb_left_rotate(struct rbnode **, struct rbnode *);
-static void rb_right_rotate(struct rbnode **, struct rbnode *);
-static void rb_delete(struct rbnode **, struct rbnode *);
-static void rb_delete_fix(struct rbnode **, struct rbnode *);
-static struct rbnode *rb_successor(const struct rbnode *);
-static struct rbnode *rb_preccessor(const struct rbnode *);
-static void rb_walk(const struct rbnode *, void (*)(const void *, const VISIT, const int, void *), void *, int);
-static RBLIST *rb_openlist(const struct rbnode *);
+static void rb_destroy(struct rbnode *, const struct rbnode *);
+static void
+rb_left_rotate(
+    struct rbnode **,
+    struct rbnode *,
+    const struct rbnode *);
+static void
+rb_right_rotate(
+    struct rbnode **,
+    struct rbnode *,
+    const struct rbnode *);
+static void
+rb_delete(
+    struct rbnode **,
+    struct rbnode *,
+    const struct rbnode *);
+static void
+rb_delete_fix(
+    struct rbnode **,
+    struct rbnode *,
+    const struct rbnode *);
+static struct rbnode *
+rb_successor(
+    const struct rbnode *,
+    const struct rbnode *);
+static struct rbnode *
+rb_preccessor(
+    const struct rbnode *,
+    const struct rbnode *);
+static void
+rb_walk(
+    const struct rbnode *,
+    void (*)(const void *, const VISIT, const int, void *),
+    void *,
+    int,
+    const struct rbnode *);
+static RBLIST *rb_openlist(const struct rbnode *, const struct rbnode *);
 static const void *rb_readlist(RBLIST *);
 static void rb_closelist(RBLIST *);
+
+/*
+ *    Macros to set the members of a struct rbnode.
+ */
+#ifndef REDBLACK_DEBUG
+
+#define NODE_SET_COLOUR(m_node, m_value) (m_node)->colour = (m_value)
+#define NODE_SET_LEFT(m_node, m_value)   (m_node)->left   = (m_value)
+#define NODE_SET_RIGHT(m_node, m_value)  (m_node)->right  = (m_value)
+#define NODE_SET_UP(m_node, m_value)     (m_node)->up     = (m_value)
+
+#else
+
+#include <silk/sklog.h>
+
+#define NODE_SET_COLOUR(m_node, m_value)                                \
+    do {                                                                \
+        if ((m_node) != RBNULL) {                                       \
+            (m_node)->colour = (m_value);                               \
+        } else if ((m_value) != BLACK) {                                \
+            DEBUGMSG("%p %s:%d: Setting colour of %p to red",           \
+                     (void*)pthread_self(), __FILE__, __LINE__,         \
+                     (m_node));                                         \
+            (m_node)->colour = (m_value);                               \
+        } else if ((m_node)->colour != BLACK) {                         \
+            DEBUGMSG("%p %s:%d: Restoring colour of %p to black",       \
+                     (void*)pthread_self(), __FILE__, __LINE__,         \
+                     (m_node));                                         \
+            (m_node)->colour = (m_value);                               \
+        }                                                               \
+    } while(0)
+
+#define NODE_SET_HELPER(m_node, m_value, m_member)                      \
+    do {                                                                \
+        if ((m_node) != RBNULL) {                                       \
+            (m_node)-> m_member = (m_value);                            \
+        } else if ((m_value) != RBNULL) {                               \
+            DEBUGMSG("%p %s:%d: Setting %s of %p to non-RBNULL value %p", \
+                     (void*)pthread_self(), __FILE__, __LINE__,         \
+                     #m_member, (m_node), (m_value));                   \
+            (m_node)-> m_member = (m_value);                            \
+        } else if ((m_node)-> m_member != RBNULL) {                     \
+            DEBUGMSG("%p %s:%d: Restoring %s of %p to RBNULL value %p", \
+                     (void*)pthread_self(), __FILE__, __LINE__,         \
+                     #m_member, (m_node), (m_value));                   \
+            (m_node)-> m_member = (m_value);                            \
+        }                                                               \
+    } while(0)
+
+#define NODE_SET_LEFT(m_node, m_value)          \
+    NODE_SET_HELPER(m_node, m_value, left)
+
+#define NODE_SET_RIGHT(m_node, m_value)         \
+    NODE_SET_HELPER(m_node, m_value, right)
+
+#define NODE_SET_UP(m_node, m_value)            \
+    NODE_SET_HELPER(m_node, m_value, up)
+
+#endif  /* #else of #ifndef REDBLACK_DEBUG */
+
 
 /*
 ** OK here we go, the balanced tree stuff. The algorithm is the
@@ -102,13 +197,32 @@ static void rb_closelist(RBLIST *);
  * Returns a pointer to the top of the tree.
  */
 struct rbtree *
-rbinit(int (*cmp)(const void *, const void *, const void *), const void *config)
+rbinit(
+    int               (*cmp)(const void *p1, const void *p2, const void *cfg),
+    const void         *config)
 {
+    struct rbnode *RBNULL;
     struct rbtree *retval;
 
-    if ((retval = (struct rbtree *) malloc(sizeof(struct rbtree))) == NULL) {
+    retval = (struct rbtree *)malloc(sizeof(struct rbtree));
+    if (NULL == retval) {
         return(NULL);
     }
+
+    /* Dummy (sentinel) node, so that we can make X->left->up = X
+     * We then use this instead of NULL to mean the top or bottom
+     * end of the rb tree. It is a black node.
+     */
+    RBNULL = retval->rb_null = (struct rbnode *)malloc(sizeof(struct rbnode));
+    if (NULL == retval->rb_null) {
+        free(retval);
+        return NULL;
+    }
+    retval->rb_null->left   = RBNULL;
+    retval->rb_null->right  = RBNULL;
+    retval->rb_null->up     = RBNULL;
+    retval->rb_null->colour = BLACK;
+    retval->rb_null->key    = NULL;
 
     retval->rb_cmp = cmp;
     retval->rb_config = config;
@@ -118,27 +232,36 @@ rbinit(int (*cmp)(const void *, const void *, const void *), const void *config)
 }
 
 void
-rbdestroy(struct rbtree *rbinfo)
+rbdestroy(
+    struct rbtree      *rbinfo)
 {
+    const struct rbnode *RBNULL;
+
     if (rbinfo == NULL) {
         return;
     }
+    RBNULL = rbinfo->rb_null;
 
     if (rbinfo->rb_root != RBNULL) {
-        rb_destroy(rbinfo->rb_root);
+        rb_destroy(rbinfo->rb_root, RBNULL);
     }
 
+    free(rbinfo->rb_null);
     free(rbinfo);
 }
 
 const void *
-rbsearch(const void *key, struct rbtree *rbinfo)
+rbsearch(
+    const void         *key,
+    struct rbtree      *rbinfo)
 {
+    const struct rbnode *RBNULL;
     struct rbnode *x;
 
     if (rbinfo == NULL) {
         return(NULL);
     }
+    RBNULL = rbinfo->rb_null;
 
     x = rb_traverse(1, key, rbinfo);
 
@@ -146,13 +269,17 @@ rbsearch(const void *key, struct rbtree *rbinfo)
 }
 
 const void *
-rbfind(const void *key, struct rbtree *rbinfo)
+rbfind(
+    const void         *key,
+    struct rbtree      *rbinfo)
 {
+    const struct rbnode *RBNULL;
     struct rbnode *x;
 
     if (rbinfo == NULL) {
         return(NULL);
     }
+    RBNULL = rbinfo->rb_null;
 
     /* If we have a NULL root (empty tree) then just return */
     if (rbinfo->rb_root == RBNULL) {
@@ -165,14 +292,18 @@ rbfind(const void *key, struct rbtree *rbinfo)
 }
 
 const void *
-rbdelete(const void *key, struct rbtree *rbinfo)
+rbdelete(
+    const void         *key,
+    struct rbtree      *rbinfo)
 {
+    const struct rbnode *RBNULL;
     struct rbnode *x;
     const void *y;
 
     if (rbinfo == NULL) {
         return(NULL);
     }
+    RBNULL = rbinfo->rb_null;
 
     x = rb_traverse(0, key, rbinfo);
 
@@ -180,34 +311,42 @@ rbdelete(const void *key, struct rbtree *rbinfo)
         return(NULL);
     } else {
         y = x->key;
-        rb_delete(&rbinfo->rb_root, x);
-
+        rb_delete(&rbinfo->rb_root, x, RBNULL);
         return(y);
     }
 }
 
 void
-rbwalk(const struct rbtree *rbinfo, void (*action)(const void *, const VISIT, const int, void *), void *arg)
+rbwalk(
+    const struct rbtree    *rbinfo,
+    void                  (*action)(
+        const void *,
+        const VISIT,
+        const int,
+        void *),
+    void                   *arg)
 {
     if (rbinfo == NULL) {
         return;
     }
 
-    rb_walk(rbinfo->rb_root, action, arg, 0);
+    rb_walk(rbinfo->rb_root, action, arg, 0, rbinfo->rb_null);
 }
 
 RBLIST *
-rbopenlist(const struct rbtree *rbinfo)
+rbopenlist(
+    const struct rbtree    *rbinfo)
 {
     if (rbinfo == NULL) {
         return(NULL);
     }
 
-    return(rb_openlist(rbinfo->rb_root));
+    return(rb_openlist(rbinfo->rb_root, rbinfo->rb_null));
 }
 
 const void *
-rbreadlist(RBLIST *rblistp)
+rbreadlist(
+    RBLIST             *rblistp)
 {
     if (rblistp == NULL) {
         return(NULL);
@@ -217,7 +356,8 @@ rbreadlist(RBLIST *rblistp)
 }
 
 void
-rbcloselist(RBLIST *rblistp)
+rbcloselist(
+    RBLIST             *rblistp)
 {
     if (rblistp == NULL) {
         return;
@@ -227,14 +367,19 @@ rbcloselist(RBLIST *rblistp)
 }
 
 const void *
-rblookup(int mode, const void *key, struct rbtree *rbinfo)
+rblookup(
+    int                 mode,
+    const void         *key,
+    struct rbtree      *rbinfo)
 {
+    const struct rbnode *RBNULL;
     struct rbnode *x;
 
     /* If we have a NULL root (empty tree) then just return NULL */
     if (rbinfo == NULL || rbinfo->rb_root == NULL) {
         return(NULL);
     }
+    RBNULL = rbinfo->rb_null;
 
     x = rb_lookup(mode, key, rbinfo);
 
@@ -247,8 +392,12 @@ rblookup(int mode, const void *key, struct rbtree *rbinfo)
 ** node in. Returns a pointer to the new node, or the node found
 */
 static struct rbnode *
-rb_traverse(int insert, const void *key, struct rbtree *rbinfo)
+rb_traverse(
+    int                 insert,
+    const void         *key,
+    struct rbtree      *rbinfo)
 {
+    struct rbnode *RBNULL = rbinfo->rb_null;
     struct rbnode *x, *y, *z;
     int cmp;
     int found = 0;
@@ -281,23 +430,23 @@ rb_traverse(int insert, const void *key, struct rbtree *rbinfo)
     }
 
     z->key = key;
-    z->up = y;
+    NODE_SET_UP(z, y);
     if (y == RBNULL) {
         rbinfo->rb_root = z;
     } else {
         cmp = (*rbinfo->rb_cmp)(z->key, y->key, rbinfo->rb_config);
         if (cmp < 0) {
-            y->left = z;
+            NODE_SET_LEFT(y, z);
         } else {
-            y->right = z;
+            NODE_SET_RIGHT(y, z);
         }
     }
 
-    z->left = RBNULL;
-    z->right = RBNULL;
+    NODE_SET_LEFT(z, RBNULL);
+    NODE_SET_RIGHT(z, RBNULL);
 
     /* colour this new node red */
-    z->colour = RED;
+    NODE_SET_COLOUR(z, RED);
 
     /* Having added a red node, we must now walk back up the tree balancing
     ** it, by a series of rotations and changing of colours
@@ -316,11 +465,11 @@ rb_traverse(int insert, const void *key, struct rbtree *rbinfo)
             y = x->up->up->right;
             if (y->colour == RED) {
                 /* make our parent black */
-                x->up->colour = BLACK;
+                NODE_SET_COLOUR(x->up, BLACK);
                 /* make our uncle black */
-                y->colour = BLACK;
+                NODE_SET_COLOUR(y, BLACK);
                 /* make our grandparent red */
-                x->up->up->colour = RED;
+                NODE_SET_COLOUR(x->up->up, RED);
 
                 /* now consider our grandparent */
                 x = x->up->up;
@@ -329,15 +478,15 @@ rb_traverse(int insert, const void *key, struct rbtree *rbinfo)
                 if (x == x->up->right) {
                     /* Move up to our parent */
                     x = x->up;
-                    rb_left_rotate(&rbinfo->rb_root, x);
+                    rb_left_rotate(&rbinfo->rb_root, x, RBNULL);
                 }
 
                 /* make our parent black */
-                x->up->colour = BLACK;
+                NODE_SET_COLOUR(x->up, BLACK);
                 /* make our grandparent red */
-                x->up->up->colour = RED;
+                NODE_SET_COLOUR(x->up->up, RED);
                 /* right rotate our grandparent */
-                rb_right_rotate(&rbinfo->rb_root, x->up->up);
+                rb_right_rotate(&rbinfo->rb_root, x->up->up, RBNULL);
             }
         } else {
             /* everything here is the same as above, but
@@ -346,26 +495,26 @@ rb_traverse(int insert, const void *key, struct rbtree *rbinfo)
 
             y = x->up->up->left;
             if (y->colour == RED) {
-                x->up->colour = BLACK;
-                y->colour = BLACK;
-                x->up->up->colour = RED;
+                NODE_SET_COLOUR(x->up, BLACK);
+                NODE_SET_COLOUR(y, BLACK);
+                NODE_SET_COLOUR(x->up->up, RED);
 
                 x = x->up->up;
             } else {
                 if (x == x->up->left) {
                     x = x->up;
-                    rb_right_rotate(&rbinfo->rb_root, x);
+                    rb_right_rotate(&rbinfo->rb_root, x, RBNULL);
                 }
 
-                x->up->colour = BLACK;
-                x->up->up->colour = RED;
-                rb_left_rotate(&rbinfo->rb_root, x->up->up);
+                NODE_SET_COLOUR(x->up, BLACK);
+                NODE_SET_COLOUR(x->up->up, RED);
+                rb_left_rotate(&rbinfo->rb_root, x->up->up, RBNULL);
             }
         }
     }
 
     /* Set the root node black */
-    (rbinfo->rb_root)->colour = BLACK;
+    NODE_SET_COLOUR(rbinfo->rb_root, BLACK);
 
     return(z);
 }
@@ -373,8 +522,12 @@ rb_traverse(int insert, const void *key, struct rbtree *rbinfo)
 /* Search for a key according to mode (see redblack.h)
 */
 static struct rbnode *
-rb_lookup(int mode, const void *key, struct rbtree *rbinfo)
+rb_lookup(
+    int                 mode,
+    const void         *key,
+    struct rbtree      *rbinfo)
 {
+    struct rbnode *RBNULL = rbinfo->rb_null;
     struct rbnode *x, *y;
     int cmp = 0;
     int found = 0;
@@ -414,17 +567,21 @@ rb_lookup(int mode, const void *key, struct rbtree *rbinfo)
         }
     }
 
-    if (found && (mode == RB_LUEQUAL || mode == RB_LUGTEQ || mode == RB_LULTEQ)) {
+    if (found
+        && (mode == RB_LUEQUAL || mode == RB_LUGTEQ || mode == RB_LULTEQ))
+    {
         return(x);
     }
 
-    if (!found && (mode == RB_LUEQUAL || mode == RB_LUNEXT || mode == RB_LUPREV)) {
+    if (!found
+        && (mode == RB_LUEQUAL || mode == RB_LUNEXT || mode == RB_LUPREV))
+    {
         return(RBNULL);
     }
 
     if (mode == RB_LUGTEQ || (!found && mode == RB_LUGREAT)) {
         if (cmp > 0) {
-            return(rb_successor(y));
+            return(rb_successor(y, RBNULL));
         } else {
             return(y);
         }
@@ -432,18 +589,18 @@ rb_lookup(int mode, const void *key, struct rbtree *rbinfo)
 
     if (mode == RB_LULTEQ || (!found && mode == RB_LULESS)) {
         if (cmp < 0) {
-            return(rb_preccessor(y));
+            return(rb_preccessor(y, RBNULL));
         } else {
             return(y);
         }
     }
 
     if (mode == RB_LUNEXT || (found && mode == RB_LUGREAT)) {
-        return(rb_successor(x));
+        return(rb_successor(x, RBNULL));
     }
 
     if (mode == RB_LUPREV || (found && mode == RB_LULESS)) {
-        return(rb_preccessor(x));
+        return(rb_preccessor(x, RBNULL));
     }
 
     /* Shouldn't get here */
@@ -455,14 +612,16 @@ rb_lookup(int mode, const void *key, struct rbtree *rbinfo)
  * only useful as part of a complete tree destroy.
  */
 static void
-rb_destroy(struct rbnode *x)
+rb_destroy(
+    struct rbnode          *x,
+    const struct rbnode    *RBNULL)
 {
     if (x != RBNULL) {
         if (x->left != RBNULL) {
-            rb_destroy(x->left);
+            rb_destroy(x->left, RBNULL);
         }
         if (x->right != RBNULL) {
-            rb_destroy(x->right);
+            rb_destroy(x->right, RBNULL);
         }
         rb_free(x);
     }
@@ -483,7 +642,10 @@ rb_destroy(struct rbnode *x)
 */
 
 static void
-rb_left_rotate(struct rbnode **rootp, struct rbnode *x)
+rb_left_rotate(
+    struct rbnode         **rootp,
+    struct rbnode          *x,
+    const struct rbnode    *RBNULL)
 {
     struct rbnode *y;
 
@@ -493,15 +655,15 @@ rb_left_rotate(struct rbnode **rootp, struct rbnode *x)
     y = x->right; /* set Y */
 
     /* Turn Y's left subtree into X's right subtree (move B)*/
-    x->right = y->left;
+    NODE_SET_RIGHT(x, y->left);
 
     /* If B is not null, set it's parent to be X */
     if (y->left != RBNULL) {
-        y->left->up = x;
+        NODE_SET_UP(y->left, x);
     }
 
     /* Set Y's parent to be what X's parent was */
-    y->up = x->up;
+    NODE_SET_UP(y, x->up);
 
     /* if X was the root */
     if (x->up == RBNULL) {
@@ -509,21 +671,24 @@ rb_left_rotate(struct rbnode **rootp, struct rbnode *x)
     } else {
         /* Set X's parent's left or right pointer to be Y */
         if (x == x->up->left) {
-            x->up->left = y;
+            NODE_SET_LEFT(x->up, y);
         } else {
-            x->up->right = y;
+            NODE_SET_RIGHT(x->up, y);
         }
     }
 
     /* Put X on Y's left */
-    y->left = x;
+    NODE_SET_LEFT(y, x);
 
     /* Set X's parent to be Y */
-    x->up = y;
+    NODE_SET_UP(x, y);
 }
 
 static void
-rb_right_rotate(struct rbnode **rootp, struct rbnode *y)
+rb_right_rotate(
+    struct rbnode         **rootp,
+    struct rbnode          *y,
+    const struct rbnode    *RBNULL)
 {
     struct rbnode *x;
 
@@ -533,15 +698,15 @@ rb_right_rotate(struct rbnode **rootp, struct rbnode *y)
     x = y->left; /* set X */
 
     /* Turn X's right subtree into Y's left subtree (move B) */
-    y->left = x->right;
+    NODE_SET_LEFT(y, x->right);
 
     /* If B is not null, set it's parent to be Y */
     if (x->right != RBNULL) {
-        x->right->up = y;
+        NODE_SET_UP(x->right, y);
     }
 
     /* Set X's parent to be what Y's parent was */
-    x->up = y->up;
+    NODE_SET_UP(x, y->up);
 
     /* if Y was the root */
     if (y->up == RBNULL) {
@@ -549,23 +714,25 @@ rb_right_rotate(struct rbnode **rootp, struct rbnode *y)
     } else {
         /* Set Y's parent's left or right pointer to be X */
         if (y == y->up->left) {
-            y->up->left = x;
+            NODE_SET_LEFT(y->up, x);
         } else {
-            y->up->right = x;
+            NODE_SET_RIGHT(y->up, x);
         }
     }
 
     /* Put Y on X's right */
-    x->right = y;
+    NODE_SET_RIGHT(x, y);
 
     /* Set Y's parent to be X */
-    y->up = x;
+    NODE_SET_UP(y, x);
 }
 
 /* Return a pointer to the smallest key greater than x
 */
 static struct rbnode *
-rb_successor(const struct rbnode *x)
+rb_successor(
+    const struct rbnode    *x,
+    const struct rbnode    *RBNULL)
 {
     struct rbnode *y;
 
@@ -592,7 +759,9 @@ rb_successor(const struct rbnode *x)
 /* Return a pointer to the largest key smaller than x
 */
 static struct rbnode *
-rb_preccessor(const struct rbnode *x)
+rb_preccessor(
+    const struct rbnode    *x,
+    const struct rbnode    *RBNULL)
 {
     struct rbnode *y;
 
@@ -619,14 +788,17 @@ rb_preccessor(const struct rbnode *x)
 /* Delete the node z, and free up the space
 */
 static void
-rb_delete(struct rbnode **rootp, struct rbnode *z)
+rb_delete(
+    struct rbnode         **rootp,
+    struct rbnode          *z,
+    const struct rbnode    *RBNULL)
 {
     struct rbnode *x, *y;
 
     if (z->left == RBNULL || z->right == RBNULL) {
         y = z;
     } else {
-        y = rb_successor(z);
+        y = rb_successor(z, RBNULL);
     }
 
     if (y->left != RBNULL) {
@@ -635,15 +807,15 @@ rb_delete(struct rbnode **rootp, struct rbnode *z)
         x = y->right;
     }
 
-    x->up = y->up;
+    NODE_SET_UP(x, y->up);
 
     if (y->up == RBNULL) {
         *rootp = x;
     } else {
         if (y == y->up->left) {
-            y->up->left = x;
+            NODE_SET_LEFT(y->up, x);
         } else {
-            y->up->right = x;
+            NODE_SET_RIGHT(y->up, x);
         }
     }
 
@@ -652,7 +824,7 @@ rb_delete(struct rbnode **rootp, struct rbnode *z)
     }
 
     if (y->colour == BLACK) {
-        rb_delete_fix(rootp, x);
+        rb_delete_fix(rootp, x, RBNULL);
     }
 
     rb_free(y);
@@ -660,7 +832,10 @@ rb_delete(struct rbnode **rootp, struct rbnode *z)
 
 /* Restore the reb-black properties after a delete */
 static void
-rb_delete_fix(struct rbnode **rootp, struct rbnode *x)
+rb_delete_fix(
+    struct rbnode         **rootp,
+    struct rbnode          *x,
+    const struct rbnode    *RBNULL)
 {
     struct rbnode *w;
 
@@ -668,64 +843,72 @@ rb_delete_fix(struct rbnode **rootp, struct rbnode *x)
         if (x == x->up->left) {
             w = x->up->right;
             if (w->colour == RED) {
-                w->colour = BLACK;
-                x->up->colour = RED;
-                rb_left_rotate(rootp, x->up);
+                NODE_SET_COLOUR(w, BLACK);
+                NODE_SET_COLOUR(x->up, RED);
+                rb_left_rotate(rootp, x->up, RBNULL);
                 w = x->up->right;
             }
 
             if (w->left->colour == BLACK && w->right->colour == BLACK) {
-                w->colour = RED;
+                NODE_SET_COLOUR(w, RED);
                 x = x->up;
             } else {
                 if (w->right->colour == BLACK) {
-                    w->left->colour = BLACK;
-                    w->colour = RED;
-                    rb_right_rotate(rootp, w);
+                    NODE_SET_COLOUR(w->left, BLACK);
+                    NODE_SET_COLOUR(w, RED);
+                    rb_right_rotate(rootp, w, RBNULL);
                     w = x->up->right;
                 }
 
-
-                w->colour = x->up->colour;
-                x->up->colour = BLACK;
-                w->right->colour = BLACK;
-                rb_left_rotate(rootp, x->up);
+                NODE_SET_COLOUR(w, x->up->colour);
+                NODE_SET_COLOUR(x->up, BLACK);
+                NODE_SET_COLOUR(w->right, BLACK);
+                rb_left_rotate(rootp, x->up, RBNULL);
                 x = *rootp;
             }
         } else {
             w = x->up->left;
             if (w->colour == RED) {
-                w->colour = BLACK;
-                x->up->colour = RED;
-                rb_right_rotate(rootp, x->up);
+                NODE_SET_COLOUR(w, BLACK);
+                NODE_SET_COLOUR(x->up, RED);
+                rb_right_rotate(rootp, x->up, RBNULL);
                 w = x->up->left;
             }
 
             if (w->right->colour == BLACK && w->left->colour == BLACK) {
-                w->colour = RED;
+                NODE_SET_COLOUR(w, RED);
                 x = x->up;
             } else {
                 if (w->left->colour == BLACK) {
-                    w->right->colour = BLACK;
-                    w->colour=RED;
-                    rb_left_rotate(rootp, w);
+                    NODE_SET_COLOUR(w->right, BLACK);
+                    NODE_SET_COLOUR(w, RED);
+                    rb_left_rotate(rootp, w, RBNULL);
                     w = x->up->left;
                 }
 
-                w->colour = x->up->colour;
-                x->up->colour = BLACK;
-                w->left->colour = BLACK;
-                rb_right_rotate(rootp, x->up);
+                NODE_SET_COLOUR(w, x->up->colour);
+                NODE_SET_COLOUR(x->up, BLACK);
+                NODE_SET_COLOUR(w->left, BLACK);
+                rb_right_rotate(rootp, x->up, RBNULL);
                 x = *rootp;
             }
         }
     }
 
-    x->colour = BLACK;
+    NODE_SET_COLOUR(x, BLACK);
 }
 
 static void
-rb_walk(const struct rbnode *x, void (*action)(const void *, const VISIT, const int, void *), void *arg, int level)
+rb_walk(
+    const struct rbnode    *x,
+    void                  (*action)(
+        const void *,
+        const VISIT,
+        const int,
+        void *),
+    void                   *arg,
+    int                     level,
+    const struct rbnode    *RBNULL)
 {
     if (x == RBNULL) {
         return;
@@ -737,28 +920,31 @@ rb_walk(const struct rbnode *x, void (*action)(const void *, const VISIT, const 
     } else {
         (*action)(x->key, preorder, level, arg);
 
-        rb_walk(x->left, action, arg, level+1);
+        rb_walk(x->left, action, arg, level+1, RBNULL);
 
         (*action)(x->key, postorder, level, arg);
 
-        rb_walk(x->right, action, arg, level+1);
+        rb_walk(x->right, action, arg, level+1, RBNULL);
 
         (*action)(x->key, endorder, level, arg);
     }
 }
 
 static RBLIST *
-rb_openlist(const struct rbnode *rootp)
+rb_openlist(
+    const struct rbnode    *rootp,
+    const struct rbnode    *RBNULL)
 {
     RBLIST *rblistp;
 
-    rblistp = (RBLIST *) malloc(sizeof(RBLIST));
+    rblistp = (RBLIST *)malloc(sizeof(RBLIST));
     if (!rblistp) {
         return(NULL);
     }
 
     rblistp->rootp = rootp;
     rblistp->nextp = rootp;
+    rblistp->nullp = RBNULL;
 
     if (rootp != RBNULL) {
         while (rblistp->nextp->left != RBNULL) {
@@ -770,20 +956,26 @@ rb_openlist(const struct rbnode *rootp)
 }
 
 static const void *
-rb_readlist(RBLIST *rblistp)
+rb_readlist(
+    RBLIST             *rblistp)
 {
     const void *key = NULL;
+    const struct rbnode *RBNULL;
 
-    if (rblistp != NULL && rblistp->nextp != RBNULL) {
-        key = rblistp->nextp->key;
-        rblistp->nextp = rb_successor(rblistp->nextp);
+    if (rblistp != NULL) {
+        RBNULL = rblistp->nullp;
+        if (rblistp->nextp != RBNULL) {
+            key = rblistp->nextp->key;
+            rblistp->nextp = rb_successor(rblistp->nextp, RBNULL);
+        }
     }
 
     return(key);
 }
 
 static void
-rb_closelist(RBLIST *rblistp)
+rb_closelist(
+    RBLIST             *rblistp)
 {
     if (rblistp) {
         free(rblistp);
@@ -805,7 +997,8 @@ rb_alloc()
 
     if (rbfreep == NULL) {
         /* must grab some more space */
-        rbfreep = (struct rbnode *) sbrk(sizeof(struct rbnode) * RBNODEALLOC_CHUNK_SIZE);
+        rbfreep = ((struct rbnode *)
+                   sbrk(sizeof(struct rbnode) * RBNODEALLOC_CHUNK_SIZE));
 
         if (rbfreep == (struct rbnode *) -1) {
             return(NULL);
@@ -815,7 +1008,7 @@ rb_alloc()
         for (i = 0, x = rbfreep; i < RBNODEALLOC_CHUNK_SIZE - 1; i++, x++) {
             x->up = (x + 1);
         }
-        x->up = NULL;
+        NODE_SET_UP(x, NULL);
     }
 
     x = rbfreep;
@@ -829,7 +1022,7 @@ rb_alloc()
 static void
 rb_free(struct rbnode *x)
 {
-    x->up = rbfreep;
+    NODE_SET_UP(x, rbfreep);
     rbfreep = x;
 }
 

@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2001-2014 by Carnegie Mellon University.
+** Copyright (C) 2001-2015 by Carnegie Mellon University.
 **
 ** @OPENSOURCE_HEADER_START@
 **
@@ -75,7 +75,7 @@
 
 #include <silk/silk.h>
 
-RCSIDENT("$SiLK: fglob.c cd598eff62b9 2014-09-21 19:31:29Z mthomas $");
+RCSIDENT("$SiLK: fglob.c b7b8edebba12 2015-01-05 18:05:21Z mthomas $");
 
 #include "rwfilter.h"
 
@@ -919,8 +919,8 @@ fglobInitTimes(
 {
     sktime_t start_val;
     sktime_t end_val;
-    int start_precision = -1;
-    int end_precision = -1;
+    unsigned int start_precision = 0;
+    unsigned int end_precision = 0;
     time_t t;
     int rv;
 #if  SK_ENABLE_LOCALTIME
@@ -974,7 +974,10 @@ fglobInitTimes(
                       skStringParseStrerror(rv));
         return 1;
     }
-    if (start_precision > 4) {
+    if ((0 == (start_precision & SK_PARSED_DATETIME_EPOCH))
+        && (SK_PARSED_DATETIME_GET_PRECISION(start_precision)
+            > SK_PARSED_DATETIME_HOUR))
+    {
         skAppPrintErr("Warning: %s precision greater than hours ignored",
                       fglobOptions[FGLOB_OPT_START_DATE].name);
     }
@@ -998,11 +1001,18 @@ fglobInitTimes(
         fList->fg_time_end = end_val - (end_val % 3600000);
 
         /* Make any required adjustements to end-time */
-        if (start_precision == 3) {
+        if (end_precision & SK_PARSED_DATETIME_EPOCH) {
+            /* take the end-time as-is when it is an epoch time */
+
+        } else if (SK_PARSED_DATETIME_GET_PRECISION(start_precision)
+                   == SK_PARSED_DATETIME_DAY)
+        {
             /* when no starting hour given, we look at the full days,
              * regardless of the precision of the ending time; go to
              * the last hour of the ending day. */
-            if (end_precision >= 4) {
+            if (SK_PARSED_DATETIME_GET_PRECISION(end_precision)
+                >= SK_PARSED_DATETIME_HOUR)
+            {
                 skAppPrintErr(("Warning: %s precision greater than days\n"
                                "\tignored when %s has no hour"),
                               fglobOptions[FGLOB_OPT_END_DATE].name,
@@ -1012,7 +1022,10 @@ fglobInitTimes(
                 return 1;
             }
             fList->fg_time_end = end_val - (end_val % 3600000);
-        } else if (end_precision < 4) {
+
+        } else if (SK_PARSED_DATETIME_GET_PRECISION(end_precision)
+                   < SK_PARSED_DATETIME_HOUR)
+        {
             /* starting time has an hour but ending time does not; use
              * same hour for ending time */
 #if  SK_ENABLE_LOCALTIME
@@ -1031,16 +1044,24 @@ fglobInitTimes(
             fList->fg_time_end = (fList->fg_time_end
                                   - (fList->fg_time_end % 86400000)
                                   + (fList->fg_time_start % 86400000));
-#endif
-        } else if (end_precision > 4) {
+#endif  /* SK_ENABLE_LOCALTIME */
+
+        } else if (SK_PARSED_DATETIME_GET_PRECISION(end_precision)
+                   > SK_PARSED_DATETIME_HOUR)
+        {
             skAppPrintErr("Warning: %s precision greater than hours ignored",
                           fglobOptions[FGLOB_OPT_END_DATE].name);
         }
 
-    } else if (start_precision >= 4) {
+    } else if ((SK_PARSED_DATETIME_GET_PRECISION(start_precision)
+                >= SK_PARSED_DATETIME_HOUR)
+               || (1 == (start_precision & SK_PARSED_DATETIME_EPOCH)))
+    {
         /* no ending time was given and the starting time contains an
-         * hour; we only look at that single hour */
+         * hour or the starting time was expressed as epoch seconds;
+         * we only look at that single hour */
         fList->fg_time_end = fList->fg_time_start;
+
     } else {
         /* no ending time was given and the starting time was to the
          * day; look at that entire day */

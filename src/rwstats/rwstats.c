@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2001-2014 by Carnegie Mellon University.
+** Copyright (C) 2001-2015 by Carnegie Mellon University.
 **
 ** @OPENSOURCE_HEADER_START@
 **
@@ -182,7 +182,7 @@
 
 #include <silk/silk.h>
 
-RCSIDENT("$SiLK: rwstats.c cd598eff62b9 2014-09-21 19:31:29Z mthomas $");
+RCSIDENT("$SiLK: rwstats.c c19d64b322b8 2015-02-09 22:11:47Z mthomas $");
 
 #include <silk/skheap.h>
 #include "rwstats.h"
@@ -371,9 +371,6 @@ static skheapcmpfn_t cmp_fn = NULL;
 
 /* number of entries in the heap */
 static uint32_t heap_num_entries;
-
-/* whether we encounted an error counting distinct IP addresses */
-static int distinct_err = 0;
 
 
 /* LOCAL FUNCTION PROTOTYPES */
@@ -1505,7 +1502,7 @@ statsPresorted(
 
 
 /*
- *  stats = topnMain();
+ *  topnMain();
  *
  *    Function used when the user requests a top-N or bottom-N
  *    calculation.  This function initializes parameters used by the
@@ -1513,7 +1510,7 @@ statsPresorted(
  *    and filling of the heap, and finally prints the heap, and
  *    destroys it.
  */
-static int
+static void
 topnMain(
     void)
 {
@@ -1599,8 +1596,6 @@ topnMain(
     rwstatsPrintHeap();
 
     skHeapFree(heap);
-
-    return (distinct_err ? RWSTATS_NO_MEMORY_EXIT_CODE : 0);
 }
 
 
@@ -1614,7 +1609,7 @@ int main(int argc, char **argv)
     if (proto_stats) {
         rv = protoStatsMain();
     } else {
-        rv = topnMain();
+        topnMain();
     }
 
     /* Done, do cleanup */

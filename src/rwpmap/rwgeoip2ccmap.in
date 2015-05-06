@@ -1,7 +1,7 @@
 #! @PERL@
 #
 #######################################################################
-# Copyright (C) 2004-2014 by Carnegie Mellon University.
+# Copyright (C) 2004-2015 by Carnegie Mellon University.
 #
 # @OPENSOURCE_HEADER_START@
 #
@@ -64,7 +64,7 @@
 #    April 2007
 #
 #######################################################################
-#  RCSIDENT("$SiLK: rwgeoip2ccmap.in 1c87fe1a22f7 2014-01-06 15:24:30Z mthomas $")
+#  RCSIDENT("$SiLK: rwgeoip2ccmap.in b7b8edebba12 2015-01-05 18:05:21Z mthomas $")
 #######################################################################
 
 use warnings;
@@ -557,7 +557,7 @@ sub dump_version
 
     print <<EOF;
 $appname: Part of $pkg
-Copyright (C) 2001-2014 by Carnegie Mellon University
+Copyright (C) 2001-2015 by Carnegie Mellon University
 GNU Public License (GPL) Rights pursuant to Version 2, June 1991.
 Government Purpose License Rights (GPLR) pursuant to DFARS 252.227.7013.
 Send bug reports, feature requests, and comments to $bugs.

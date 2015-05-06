@@ -77,27 +77,29 @@
      INTERFACES_T = 266,
      INTERFACE_VALUES_T = 267,
      IPBLOCKS_T = 268,
-     ISP_IP_T = 269,
-     LISTEN_AS_HOST_T = 270,
-     LISTEN_ON_PORT_T = 271,
-     LISTEN_ON_USOCKET_T = 272,
-     LOG_FLAGS_T = 273,
-     POLL_DIRECTORY_T = 274,
-     PRIORITY_T = 275,
-     PROBE_T = 276,
-     PROTOCOL_T = 277,
-     QUIRKS_T = 278,
-     READ_FROM_FILE_T = 279,
-     REMAINDER_T = 280,
-     SENSOR_T = 281,
-     ID = 282,
-     NET_NAME_INTERFACE = 283,
-     NET_NAME_IPBLOCK = 284,
-     PROBES = 285,
-     QUOTED_STRING = 286,
-     NET_DIRECTION = 287,
-     FILTER = 288,
-     ERR_STR_TOO_LONG = 289
+     IPSETS_T = 269,
+     ISP_IP_T = 270,
+     LISTEN_AS_HOST_T = 271,
+     LISTEN_ON_PORT_T = 272,
+     LISTEN_ON_USOCKET_T = 273,
+     LOG_FLAGS_T = 274,
+     POLL_DIRECTORY_T = 275,
+     PRIORITY_T = 276,
+     PROBE_T = 277,
+     PROTOCOL_T = 278,
+     QUIRKS_T = 279,
+     READ_FROM_FILE_T = 280,
+     REMAINDER_T = 281,
+     SENSOR_T = 282,
+     ID = 283,
+     NET_NAME_INTERFACE = 284,
+     NET_NAME_IPBLOCK = 285,
+     NET_NAME_IPSET = 286,
+     PROBES = 287,
+     QUOTED_STRING = 288,
+     NET_DIRECTION = 289,
+     FILTER = 290,
+     ERR_STR_TOO_LONG = 291
    };
 #endif
 /* Tokens.  */
@@ -112,27 +114,29 @@
 #define INTERFACES_T 266
 #define INTERFACE_VALUES_T 267
 #define IPBLOCKS_T 268
-#define ISP_IP_T 269
-#define LISTEN_AS_HOST_T 270
-#define LISTEN_ON_PORT_T 271
-#define LISTEN_ON_USOCKET_T 272
-#define LOG_FLAGS_T 273
-#define POLL_DIRECTORY_T 274
-#define PRIORITY_T 275
-#define PROBE_T 276
-#define PROTOCOL_T 277
-#define QUIRKS_T 278
-#define READ_FROM_FILE_T 279
-#define REMAINDER_T 280
-#define SENSOR_T 281
-#define ID 282
-#define NET_NAME_INTERFACE 283
-#define NET_NAME_IPBLOCK 284
-#define PROBES 285
-#define QUOTED_STRING 286
-#define NET_DIRECTION 287
-#define FILTER 288
-#define ERR_STR_TOO_LONG 289
+#define IPSETS_T 269
+#define ISP_IP_T 270
+#define LISTEN_AS_HOST_T 271
+#define LISTEN_ON_PORT_T 272
+#define LISTEN_ON_USOCKET_T 273
+#define LOG_FLAGS_T 274
+#define POLL_DIRECTORY_T 275
+#define PRIORITY_T 276
+#define PROBE_T 277
+#define PROTOCOL_T 278
+#define QUIRKS_T 279
+#define READ_FROM_FILE_T 280
+#define REMAINDER_T 281
+#define SENSOR_T 282
+#define ID 283
+#define NET_NAME_INTERFACE 284
+#define NET_NAME_IPBLOCK 285
+#define NET_NAME_IPSET 286
+#define PROBES 287
+#define QUOTED_STRING 288
+#define NET_DIRECTION 289
+#define FILTER 290
+#define ERR_STR_TOO_LONG 291
 
 
 
@@ -141,7 +145,7 @@
 #line 1 "probeconfparse.y"
 
 /*
-** Copyright (C) 2005-2014 by Carnegie Mellon University.
+** Copyright (C) 2005-2015 by Carnegie Mellon University.
 **
 ** @OPENSOURCE_HEADER_START@
 **
@@ -199,7 +203,7 @@
 
 #include <silk/silk.h>
 
-RCSIDENT("$SiLK: probeconfparse.y cd598eff62b9 2014-09-21 19:31:29Z mthomas $");
+RCSIDENT("$SiLK: probeconfparse.y 2b1355d69f79 2015-02-13 23:12:41Z mthomas $");
 
 #include <silk/libflowsource.h>
 #include <silk/probeconf.h>
@@ -300,7 +304,7 @@ static void probe_listen_on_usocket(sk_vector_t *v);
 static void probe_read_from_file(sk_vector_t *v);
 static void probe_poll_directory(sk_vector_t *v);
 static void probe_accept_from_host(sk_vector_t *v);
-static void probe_log_flags(uint32_t n);
+static void probe_log_flags(sk_vector_t *v);
 static void probe_interface_values(sk_vector_t *v);
 static void probe_quirks(sk_vector_t *v);
 
@@ -313,8 +317,11 @@ static void sensor_interface(char *name, sk_vector_t *list);
 static void
 sensor_ipblock(
     char               *name,
-    sk_vector_t        *wl,
-    int                 negated);
+    sk_vector_t        *wl);
+static void
+sensor_ipset(
+    char               *name,
+    sk_vector_t        *wl);
 static void sensor_filter(skpc_filter_t filter, sk_vector_t *v);
 static void sensor_network(skpc_direction_t direction, char *name);
 static void sensor_probes(char *probe_type, sk_vector_t *v);
@@ -343,11 +350,8 @@ add_values_to_group(
 static uint32_t parse_int_u16(char *s);
 static int vectorSingleString(sk_vector_t *v, char **s);
 static int parse_ip_addr(char *s, uint32_t *ip);
+static skipset_t *parse_ipset_filename(char *s);
 static skIPWildcard_t *parse_wildcard_addr(char *s);
-static uint32_t parse_log_flag(char *s);
-
-/* add a new flag to the log flags */
-static uint32_t log_flags_add_flag(uint32_t old_val, uint32_t value);
 
 
 
@@ -381,7 +385,7 @@ typedef union YYSTYPE
     skpc_filter_t       filter;
 }
 /* Line 193 of yacc.c.  */
-#line 385 "probeconfparse.c"
+#line 389 "probeconfparse.c"
 	YYSTYPE;
 # define yystype YYSTYPE /* obsolescent; will be withdrawn */
 # define YYSTYPE_IS_DECLARED 1
@@ -394,7 +398,7 @@ typedef union YYSTYPE
 
 
 /* Line 216 of yacc.c.  */
-#line 398 "probeconfparse.c"
+#line 402 "probeconfparse.c"
 
 #ifdef short
 # undef short
@@ -609,20 +613,20 @@ union yyalloc
 /* YYFINAL -- State number of the termination state.  */
 #define YYFINAL  22
 /* YYLAST -- Last index in YYTABLE.  */
-#define YYLAST   182
+#define YYLAST   201
 
 /* YYNTOKENS -- Number of terminals.  */
-#define YYNTOKENS  35
+#define YYNTOKENS  37
 /* YYNNTS -- Number of nonterminals.  */
-#define YYNNTS  39
+#define YYNNTS  40
 /* YYNRULES -- Number of rules.  */
-#define YYNRULES  105
+#define YYNRULES  109
 /* YYNRULES -- Number of states.  */
-#define YYNSTATES  170
+#define YYNSTATES  178
 
 /* YYTRANSLATE(YYLEX) -- Bison symbol number corresponding to YYLEX.  */
 #define YYUNDEFTOK  2
-#define YYMAXUTOK   289
+#define YYMAXUTOK   291
 
 #define YYTRANSLATE(YYX)						\
   ((unsigned int) (YYX) <= YYMAXUTOK ? yytranslate[YYX] : YYUNDEFTOK)
@@ -658,7 +662,8 @@ static const yytype_uint8 yytranslate[] =
        2,     2,     2,     2,     2,     2,     1,     2,     3,     4,
        5,     6,     7,     8,     9,    10,    11,    12,    13,    14,
       15,    16,    17,    18,    19,    20,    21,    22,    23,    24,
-      25,    26,    27,    28,    29,    30,    31,    32,    33,    34
+      25,    26,    27,    28,    29,    30,    31,    32,    33,    34,
+      35,    36
 };
 
 #if YYDEBUG
@@ -672,64 +677,65 @@ static const yytype_uint16 yyprhs[] =
       77,    79,    81,    83,    85,    89,    92,    96,    99,   103,
      106,   110,   113,   117,   120,   124,   127,   131,   134,   138,
      141,   145,   148,   152,   155,   159,   162,   166,   167,   170,
-     172,   174,   176,   178,   180,   182,   184,   188,   191,   194,
-     197,   200,   204,   207,   211,   215,   218,   222,   226,   229,
-     233,   236,   240,   243,   247,   250,   254,   255,   258,   260,
-     262,   264,   268,   271,   274,   277,   280,   284,   287,   291,
-     294,   296,   299,   303,   305,   308
+     172,   174,   176,   178,   180,   182,   184,   186,   190,   193,
+     196,   199,   202,   206,   209,   213,   217,   220,   224,   228,
+     231,   235,   239,   242,   246,   249,   253,   256,   260,   263,
+     267,   268,   271,   273,   275,   277,   279,   283,   286,   289,
+     292,   295,   299,   302,   306,   309,   313,   316,   318,   321
 };
 
 /* YYRHS -- A `-1'-separated list of the rules' RHS.  */
 static const yytype_int8 yyrhs[] =
 {
-      36,     0,    -1,    38,    -1,    54,    -1,    65,    -1,    37,
-      -1,    36,    38,    -1,    36,    54,    -1,    36,    65,    -1,
-      36,    37,    -1,     1,    -1,    10,    31,     8,    -1,    10,
-       8,    -1,    39,    41,    40,    -1,    21,    27,    27,     8,
-      -1,    21,    27,     8,    -1,    21,     8,    -1,     6,     8,
-      -1,     5,     8,    -1,     7,     8,    -1,    -1,    41,    42,
-      -1,    43,    -1,    44,    -1,    45,    -1,    46,    -1,    47,
-      -1,    48,    -1,    49,    -1,    50,    -1,    51,    -1,    52,
-      -1,    53,    -1,     1,    -1,    20,    72,     8,    -1,    20,
-       8,    -1,    22,    72,     8,    -1,    22,     8,    -1,    15,
-      72,     8,    -1,    15,     8,    -1,    16,    72,     8,    -1,
-      16,     8,    -1,    17,    72,     8,    -1,    17,     8,    -1,
-      24,    72,     8,    -1,    24,     8,    -1,    19,    72,     8,
-      -1,    19,     8,    -1,     3,    72,     8,    -1,     3,     8,
-      -1,    18,    73,     8,    -1,    18,     8,    -1,    12,    72,
-       8,    -1,    12,     8,    -1,    23,    72,     8,    -1,    23,
-       8,    -1,    57,    55,    58,    -1,    -1,    55,    56,    -1,
-      59,    -1,    60,    -1,    61,    -1,    62,    -1,    63,    -1,
-      64,    -1,     1,    -1,    26,    27,     8,    -1,    26,     8,
-      -1,     7,     8,    -1,     5,     8,    -1,     6,     8,    -1,
-      14,    72,     8,    -1,    14,     8,    -1,    28,    72,     8,
-      -1,    28,    25,     8,    -1,    28,     8,    -1,    29,    72,
-       8,    -1,    29,    25,     8,    -1,    29,     8,    -1,    33,
-      72,     8,    -1,    33,     8,    -1,    32,    27,     8,    -1,
-      32,     8,    -1,    30,    72,     8,    -1,    30,     8,    -1,
-      68,    66,    69,    -1,    -1,    66,    67,    -1,    70,    -1,
-      71,    -1,     1,    -1,     9,    27,     8,    -1,     9,     8,
-      -1,     5,     8,    -1,     6,     8,    -1,     7,     8,    -1,
-      11,    72,     8,    -1,    11,     8,    -1,    13,    72,     8,
-      -1,    13,     8,    -1,    27,    -1,    72,    27,    -1,    72,
-       4,    27,    -1,    27,    -1,    73,    27,    -1,    73,     4,
-      27,    -1
+      38,     0,    -1,    40,    -1,    56,    -1,    68,    -1,    39,
+      -1,    38,    40,    -1,    38,    56,    -1,    38,    68,    -1,
+      38,    39,    -1,     1,    -1,    10,    33,     8,    -1,    10,
+       8,    -1,    41,    43,    42,    -1,    22,    28,    28,     8,
+      -1,    22,    28,     8,    -1,    22,     8,    -1,     6,     8,
+      -1,     5,     8,    -1,     7,     8,    -1,    -1,    43,    44,
+      -1,    45,    -1,    46,    -1,    47,    -1,    48,    -1,    49,
+      -1,    50,    -1,    51,    -1,    52,    -1,    53,    -1,    54,
+      -1,    55,    -1,     1,    -1,    21,    76,     8,    -1,    21,
+       8,    -1,    23,    76,     8,    -1,    23,     8,    -1,    16,
+      76,     8,    -1,    16,     8,    -1,    17,    76,     8,    -1,
+      17,     8,    -1,    18,    76,     8,    -1,    18,     8,    -1,
+      25,    76,     8,    -1,    25,     8,    -1,    20,    76,     8,
+      -1,    20,     8,    -1,     3,    76,     8,    -1,     3,     8,
+      -1,    19,    76,     8,    -1,    19,     8,    -1,    12,    76,
+       8,    -1,    12,     8,    -1,    24,    76,     8,    -1,    24,
+       8,    -1,    59,    57,    60,    -1,    -1,    57,    58,    -1,
+      61,    -1,    62,    -1,    63,    -1,    64,    -1,    65,    -1,
+      66,    -1,    67,    -1,     1,    -1,    27,    28,     8,    -1,
+      27,     8,    -1,     7,     8,    -1,     5,     8,    -1,     6,
+       8,    -1,    15,    76,     8,    -1,    15,     8,    -1,    29,
+      76,     8,    -1,    29,    26,     8,    -1,    29,     8,    -1,
+      30,    76,     8,    -1,    30,    26,     8,    -1,    30,     8,
+      -1,    31,    76,     8,    -1,    31,    26,     8,    -1,    31,
+       8,    -1,    35,    76,     8,    -1,    35,     8,    -1,    34,
+      28,     8,    -1,    34,     8,    -1,    32,    76,     8,    -1,
+      32,     8,    -1,    71,    69,    72,    -1,    -1,    69,    70,
+      -1,    73,    -1,    74,    -1,    75,    -1,     1,    -1,     9,
+      28,     8,    -1,     9,     8,    -1,     5,     8,    -1,     6,
+       8,    -1,     7,     8,    -1,    11,    76,     8,    -1,    11,
+       8,    -1,    13,    76,     8,    -1,    13,     8,    -1,    14,
+      76,     8,    -1,    14,     8,    -1,    28,    -1,    76,    28,
+      -1,    76,     4,    28,    -1
 };
 
 /* YYRLINE[YYN] -- source line where rule number YYN was defined.  */
 static const yytype_uint16 yyrline[] =
 {
-       0,   265,   265,   266,   267,   268,   269,   270,   271,   272,
-     273,   284,   288,   298,   301,   305,   310,   316,   320,   326,
-     334,   335,   338,   339,   340,   341,   342,   343,   344,   345,
-     346,   347,   348,   349,   358,   362,   367,   371,   376,   380,
-     385,   389,   394,   398,   403,   407,   412,   416,   421,   425,
-     431,   435,   440,   444,   449,   453,   463,   466,   467,   470,
-     471,   472,   473,   474,   475,   476,   485,   489,   494,   498,
-     504,   511,   515,   520,   524,   528,   536,   540,   544,   552,
-     557,   562,   566,   571,   575,   588,   591,   592,   595,   596,
-     597,   606,   610,   615,   619,   625,   632,   636,   642,   646,
-     658,   665,   671,   683,   687,   693
+       0,   266,   266,   267,   268,   269,   270,   271,   272,   273,
+     274,   285,   289,   299,   302,   306,   311,   317,   321,   327,
+     335,   336,   339,   340,   341,   342,   343,   344,   345,   346,
+     347,   348,   349,   350,   359,   363,   368,   372,   377,   381,
+     386,   390,   395,   399,   404,   408,   413,   417,   422,   426,
+     432,   436,   441,   445,   450,   454,   464,   467,   468,   471,
+     472,   473,   474,   475,   476,   477,   478,   487,   491,   496,
+     500,   506,   513,   517,   522,   526,   530,   538,   542,   546,
+     554,   558,   562,   570,   576,   581,   585,   590,   594,   607,
+     610,   611,   614,   615,   616,   617,   626,   630,   635,   639,
+     645,   652,   656,   661,   665,   670,   674,   686,   693,   699
 };
 #endif
 
@@ -741,23 +747,24 @@ static const char *const yytname[] =
   "$end", "error", "$undefined", "ACCEPT_FROM_HOST_T", "COMMA",
   "END_GROUP_T", "END_PROBE_T", "END_SENSOR_T", "EOL", "GROUP_T",
   "INCLUDE_T", "INTERFACES_T", "INTERFACE_VALUES_T", "IPBLOCKS_T",
-  "ISP_IP_T", "LISTEN_AS_HOST_T", "LISTEN_ON_PORT_T",
+  "IPSETS_T", "ISP_IP_T", "LISTEN_AS_HOST_T", "LISTEN_ON_PORT_T",
   "LISTEN_ON_USOCKET_T", "LOG_FLAGS_T", "POLL_DIRECTORY_T", "PRIORITY_T",
   "PROBE_T", "PROTOCOL_T", "QUIRKS_T", "READ_FROM_FILE_T", "REMAINDER_T",
-  "SENSOR_T", "ID", "NET_NAME_INTERFACE", "NET_NAME_IPBLOCK", "PROBES",
-  "QUOTED_STRING", "NET_DIRECTION", "FILTER", "ERR_STR_TOO_LONG",
-  "$accept", "input", "include_stmt", "probe_defn", "probe_begin",
-  "probe_end", "probe_stmts", "probe_stmt", "stmt_probe_priority",
-  "stmt_probe_protocol", "stmt_probe_listen_host",
+  "SENSOR_T", "ID", "NET_NAME_INTERFACE", "NET_NAME_IPBLOCK",
+  "NET_NAME_IPSET", "PROBES", "QUOTED_STRING", "NET_DIRECTION", "FILTER",
+  "ERR_STR_TOO_LONG", "$accept", "input", "include_stmt", "probe_defn",
+  "probe_begin", "probe_end", "probe_stmts", "probe_stmt",
+  "stmt_probe_priority", "stmt_probe_protocol", "stmt_probe_listen_host",
   "stmt_probe_listen_port", "stmt_probe_listen_usocket",
   "stmt_probe_read_file", "stmt_probe_poll_directory",
   "stmt_probe_accept_host", "stmt_probe_log_flags",
   "stmt_probe_interface_values", "stmt_probe_quirks", "sensor_defn",
   "sensor_stmts", "sensor_stmt", "sensor_begin", "sensor_end",
   "stmt_sensor_isp_ip", "stmt_sensor_interface", "stmt_sensor_ipblock",
-  "stmt_sensor_filter", "stmt_sensor_network", "stmt_sensor_probes",
-  "group_defn", "group_stmts", "group_stmt", "group_begin", "group_end",
-  "stmt_group_interfaces", "stmt_group_ipblocks", "id_list", "log_flags", 0
+  "stmt_sensor_ipset", "stmt_sensor_filter", "stmt_sensor_network",
+  "stmt_sensor_probes", "group_defn", "group_stmts", "group_stmt",
+  "group_begin", "group_end", "stmt_group_interfaces",
+  "stmt_group_ipblocks", "stmt_group_ipsets", "id_list", 0
 };
 #endif
 
@@ -769,24 +776,24 @@ static const yytype_uint16 yytoknum[] =
        0,   256,   257,   258,   259,   260,   261,   262,   263,   264,
      265,   266,   267,   268,   269,   270,   271,   272,   273,   274,
      275,   276,   277,   278,   279,   280,   281,   282,   283,   284,
-     285,   286,   287,   288,   289
+     285,   286,   287,   288,   289,   290,   291
 };
 # endif
 
 /* YYR1[YYN] -- Symbol number of symbol that rule YYN derives.  */
 static const yytype_uint8 yyr1[] =
 {
-       0,    35,    36,    36,    36,    36,    36,    36,    36,    36,
-      36,    37,    37,    38,    39,    39,    39,    40,    40,    40,
-      41,    41,    42,    42,    42,    42,    42,    42,    42,    42,
-      42,    42,    42,    42,    43,    43,    44,    44,    45,    45,
-      46,    46,    47,    47,    48,    48,    49,    49,    50,    50,
-      51,    51,    52,    52,    53,    53,    54,    55,    55,    56,
-      56,    56,    56,    56,    56,    56,    57,    57,    58,    58,
-      58,    59,    59,    60,    60,    60,    61,    61,    61,    62,
-      62,    63,    63,    64,    64,    65,    66,    66,    67,    67,
-      67,    68,    68,    69,    69,    69,    70,    70,    71,    71,
-      72,    72,    72,    73,    73,    73
+       0,    37,    38,    38,    38,    38,    38,    38,    38,    38,
+      38,    39,    39,    40,    41,    41,    41,    42,    42,    42,
+      43,    43,    44,    44,    44,    44,    44,    44,    44,    44,
+      44,    44,    44,    44,    45,    45,    46,    46,    47,    47,
+      48,    48,    49,    49,    50,    50,    51,    51,    52,    52,
+      53,    53,    54,    54,    55,    55,    56,    57,    57,    58,
+      58,    58,    58,    58,    58,    58,    58,    59,    59,    60,
+      60,    60,    61,    61,    62,    62,    62,    63,    63,    63,
+      64,    64,    64,    65,    65,    66,    66,    67,    67,    68,
+      69,    69,    70,    70,    70,    70,    71,    71,    72,    72,
+      72,    73,    73,    74,    74,    75,    75,    76,    76,    76
 };
 
 /* YYR2[YYN] -- Number of symbols composing right hand side of rule YYN.  */
@@ -798,11 +805,11 @@ static const yytype_uint8 yyr2[] =
        1,     1,     1,     1,     3,     2,     3,     2,     3,     2,
        3,     2,     3,     2,     3,     2,     3,     2,     3,     2,
        3,     2,     3,     2,     3,     2,     3,     0,     2,     1,
-       1,     1,     1,     1,     1,     1,     3,     2,     2,     2,
-       2,     3,     2,     3,     3,     2,     3,     3,     2,     3,
-       2,     3,     2,     3,     2,     3,     0,     2,     1,     1,
-       1,     3,     2,     2,     2,     2,     3,     2,     3,     2,
-       1,     2,     3,     1,     2,     3
+       1,     1,     1,     1,     1,     1,     1,     3,     2,     2,
+       2,     2,     3,     2,     3,     3,     2,     3,     3,     2,
+       3,     3,     2,     3,     2,     3,     2,     3,     2,     3,
+       0,     2,     1,     1,     1,     1,     3,     2,     2,     2,
+       2,     3,     2,     3,     2,     3,     2,     1,     2,     3
 };
 
 /* YYDEFACT[STATE-NAME] -- Default rule to reduce with in state
@@ -811,22 +818,23 @@ static const yytype_uint8 yyr2[] =
 static const yytype_uint8 yydefact[] =
 {
        0,    10,     0,     0,     0,     0,     0,     5,     2,    20,
-       3,    57,     4,    86,    92,     0,    12,     0,    16,     0,
-      67,     0,     1,     9,     6,     7,     8,     0,     0,     0,
-      91,    11,    15,     0,    66,    33,     0,     0,     0,     0,
+       3,    57,     4,    90,    97,     0,    12,     0,    16,     0,
+      68,     0,     1,     9,     6,     7,     8,     0,     0,     0,
+      96,    11,    15,     0,    67,    33,     0,     0,     0,     0,
        0,     0,     0,     0,     0,     0,     0,     0,     0,     0,
       13,    21,    22,    23,    24,    25,    26,    27,    28,    29,
-      30,    31,    32,    65,     0,     0,     0,     0,     0,     0,
-       0,     0,     0,    58,    56,    59,    60,    61,    62,    63,
-      64,    90,     0,     0,     0,     0,     0,    87,    85,    88,
-      89,    14,    49,   100,     0,    18,    17,    19,    53,     0,
-      39,     0,    41,     0,    43,     0,    51,   103,     0,    47,
-       0,    35,     0,    37,     0,    55,     0,    45,     0,    69,
-      70,    68,    72,     0,    75,     0,     0,    78,     0,     0,
-      84,     0,    82,     0,    80,     0,    93,    94,    95,    97,
-       0,    99,     0,     0,    48,   101,    52,    38,    40,    42,
-       0,    50,   104,    46,    34,    36,    54,    44,    71,    74,
-      73,    77,    76,    83,    81,    79,    96,    98,   102,   105
+      30,    31,    32,    66,     0,     0,     0,     0,     0,     0,
+       0,     0,     0,     0,    58,    56,    59,    60,    61,    62,
+      63,    64,    65,    95,     0,     0,     0,     0,     0,     0,
+      91,    89,    92,    93,    94,    14,    49,   107,     0,    18,
+      17,    19,    53,     0,    39,     0,    41,     0,    43,     0,
+      51,     0,    47,     0,    35,     0,    37,     0,    55,     0,
+      45,     0,    70,    71,    69,    73,     0,    76,     0,     0,
+      79,     0,     0,    82,     0,     0,    88,     0,    86,     0,
+      84,     0,    98,    99,   100,   102,     0,   104,     0,   106,
+       0,     0,    48,   108,    52,    38,    40,    42,    50,    46,
+      34,    36,    54,    44,    72,    75,    74,    78,    77,    81,
+      80,    87,    85,    83,   101,   103,   105,   109
 };
 
 /* YYDEFGOTO[NTERM-NUM].  */
@@ -834,8 +842,8 @@ static const yytype_int8 yydefgoto[] =
 {
       -1,     6,     7,     8,     9,    50,    27,    51,    52,    53,
       54,    55,    56,    57,    58,    59,    60,    61,    62,    10,
-      28,    73,    11,    74,    75,    76,    77,    78,    79,    80,
-      12,    29,    87,    13,    88,    89,    90,    94,   108
+      28,    74,    11,    75,    76,    77,    78,    79,    80,    81,
+      82,    12,    29,    90,    13,    91,    92,    93,    94,    98
 };
 
 /* YYPACT[STATE-NUM] -- Index in YYTABLE of the portion describing
@@ -843,32 +851,33 @@ static const yytype_int8 yydefgoto[] =
 #define YYPACT_NINF -41
 static const yytype_int16 yypact[] =
 {
-      39,   -41,     4,     3,    99,   106,    26,   -41,   -41,   -41,
-     -41,   -41,   -41,   -41,   -41,    -4,   -41,     5,   -41,   115,
-     -41,    10,   -41,   -41,   -41,   -41,   -41,    52,     9,   168,
-     -41,   -41,   -41,    11,   -41,   -41,   120,    14,    25,    43,
-     121,   123,   126,   127,   128,   129,   132,   133,   135,   137,
+      10,   -41,   106,    17,   122,   123,    36,   -41,   -41,   -41,
+     -41,   -41,   -41,   -41,   -41,     4,   -41,     5,   -41,   128,
+     -41,    13,   -41,   -41,   -41,   -41,   -41,    50,     9,   187,
+     -41,   -41,   -41,    15,   -41,   -41,   129,    18,    27,    51,
+     130,   131,   134,   136,   140,   141,   145,   146,   147,   152,
      -41,   -41,   -41,   -41,   -41,   -41,   -41,   -41,   -41,   -41,
-     -41,   -41,   -41,   -41,    48,    53,    55,   138,    97,   105,
-     141,   143,   144,   -41,   -41,   -41,   -41,   -41,   -41,   -41,
-     -41,   -41,    88,    89,    98,   149,   150,   -41,   -41,   -41,
-     -41,   -41,   -41,   -41,    16,   -41,   -41,   -41,   -41,    17,
-     -41,    46,   -41,    58,   -41,    73,   -41,   -41,    74,   -41,
-      75,   -41,    76,   -41,    82,   -41,    83,   -41,    84,   -41,
-     -41,   -41,   -41,    85,   -41,   153,    90,   -41,   155,    91,
-     -41,   100,   -41,   158,   -41,   111,   -41,   -41,   -41,   -41,
-     112,   -41,   117,   -10,   -41,   -41,   -41,   -41,   -41,   -41,
-     140,   -41,   -41,   -41,   -41,   -41,   -41,   -41,   -41,   -41,
-     -41,   -41,   -41,   -41,   -41,   -41,   -41,   -41,   -41,   -41
+     -41,   -41,   -41,   -41,    72,    89,    98,   153,    26,   107,
+     117,   155,   157,   158,   -41,   -41,   -41,   -41,   -41,   -41,
+     -41,   -41,   -41,   -41,    99,   100,   164,   159,   162,   163,
+     -41,   -41,   -41,   -41,   -41,   -41,   -41,   -41,    14,   -41,
+     -41,   -41,   -41,    56,   -41,    57,   -41,    68,   -41,    73,
+     -41,    74,   -41,    75,   -41,    82,   -41,    83,   -41,    84,
+     -41,    85,   -41,   -41,   -41,   -41,    90,   -41,   168,    91,
+     -41,   169,    96,   -41,   170,   101,   -41,   112,   -41,   171,
+     -41,   113,   -41,   -41,   -41,   -41,   118,   -41,   119,   -41,
+     124,   -11,   -41,   -41,   -41,   -41,   -41,   -41,   -41,   -41,
+     -41,   -41,   -41,   -41,   -41,   -41,   -41,   -41,   -41,   -41,
+     -41,   -41,   -41,   -41,   -41,   -41,   -41,   -41
 };
 
 /* YYPGOTO[NTERM-NUM].  */
 static const yytype_int16 yypgoto[] =
 {
-     -41,   -41,   166,   172,   -41,   -41,   -41,   -41,   -41,   -41,
-     -41,   -41,   -41,   -41,   -41,   -41,   -41,   -41,   -41,   174,
+     -41,   -41,   176,   178,   -41,   -41,   -41,   -41,   -41,   -41,
+     -41,   -41,   -41,   -41,   -41,   -41,   -41,   -41,   -41,   183,
      -41,   -41,   -41,   -41,   -41,   -41,   -41,   -41,   -41,   -41,
-     176,   -41,   -41,   -41,   -41,   -41,   -41,   -40,   -41
+     -41,   189,   -41,   -41,   -41,   -41,   -41,   -41,   -41,   -40
 };
 
 /* YYTABLE[YYPACT[STATE-NUM]].  What to do in state STATE-NUM.  If
@@ -878,71 +887,76 @@ static const yytype_int16 yypgoto[] =
 #define YYTABLE_NINF -1
 static const yytype_uint8 yytable[] =
 {
-      99,   101,   103,   105,    30,   110,   112,   114,   116,   118,
-      63,    16,    14,    31,    64,    65,    66,   168,    34,    91,
-     143,   143,    95,    67,   144,   146,    22,   123,   126,   129,
-     131,    15,   135,    96,    17,     2,     3,    68,    69,    70,
-       1,    71,    72,   145,   145,   140,   142,     4,     2,     3,
-     143,    97,     5,    35,   147,    36,   119,    37,    38,    39,
-       4,   120,   143,   121,    40,     5,   148,    41,    42,    43,
-      44,    45,    46,   145,    47,    48,    49,   143,   150,   143,
-     143,   149,   151,   153,   154,   145,   143,   143,   143,   143,
-     155,   156,   157,   158,   143,   143,   136,   137,   160,   162,
-     145,   152,   145,   145,   143,   124,   138,    18,   163,   145,
-     145,   145,   145,   127,    20,   143,   143,   145,   145,   165,
-     166,   143,   125,    32,    93,   167,    19,   145,    92,    98,
-     128,   100,    93,    21,   102,   104,   106,   109,   145,   145,
-     111,   113,    33,   115,   145,   117,   122,    93,    93,   130,
-      93,   132,   134,    93,    93,   107,    93,   139,   141,    93,
-      93,   159,    93,   161,    93,    93,   164,   169,    93,    81,
-     133,    93,    23,    82,    83,    84,    93,    93,    24,    85,
-      25,    86,    26
+     103,   105,   107,   109,   111,   113,   115,   117,   119,   121,
+      63,     1,    30,    31,    64,    65,    66,   177,   151,     2,
+       3,    34,   152,    95,    67,    16,    99,   126,   129,   132,
+     135,   137,     4,   141,   127,   100,    22,     5,    68,    69,
+      70,    71,   153,    72,    73,     2,     3,   146,   148,   150,
+      17,    35,   128,    36,    97,    37,    38,    39,     4,   101,
+     151,   151,    40,     5,   154,   155,    41,    42,    43,    44,
+      45,    46,   151,    47,    48,    49,   156,   151,   151,   151,
+     122,   157,   158,   159,   153,   153,   151,   151,   151,   151,
+     160,   161,   162,   163,   151,   151,   153,   123,   164,   166,
+     151,   153,   153,   153,   168,   151,   124,   142,   143,   170,
+     153,   153,   153,   153,    14,   130,   151,   151,   153,   153,
+     171,   173,   151,   151,   153,   133,   174,   175,   151,   153,
+      18,    20,   176,   131,    15,    97,    32,    96,   102,   104,
+     153,   153,   106,   134,   108,    97,   153,   153,   110,   112,
+      19,    21,   153,   114,   116,   118,    33,    97,    97,    97,
+     120,   125,    97,   136,    97,   138,   140,   145,    97,    97,
+     147,   149,   144,    97,    97,    97,   165,   167,   169,   172,
+      97,    97,    23,    97,    24,   139,    97,    97,    83,    25,
+      97,    97,    84,    85,    86,    26,     0,     0,    87,     0,
+      88,    89
 };
 
-static const yytype_uint8 yycheck[] =
+static const yytype_int8 yycheck[] =
 {
-      40,    41,    42,    43,     8,    45,    46,    47,    48,    49,
-       1,     8,     8,     8,     5,     6,     7,    27,     8,     8,
-       4,     4,     8,    14,     8,     8,     0,    67,    68,    69,
-      70,    27,    72,     8,    31,     9,    10,    28,    29,    30,
-       1,    32,    33,    27,    27,    85,    86,    21,     9,    10,
-       4,     8,    26,     1,     8,     3,     8,     5,     6,     7,
-      21,     8,     4,     8,    12,    26,     8,    15,    16,    17,
-      18,    19,    20,    27,    22,    23,    24,     4,     4,     4,
-       4,     8,     8,     8,     8,    27,     4,     4,     4,     4,
-       8,     8,     8,     8,     4,     4,     8,     8,     8,     8,
-      27,    27,    27,    27,     4,     8,     8,     8,     8,    27,
-      27,    27,    27,     8,     8,     4,     4,    27,    27,     8,
-       8,     4,    25,     8,    27,     8,    27,    27,     8,     8,
-      25,     8,    27,    27,     8,     8,     8,     8,    27,    27,
-       8,     8,    27,     8,    27,     8,     8,    27,    27,     8,
-      27,     8,     8,    27,    27,    27,    27,     8,     8,    27,
-      27,     8,    27,     8,    27,    27,     8,    27,    27,     1,
-      27,    27,     6,     5,     6,     7,    27,    27,     6,    11,
-       6,    13,     6
+      40,    41,    42,    43,    44,    45,    46,    47,    48,    49,
+       1,     1,     8,     8,     5,     6,     7,    28,     4,     9,
+      10,     8,     8,     8,    15,     8,     8,    67,    68,    69,
+      70,    71,    22,    73,     8,     8,     0,    27,    29,    30,
+      31,    32,    28,    34,    35,     9,    10,    87,    88,    89,
+      33,     1,    26,     3,    28,     5,     6,     7,    22,     8,
+       4,     4,    12,    27,     8,     8,    16,    17,    18,    19,
+      20,    21,     4,    23,    24,    25,     8,     4,     4,     4,
+       8,     8,     8,     8,    28,    28,     4,     4,     4,     4,
+       8,     8,     8,     8,     4,     4,    28,     8,     8,     8,
+       4,    28,    28,    28,     8,     4,     8,     8,     8,     8,
+      28,    28,    28,    28,     8,     8,     4,     4,    28,    28,
+       8,     8,     4,     4,    28,     8,     8,     8,     4,    28,
+       8,     8,     8,    26,    28,    28,     8,     8,     8,     8,
+      28,    28,     8,    26,     8,    28,    28,    28,     8,     8,
+      28,    28,    28,     8,     8,     8,    28,    28,    28,    28,
+       8,     8,    28,     8,    28,     8,     8,     8,    28,    28,
+       8,     8,     8,    28,    28,    28,     8,     8,     8,     8,
+      28,    28,     6,    28,     6,    28,    28,    28,     1,     6,
+      28,    28,     5,     6,     7,     6,    -1,    -1,    11,    -1,
+      13,    14
 };
 
 /* YYSTOS[STATE-NUM] -- The (internal number of the) accessing
    symbol of state STATE-NUM.  */
 static const yytype_uint8 yystos[] =
 {
-       0,     1,     9,    10,    21,    26,    36,    37,    38,    39,
-      54,    57,    65,    68,     8,    27,     8,    31,     8,    27,
-       8,    27,     0,    37,    38,    54,    65,    41,    55,    66,
-       8,     8,     8,    27,     8,     1,     3,     5,     6,     7,
-      12,    15,    16,    17,    18,    19,    20,    22,    23,    24,
-      40,    42,    43,    44,    45,    46,    47,    48,    49,    50,
-      51,    52,    53,     1,     5,     6,     7,    14,    28,    29,
-      30,    32,    33,    56,    58,    59,    60,    61,    62,    63,
-      64,     1,     5,     6,     7,    11,    13,    67,    69,    70,
-      71,     8,     8,    27,    72,     8,     8,     8,     8,    72,
-       8,    72,     8,    72,     8,    72,     8,    27,    73,     8,
-      72,     8,    72,     8,    72,     8,    72,     8,    72,     8,
-       8,     8,     8,    72,     8,    25,    72,     8,    25,    72,
-       8,    72,     8,    27,     8,    72,     8,     8,     8,     8,
-      72,     8,    72,     4,     8,    27,     8,     8,     8,     8,
-       4,     8,    27,     8,     8,     8,     8,     8,     8,     8,
-       8,     8,     8,     8,     8,     8,     8,     8,    27,    27
+       0,     1,     9,    10,    22,    27,    38,    39,    40,    41,
+      56,    59,    68,    71,     8,    28,     8,    33,     8,    28,
+       8,    28,     0,    39,    40,    56,    68,    43,    57,    69,
+       8,     8,     8,    28,     8,     1,     3,     5,     6,     7,
+      12,    16,    17,    18,    19,    20,    21,    23,    24,    25,
+      42,    44,    45,    46,    47,    48,    49,    50,    51,    52,
+      53,    54,    55,     1,     5,     6,     7,    15,    29,    30,
+      31,    32,    34,    35,    58,    60,    61,    62,    63,    64,
+      65,    66,    67,     1,     5,     6,     7,    11,    13,    14,
+      70,    72,    73,    74,    75,     8,     8,    28,    76,     8,
+       8,     8,     8,    76,     8,    76,     8,    76,     8,    76,
+       8,    76,     8,    76,     8,    76,     8,    76,     8,    76,
+       8,    76,     8,     8,     8,     8,    76,     8,    26,    76,
+       8,    26,    76,     8,    26,    76,     8,    76,     8,    28,
+       8,    76,     8,     8,     8,     8,    76,     8,    76,     8,
+      76,     4,     8,    28,     8,     8,     8,     8,     8,     8,
+       8,     8,     8,     8,     8,     8,     8,     8,     8,     8,
+       8,     8,     8,     8,     8,     8,     8,    28
 };
 
 #define yyerrok		(yyerrstatus = 0)
@@ -1757,7 +1771,7 @@ yyreduce:
   switch (yyn)
     {
         case 10:
-#line 274 "probeconfparse.y"
+#line 275 "probeconfparse.y"
     {
     skpcParseErr("Misplaced or unrecognized keyword");
     ++pcscan_errors;
@@ -1765,28 +1779,28 @@ yyreduce:
     break;
 
   case 11:
-#line 285 "probeconfparse.y"
+#line 286 "probeconfparse.y"
     {
     include_file((yyvsp[(2) - (3)].string));
 }
     break;
 
   case 12:
-#line 289 "probeconfparse.y"
+#line 290 "probeconfparse.y"
     {
     missing_value();
 }
     break;
 
   case 14:
-#line 302 "probeconfparse.y"
+#line 303 "probeconfparse.y"
     {
     probe_begin((yyvsp[(2) - (4)].string), (yyvsp[(3) - (4)].string));
 }
     break;
 
   case 15:
-#line 306 "probeconfparse.y"
+#line 307 "probeconfparse.y"
     {
     /* error */
     probe_begin(NULL, (yyvsp[(2) - (3)].string));
@@ -1794,7 +1808,7 @@ yyreduce:
     break;
 
   case 16:
-#line 311 "probeconfparse.y"
+#line 312 "probeconfparse.y"
     {
     /* error */
     probe_begin(NULL, NULL);
@@ -1802,14 +1816,14 @@ yyreduce:
     break;
 
   case 17:
-#line 317 "probeconfparse.y"
+#line 318 "probeconfparse.y"
     {
     probe_end();
 }
     break;
 
   case 18:
-#line 321 "probeconfparse.y"
+#line 322 "probeconfparse.y"
     {
     ++defn_errors;
     skpcParseErr("%s used to close probe", pcscan_clause);
@@ -1818,7 +1832,7 @@ yyreduce:
     break;
 
   case 19:
-#line 327 "probeconfparse.y"
+#line 328 "probeconfparse.y"
     {
     ++defn_errors;
     skpcParseErr("%s used to close probe", pcscan_clause);
@@ -1827,7 +1841,7 @@ yyreduce:
     break;
 
   case 33:
-#line 350 "probeconfparse.y"
+#line 351 "probeconfparse.y"
     {
     ++defn_errors;
     skpcParseErr(("Error in probe %s:"
@@ -1837,161 +1851,161 @@ yyreduce:
     break;
 
   case 34:
-#line 359 "probeconfparse.y"
+#line 360 "probeconfparse.y"
     {
     probe_priority((yyvsp[(2) - (3)].vector));
 }
     break;
 
   case 35:
-#line 363 "probeconfparse.y"
+#line 364 "probeconfparse.y"
     {
     missing_value();
 }
     break;
 
   case 36:
-#line 368 "probeconfparse.y"
+#line 369 "probeconfparse.y"
     {
     probe_protocol((yyvsp[(2) - (3)].vector));
 }
     break;
 
   case 37:
-#line 372 "probeconfparse.y"
+#line 373 "probeconfparse.y"
     {
     missing_value();
 }
     break;
 
   case 38:
-#line 377 "probeconfparse.y"
+#line 378 "probeconfparse.y"
     {
     probe_listen_as_host((yyvsp[(2) - (3)].vector));
 }
     break;
 
   case 39:
-#line 381 "probeconfparse.y"
+#line 382 "probeconfparse.y"
     {
     missing_value();
 }
     break;
 
   case 40:
-#line 386 "probeconfparse.y"
+#line 387 "probeconfparse.y"
     {
     probe_listen_on_port((yyvsp[(2) - (3)].vector));
 }
     break;
 
   case 41:
-#line 390 "probeconfparse.y"
+#line 391 "probeconfparse.y"
     {
     missing_value();
 }
     break;
 
   case 42:
-#line 395 "probeconfparse.y"
+#line 396 "probeconfparse.y"
     {
     probe_listen_on_usocket((yyvsp[(2) - (3)].vector));
 }
     break;
 
   case 43:
-#line 399 "probeconfparse.y"
+#line 400 "probeconfparse.y"
     {
     missing_value();
 }
     break;
 
   case 44:
-#line 404 "probeconfparse.y"
+#line 405 "probeconfparse.y"
     {
     probe_read_from_file((yyvsp[(2) - (3)].vector));
 }
     break;
 
   case 45:
-#line 408 "probeconfparse.y"
+#line 409 "probeconfparse.y"
     {
     missing_value();
 }
     break;
 
   case 46:
-#line 413 "probeconfparse.y"
+#line 414 "probeconfparse.y"
     {
     probe_poll_directory((yyvsp[(2) - (3)].vector));
 }
     break;
 
   case 47:
-#line 417 "probeconfparse.y"
+#line 418 "probeconfparse.y"
     {
     missing_value();
 }
     break;
 
   case 48:
-#line 422 "probeconfparse.y"
+#line 423 "probeconfparse.y"
     {
     probe_accept_from_host((yyvsp[(2) - (3)].vector));
 }
     break;
 
   case 49:
-#line 426 "probeconfparse.y"
+#line 427 "probeconfparse.y"
     {
     missing_value();
 }
     break;
 
   case 50:
-#line 432 "probeconfparse.y"
+#line 433 "probeconfparse.y"
     {
-    probe_log_flags((yyvsp[(2) - (3)].u32));
+    probe_log_flags((yyvsp[(2) - (3)].vector));
 }
     break;
 
   case 51:
-#line 436 "probeconfparse.y"
+#line 437 "probeconfparse.y"
     {
     missing_value();
 }
     break;
 
   case 52:
-#line 441 "probeconfparse.y"
+#line 442 "probeconfparse.y"
     {
     probe_interface_values((yyvsp[(2) - (3)].vector));
 }
     break;
 
   case 53:
-#line 445 "probeconfparse.y"
+#line 446 "probeconfparse.y"
     {
     missing_value();
 }
     break;
 
   case 54:
-#line 450 "probeconfparse.y"
+#line 451 "probeconfparse.y"
     {
     probe_quirks((yyvsp[(2) - (3)].vector));
 }
     break;
 
   case 55:
-#line 454 "probeconfparse.y"
+#line 455 "probeconfparse.y"
     {
     missing_value();
 }
     break;
 
-  case 65:
-#line 477 "probeconfparse.y"
+  case 66:
+#line 479 "probeconfparse.y"
     {
     ++defn_errors;
     skpcParseErr(("Error in sensor %s:"
@@ -2000,38 +2014,29 @@ yyreduce:
 }
     break;
 
-  case 66:
-#line 486 "probeconfparse.y"
+  case 67:
+#line 488 "probeconfparse.y"
     {
     sensor_begin((yyvsp[(2) - (3)].string));
 }
     break;
 
-  case 67:
-#line 490 "probeconfparse.y"
+  case 68:
+#line 492 "probeconfparse.y"
     {
     sensor_begin(NULL);
 }
     break;
 
-  case 68:
-#line 495 "probeconfparse.y"
-    {
-    sensor_end();
-}
-    break;
-
   case 69:
-#line 499 "probeconfparse.y"
+#line 497 "probeconfparse.y"
     {
-    ++defn_errors;
-    skpcParseErr("%s used to close sensor", pcscan_clause);
     sensor_end();
 }
     break;
 
   case 70:
-#line 505 "probeconfparse.y"
+#line 501 "probeconfparse.y"
     {
     ++defn_errors;
     skpcParseErr("%s used to close sensor", pcscan_clause);
@@ -2040,59 +2045,68 @@ yyreduce:
     break;
 
   case 71:
-#line 512 "probeconfparse.y"
+#line 507 "probeconfparse.y"
+    {
+    ++defn_errors;
+    skpcParseErr("%s used to close sensor", pcscan_clause);
+    sensor_end();
+}
+    break;
+
+  case 72:
+#line 514 "probeconfparse.y"
     {
     sensor_isp_ip((yyvsp[(2) - (3)].vector));
 }
     break;
 
-  case 72:
-#line 516 "probeconfparse.y"
+  case 73:
+#line 518 "probeconfparse.y"
     {
     missing_value();
 }
     break;
 
-  case 73:
-#line 521 "probeconfparse.y"
+  case 74:
+#line 523 "probeconfparse.y"
     {
     sensor_interface((yyvsp[(1) - (3)].string), (yyvsp[(2) - (3)].vector));
 }
     break;
 
-  case 74:
-#line 525 "probeconfparse.y"
+  case 75:
+#line 527 "probeconfparse.y"
     {
     sensor_interface((yyvsp[(1) - (3)].string), NULL);
 }
     break;
 
-  case 75:
-#line 529 "probeconfparse.y"
+  case 76:
+#line 531 "probeconfparse.y"
     {
     missing_value();
     if ((yyvsp[(1) - (2)].string)) {
         free((yyvsp[(1) - (2)].string));
     }
-}
-    break;
-
-  case 76:
-#line 537 "probeconfparse.y"
-    {
-    sensor_ipblock((yyvsp[(1) - (3)].string), (yyvsp[(2) - (3)].vector), 0);
 }
     break;
 
   case 77:
-#line 541 "probeconfparse.y"
+#line 539 "probeconfparse.y"
     {
-    sensor_ipblock((yyvsp[(1) - (3)].string), NULL, 0);
+    sensor_ipblock((yyvsp[(1) - (3)].string), (yyvsp[(2) - (3)].vector));
 }
     break;
 
   case 78:
-#line 545 "probeconfparse.y"
+#line 543 "probeconfparse.y"
+    {
+    sensor_ipblock((yyvsp[(1) - (3)].string), NULL);
+}
+    break;
+
+  case 79:
+#line 547 "probeconfparse.y"
     {
     missing_value();
     if ((yyvsp[(1) - (2)].string)) {
@@ -2101,44 +2115,69 @@ yyreduce:
 }
     break;
 
-  case 79:
-#line 553 "probeconfparse.y"
+  case 80:
+#line 555 "probeconfparse.y"
     {
-    /* discard-{when,unless} {source,destination,any}-{interfaces,ipblocks} */
+    sensor_ipset((yyvsp[(1) - (3)].string), (yyvsp[(2) - (3)].vector));
+}
+    break;
+
+  case 81:
+#line 559 "probeconfparse.y"
+    {
+    sensor_ipset((yyvsp[(1) - (3)].string), NULL);
+}
+    break;
+
+  case 82:
+#line 563 "probeconfparse.y"
+    {
+    missing_value();
+    if ((yyvsp[(1) - (2)].string)) {
+        free((yyvsp[(1) - (2)].string));
+    }
+}
+    break;
+
+  case 83:
+#line 571 "probeconfparse.y"
+    {
+    /* discard-{when,unless}
+     * {source,destination,any}-{interfaces,ipblocks,ipsets} */
     sensor_filter((yyvsp[(1) - (3)].filter), (yyvsp[(2) - (3)].vector));
 }
     break;
 
-  case 80:
-#line 558 "probeconfparse.y"
+  case 84:
+#line 577 "probeconfparse.y"
     {
     missing_value();
 }
     break;
 
-  case 81:
-#line 563 "probeconfparse.y"
+  case 85:
+#line 582 "probeconfparse.y"
     {
     sensor_network((yyvsp[(1) - (3)].net_dir), (yyvsp[(2) - (3)].string));
 }
     break;
 
-  case 82:
-#line 567 "probeconfparse.y"
+  case 86:
+#line 586 "probeconfparse.y"
     {
     missing_value();
 }
     break;
 
-  case 83:
-#line 572 "probeconfparse.y"
+  case 87:
+#line 591 "probeconfparse.y"
     {
     sensor_probes((yyvsp[(1) - (3)].string), (yyvsp[(2) - (3)].vector));
 }
     break;
 
-  case 84:
-#line 576 "probeconfparse.y"
+  case 88:
+#line 595 "probeconfparse.y"
     {
     missing_value();
     if ((yyvsp[(1) - (2)].string)) {
@@ -2147,8 +2186,8 @@ yyreduce:
 }
     break;
 
-  case 90:
-#line 598 "probeconfparse.y"
+  case 95:
+#line 618 "probeconfparse.y"
     {
     ++defn_errors;
     skpcParseErr(("Error in group %s:"
@@ -2157,38 +2196,29 @@ yyreduce:
 }
     break;
 
-  case 91:
-#line 607 "probeconfparse.y"
+  case 96:
+#line 627 "probeconfparse.y"
     {
     group_begin((yyvsp[(2) - (3)].string));
 }
     break;
 
-  case 92:
-#line 611 "probeconfparse.y"
+  case 97:
+#line 631 "probeconfparse.y"
     {
     group_begin(NULL);
 }
     break;
 
-  case 93:
-#line 616 "probeconfparse.y"
+  case 98:
+#line 636 "probeconfparse.y"
     {
     group_end();
 }
     break;
 
-  case 94:
-#line 620 "probeconfparse.y"
-    {
-    ++defn_errors;
-    skpcParseErr("%s used to close group", pcscan_clause);
-    group_end();
-}
-    break;
-
-  case 95:
-#line 626 "probeconfparse.y"
+  case 99:
+#line 640 "probeconfparse.y"
     {
     ++defn_errors;
     skpcParseErr("%s used to close group", pcscan_clause);
@@ -2196,36 +2226,59 @@ yyreduce:
 }
     break;
 
-  case 96:
-#line 633 "probeconfparse.y"
+  case 100:
+#line 646 "probeconfparse.y"
+    {
+    ++defn_errors;
+    skpcParseErr("%s used to close group", pcscan_clause);
+    group_end();
+}
+    break;
+
+  case 101:
+#line 653 "probeconfparse.y"
     {
     group_add_data((yyvsp[(2) - (3)].vector), SKPC_GROUP_INTERFACE);
 }
     break;
 
-  case 97:
-#line 637 "probeconfparse.y"
+  case 102:
+#line 657 "probeconfparse.y"
     {
     missing_value();
 }
     break;
 
-  case 98:
-#line 643 "probeconfparse.y"
+  case 103:
+#line 662 "probeconfparse.y"
     {
     group_add_data((yyvsp[(2) - (3)].vector), SKPC_GROUP_IPBLOCK);
 }
     break;
 
-  case 99:
-#line 647 "probeconfparse.y"
+  case 104:
+#line 666 "probeconfparse.y"
     {
     missing_value();
 }
     break;
 
-  case 100:
-#line 659 "probeconfparse.y"
+  case 105:
+#line 671 "probeconfparse.y"
+    {
+    group_add_data((yyvsp[(2) - (3)].vector), SKPC_GROUP_IPSET);
+}
+    break;
+
+  case 106:
+#line 675 "probeconfparse.y"
+    {
+    missing_value();
+}
+    break;
+
+  case 107:
+#line 687 "probeconfparse.y"
     {
     sk_vector_t *v = vectorPoolGet(ptr_pool);
     char *s = (yyvsp[(1) - (1)].string);
@@ -2234,8 +2287,8 @@ yyreduce:
 }
     break;
 
-  case 101:
-#line 666 "probeconfparse.y"
+  case 108:
+#line 694 "probeconfparse.y"
     {
     char *s = (yyvsp[(2) - (2)].string);
     skVectorAppendValue((yyvsp[(1) - (2)].vector), &s);
@@ -2243,8 +2296,8 @@ yyreduce:
 }
     break;
 
-  case 102:
-#line 672 "probeconfparse.y"
+  case 109:
+#line 700 "probeconfparse.y"
     {
     char *s = (yyvsp[(3) - (3)].string);
     skVectorAppendValue((yyvsp[(1) - (3)].vector), &s);
@@ -2252,34 +2305,9 @@ yyreduce:
 }
     break;
 
-  case 103:
-#line 684 "probeconfparse.y"
-    {
-    (yyval.u32) = parse_log_flag((yyvsp[(1) - (1)].string));
-}
-    break;
-
-  case 104:
-#line 688 "probeconfparse.y"
-    {
-    uint32_t n = parse_log_flag((yyvsp[(2) - (2)].string));
-    n = log_flags_add_flag((yyvsp[(1) - (2)].u32), n);
-    (yyval.u32) = n;
-}
-    break;
-
-  case 105:
-#line 694 "probeconfparse.y"
-    {
-    uint32_t n = parse_log_flag((yyvsp[(3) - (3)].string));
-    n = log_flags_add_flag((yyvsp[(1) - (3)].u32), n);
-    (yyval.u32) = n;
-}
-    break;
-
 
 /* Line 1267 of yacc.c.  */
-#line 2283 "probeconfparse.c"
+#line 2311 "probeconfparse.c"
       default: break;
     }
   YY_SYMBOL_PRINT ("-> $$ =", yyr1[yyn], &yyval, &yyloc);
@@ -2493,7 +2521,7 @@ yyreturn:
 }
 
 
-#line 701 "probeconfparse.y"
+#line 707 "probeconfparse.y"
 
 
 /*
@@ -2832,7 +2860,7 @@ probe_listen_as_host(
         return;
     }
     if (listen_as_address != NULL) {
-        free(s);
+        free(listen_as_address);
     }
     listen_as_address = s;
 
@@ -2934,61 +2962,123 @@ probe_poll_directory(
 
 
 /*
- *  probe_accept_from_host(s);
+ *  probe_accept_from_host(list);
  *
- *    Set the global probe to accept data from the host s.
+ *    Set the global probe to accept data from the hosts in 'list'.
  */
 static void
 probe_accept_from_host(
     sk_vector_t        *v)
 {
+    sk_vector_t *addr_vec;
     sk_sockaddr_array_t *sa;
-    int rv;
+    size_t count = skVectorGetCount(v);
+    size_t i;
+    int rv = -1;
     char *s;
 
-    if (vectorSingleString(v, &s)) {
-        return;
-    }
-
-    rv = skStringParseHostPortPair(&sa, s, HOST_REQUIRED | PORT_PROHIBITED);
-    if (rv != 0) {
-        skpcParseErr("Unable to resolve %s value '%s': %s",
-                     pcscan_clause, s, skStringParseStrerror(rv));
+    /* get a vector to use for the sockaddr_array objects */
+    addr_vec = vectorPoolGet(ptr_pool);
+    if (addr_vec == NULL) {
+        skpcParseErr("Allocation error near %s", pcscan_clause);
         ++defn_errors;
-        free(s);
-        return;
+        goto END;
     }
 
-    rv = skpcProbeSetAcceptFromHost(probe, sa);
+    /* parse each address */
+    for (i = 0; i < count; ++i) {
+        skVectorGetValue(&s, v, i);
+        rv = skStringParseHostPortPair(&sa, s, HOST_REQUIRED | PORT_PROHIBITED);
+        if (rv != 0) {
+            skpcParseErr("Unable to resolve %s value '%s': %s",
+                         pcscan_clause, s, skStringParseStrerror(rv));
+            ++defn_errors;
+            goto END;
+        }
+        if (skVectorAppendValue(addr_vec, &sa)) {
+            skpcParseErr("Allocation error near %s", pcscan_clause);
+            ++defn_errors;
+            goto END;
+        }
+    }
+
+    rv = skpcProbeSetAcceptFromHost(probe, addr_vec);
     if (rv != 0) {
         skpcParseErr("Error setting %s value for probe '%s'",
                      pcscan_clause, skpcProbeGetName(probe));
         ++defn_errors;
+        goto END;
     }
-    free(s);
+
+  END:
+    for (i = 0; i < count; ++i) {
+        skVectorGetValue(&s, v, i);
+        free(s);
+    }
+    if (addr_vec) {
+        /* free the sockaddr-array elements on error */
+        if (rv != 0) {
+            count = skVectorGetCount(addr_vec);
+            for (i = 0; i < count; ++i) {
+                skVectorGetValue(&sa, addr_vec, i);
+                skSockaddrArrayDestroy(sa);
+            }
+        }
+        vectorPoolPut(ptr_pool, addr_vec);
+    }
+    vectorPoolPut(ptr_pool, v);
 }
 
 
 /*
- *  probe_log_flags(n);
+ *  probe_log_flags(list);
  *
  *    Set the log flags on the probe to 'n';
  */
 static void
 probe_log_flags(
-    uint32_t            n)
+    sk_vector_t        *v)
 {
-    if (n == UINT16_NO_VALUE) {
-        /* some error in parsing log flags */
-        ++defn_errors;
-        return;
-    }
+    const char none[] = "none";
+    size_t count = skVectorGetCount(v);
+    size_t i;
+    char **s;
+    int rv;
+    int none_seen = 0;
 
-    if (skpcProbeSetLogFlags(probe, n)) {
-        skpcParseErr("Error setting %s value for probe '%s'",
-                     pcscan_clause, skpcProbeGetName(probe));
-        ++defn_errors;
+    /* clear any existing log flags */
+    skpcProbeClearLogFlags(probe);
+
+    /* loop over the list of log-flags and add each to the probe */
+    for (i = 0; i < count; ++i) {
+        s = (char**)skVectorGetValuePointer(v, i);
+        rv = skpcProbeAddLogFlag(probe, *s);
+        switch (rv) {
+          case -1:
+            skpcParseErr("Do not recognize %s value '%s' on probe '%s'",
+                         pcscan_clause, *s, skpcProbeGetName(probe));
+            ++defn_errors;
+            break;
+          case 0:
+            if (0 == strcmp(*s, none)) {
+                none_seen = 1;
+                break;
+            }
+            if (0 == none_seen) {
+                break;
+            }
+            /* FALLTHROUGH */
+          case -2:
+            skpcParseErr("Cannot mix %s '%s' with other values on probe '%s'",
+                         pcscan_clause, none, skpcProbeGetName(probe));
+            ++defn_errors;
+            break;
+          default:
+            skAbortBadCase(rv);
+        }
+        free(*s);
     }
+    vectorPoolPut(ptr_pool, v);
 }
 
 
@@ -3033,9 +3123,9 @@ probe_interface_values(
 
 
 /*
- *  probe_quirks(s);
+ *  probe_quirks(list);
  *
- *    Set the "quirks" field on the global probe.
+ *    Set the "quirks" field on the global probe to the values in list.
  */
 static void
 probe_quirks(
@@ -3045,6 +3135,7 @@ probe_quirks(
     size_t i;
     char **s;
     int rv;
+    int none_seen = 0;
 
     /* clear any existing quirks */
     skpcProbeClearQuirks(probe);
@@ -3052,22 +3143,29 @@ probe_quirks(
     /* loop over the list of quirks and add to the probe */
     for (i = 0; i < count; ++i) {
         s = (char**)skVectorGetValuePointer(v, i);
-        rv = skpcProbeAddQuirk(probe, *s);
-        switch (rv) {
-          case 0:
-            break;
-          case -1:
-            skpcParseErr("Invalid %s value '%s'",
-                         pcscan_clause, *s);
-            ++defn_errors;
-            break;
-          case -2:
-            skpcParseErr("Invalid %s combination",
-                         pcscan_clause);
-            ++defn_errors;
-            break;
-          default:
-            skAbortBadCase(rv);
+        if (0 == strcmp(*s, "none")) {
+            none_seen = 1;
+        } else {
+            rv = skpcProbeAddQuirk(probe, *s);
+            switch (rv) {
+              case -1:
+                skpcParseErr("Invalid %s value '%s'",
+                             pcscan_clause, *s);
+                ++defn_errors;
+                break;
+              case 0:
+                if (0 == none_seen) {
+                    break;
+                }
+                /* FALLTHROUGH */
+              case -2:
+                skpcParseErr("Invalid %s combination",
+                             pcscan_clause);
+                ++defn_errors;
+                break;
+              default:
+                skAbortBadCase(rv);
+            }
         }
         free(*s);
     }
@@ -3251,7 +3349,9 @@ sensor_interface(
 
     /* NULL vector indicates want to set network to 'remainder' */
     if (v == NULL) {
-        if (skpcSensorSetToRemainderInterfaces(sensor, network->id)) {
+        if (skpcSensorSetNetworkRemainder(
+                sensor, network->id, SKPC_GROUP_INTERFACE))
+        {
             ++defn_errors;
         }
     } else {
@@ -3263,7 +3363,7 @@ sensor_interface(
                 if (NULL == g) {
                     goto END;
                 }
-                if (skpcSensorSetInterfaces(sensor, network->id, g)) {
+                if (skpcSensorSetNetworkGroup(sensor, network->id, g)) {
                     ++defn_errors;
                 }
                 goto END;
@@ -3290,7 +3390,7 @@ sensor_interface(
             ++defn_errors;
             goto END;
         }
-        if (skpcSensorSetInterfaces(sensor, network->id, g)) {
+        if (skpcSensorSetNetworkGroup(sensor, network->id, g)) {
             ++defn_errors;
         }
     }
@@ -3310,23 +3410,19 @@ sensor_interface(
 
 
 /*
- *  sensor_ipblock(name, ip_list, negated);
+ *  sensor_ipblock(name, ip_list);
  *
  *    When 'ip_list' is NULL, set a flag for the network 'name' noting
  *    that its ipblock list should be set to any IP addresses not
  *    covered by other IP blocks; ie., the remaining ipblocks.
  *
- *    When 'negated' is 0, set the ipblocks for the 'name' network of
- *    the global sensor to 'ip_list'.
- *
- *    When negated is non-zero, set the ipblocks for the 'name'
+ *    Otherwise, set the ipblocks for the 'name'
  *    network of the global sensor to the inverse of 'ip_list'.
  */
 static void
 sensor_ipblock(
     char               *name,
-    sk_vector_t        *v,
-    int                 negated)
+    sk_vector_t        *v)
 {
     const size_t count = (v ? skVectorGetCount(v) : 0);
     const skpc_network_t *network = NULL;
@@ -3351,7 +3447,9 @@ sensor_ipblock(
 
     /* NULL vector indicates want to set network to 'remainder' */
     if (v == NULL) {
-        if (skpcSensorSetToRemainderIpBlocks(sensor, network->id)) {
+        if (skpcSensorSetNetworkRemainder(
+                sensor, network->id, SKPC_GROUP_IPBLOCK))
+        {
             ++defn_errors;
         }
     } else {
@@ -3363,7 +3461,7 @@ sensor_ipblock(
                 if (NULL == g) {
                     goto END;
                 }
-                if (skpcSensorSetIpBlocks(sensor, network->id, g, negated)) {
+                if (skpcSensorSetNetworkGroup(sensor, network->id, g)) {
                     ++defn_errors;
                 }
                 goto END;
@@ -3390,7 +3488,106 @@ sensor_ipblock(
             ++defn_errors;
             goto END;
         }
-        if (skpcSensorSetIpBlocks(sensor, network->id, g, negated)) {
+        if (skpcSensorSetNetworkGroup(sensor, network->id, g)) {
+            ++defn_errors;
+            goto END;
+        }
+    }
+
+  END:
+    if (name) {
+        free(name);
+    }
+    if (v) {
+        for (i = 0; i < count; ++i) {
+            s = (char**)skVectorGetValuePointer(v, i);
+            free(*s);
+        }
+        vectorPoolPut(ptr_pool, v);
+    }
+}
+
+
+/*
+ *  sensor_ipset(name, ip_list);
+ *
+ *    When 'ip_list' is NULL, set a flag for the network 'name' noting
+ *    that its ipset list should be set to any IP addresses not
+ *    covered by other IP sets; ie., the remaining ipsets.
+ *
+ *    Otherwise, set the ipsets for the 'name' network of the global
+ *    sensor to the inverse of 'ip_list'.
+ */
+static void
+sensor_ipset(
+    char               *name,
+    sk_vector_t        *v)
+{
+    const size_t count = (v ? skVectorGetCount(v) : 0);
+    const skpc_network_t *network = NULL;
+    skpc_group_t *g;
+    size_t i;
+    char **s;
+
+    if (name == NULL) {
+        skpcParseErr("IP Set list '%s' gives a NULL name", pcscan_clause);
+        skAbort();
+    }
+
+    /* convert the name to a network */
+    network = skpcNetworkLookupByName(name);
+    if (network == NULL) {
+        skpcParseErr(("Cannot set %s for sensor '%s' because\n"
+                      "\tthe '%s' network is not defined"),
+                     pcscan_clause, skpcSensorGetName(sensor), name);
+        ++defn_errors;
+        goto END;
+    }
+
+    /* NULL vector indicates want to set network to 'remainder' */
+    if (v == NULL) {
+        if (skpcSensorSetNetworkRemainder(
+                sensor, network->id, SKPC_GROUP_IPSET))
+        {
+            ++defn_errors;
+        }
+    } else {
+        /* determine if we are using a single existing group */
+        if (1 == count) {
+            s = (char**)skVectorGetValuePointer(v, 0);
+            if ('@' == **s) {
+                g = get_group((*s)+1, SKPC_GROUP_IPSET);
+                if (NULL == g) {
+                    goto END;
+                }
+                if (skpcSensorSetNetworkGroup(sensor, network->id, g)) {
+                    ++defn_errors;
+                }
+                goto END;
+            }
+        }
+
+        /* not a single group, so need to create a new group */
+        if (skpcGroupCreate(&g)) {
+            skpcParseErr("Allocation error near %s", pcscan_clause);
+            ++defn_errors;
+            goto END;
+        }
+        skpcGroupSetType(g, SKPC_GROUP_IPSET);
+
+        /* parse the strings and add them to the group */
+        if (add_values_to_group(g, v, SKPC_GROUP_IPSET)) {
+            v = NULL;
+            goto END;
+        }
+        v = NULL;
+
+        /* add the group to the sensor */
+        if (skpcGroupFreeze(g)) {
+            ++defn_errors;
+            goto END;
+        }
+        if (skpcSensorSetNetworkGroup(sensor, network->id, g)) {
             ++defn_errors;
             goto END;
         }
@@ -3417,7 +3614,6 @@ sensor_filter(
 {
     const size_t count = (v ? skVectorGetCount(v) : 0);
     skpc_group_t *g;
-    skpc_group_type_t g_type;
     size_t i;
     char **s;
 
@@ -3428,19 +3624,16 @@ sensor_filter(
         goto END;
     }
 
-    /* get the type of data to expect */
-    g_type = (filter.f_wildcard ? SKPC_GROUP_IPBLOCK : SKPC_GROUP_INTERFACE);
-
     /* determine if we are using a single existing group */
     if (1 == count) {
         s = (char**)skVectorGetValuePointer(v, 0);
         if ('@' == **s) {
-            g = get_group((*s) + 1, g_type);
+            g = get_group((*s) + 1, filter.f_group_type);
             if (NULL == g) {
                 goto END;
             }
             if (skpcSensorAddFilter(sensor, g, filter.f_type,
-                                    filter.f_discwhen, filter.f_wildcard))
+                                    filter.f_discwhen, filter.f_group_type))
             {
                 ++defn_errors;
             }
@@ -3454,10 +3647,10 @@ sensor_filter(
         ++defn_errors;
         goto END;
     }
-    skpcGroupSetType(g, g_type);
+    skpcGroupSetType(g, filter.f_group_type);
 
     /* parse the strings in 'v' and add them to the group */
-    if (add_values_to_group(g, v, g_type)) {
+    if (add_values_to_group(g, v, filter.f_group_type)) {
         v = NULL;
         goto END;
     }
@@ -3469,7 +3662,7 @@ sensor_filter(
         goto END;
     }
     if (skpcSensorAddFilter(sensor, g, filter.f_type, filter.f_discwhen,
-                            filter.f_wildcard))
+                            filter.f_group_type))
     {
         ++defn_errors;
     }
@@ -3509,7 +3702,7 @@ sensor_network(
         goto END;
     }
 
-    if (skpcSensorSetNetwork(sensor, network->id, direction)) {
+    if (skpcSensorSetNetworkDirection(sensor, network->id, direction)) {
         skpcParseErr("Cannot set %s for sensor '%s' to %s",
                      pcscan_clause, skpcSensorGetName(sensor), name);
         ++defn_errors;
@@ -3698,7 +3891,8 @@ group_begin(
  *   If the global group's type is not set, the value to 'g_type' and
  *   append the values.
  *
- *   Used by 'stmt_group_interfaces' and 'stmt_group_ipblocks'
+ *   Used by 'stmt_group_interfaces', 'stmt_group_ipblocks', and
+ *   'stmt_group_ipsets'
  */
 static void
 group_add_data(
@@ -3718,6 +3912,9 @@ group_add_data(
         break;
       case SKPC_GROUP_IPBLOCK:
         g_type_str = "ipblocks";
+        break;
+      case SKPC_GROUP_IPSET:
+        g_type_str = "ipsets";
         break;
     }
 
@@ -3759,17 +3956,21 @@ add_values_to_group(
     size_t i = 0;
     uint32_t n;
     skIPWildcard_t *ipwild;
+    skipset_t *ipset;
     int rv = -1;
 
     /* determine the vector pool to use for the parsed values */
     if (SKPC_GROUP_INTERFACE == g_type) {
         /* parse numbers and/or groups */
         pool = u32_pool;
-    } else {
-        assert(SKPC_GROUP_IPBLOCK == g_type);
-
+    } else if (SKPC_GROUP_IPBLOCK == g_type) {
         /* parse ipblocks and/or groups */
         pool = ptr_pool;
+    } else if (SKPC_GROUP_IPSET == g_type) {
+        /* parse ipsets and/or groups */
+        pool = ptr_pool;
+    } else {
+        skAbortBadCase(g_type);
     }
 
     /* get a vector from the pool */
@@ -3806,7 +4007,16 @@ add_values_to_group(
                 goto END;
             }
             skVectorAppendValue(vec, &ipwild);
-        } else {
+        } else if (g_type == SKPC_GROUP_IPSET) {
+            assert(pool == ptr_pool);
+            ipset = parse_ipset_filename(*s);
+            if (ipset == NULL) {
+                ++defn_errors;
+                ++i;
+                goto END;
+            }
+            skVectorAppendValue(vec, &ipset);
+        } else if (SKPC_GROUP_INTERFACE == g_type) {
             assert(g_type == SKPC_GROUP_INTERFACE);
             assert(pool == u32_pool);
             n = parse_int_u16(*s);
@@ -3835,6 +4045,14 @@ add_values_to_group(
         vectorPoolPut(ptr_pool, v);
     }
     if (vec) {
+        if (g_type == SKPC_GROUP_IPSET) {
+            for (i = 0; i < skVectorGetCount(vec); ++i) {
+                skVectorGetValue(&ipset, vec, i);
+                if (ipset) {
+                    skIPSetDestroy(&ipset);
+                }
+            }
+        }
         vectorPoolPut(pool, vec);
     }
     return rv;
@@ -3856,11 +4074,8 @@ get_group(
         return NULL;
     }
     if (skpcGroupGetType(g) != g_type) {
-        skpcParseErr(("Error in %s: the '%s' group does not contain %s"),
-                     pcscan_clause, g_name,
-                     ((g_type == SKPC_GROUP_IPBLOCK)
-                      ? "ipblocks"
-                      : "interfaces"));
+        skpcParseErr(("Error in %s: the '%s' group does not contain %ss"),
+                     pcscan_clause, g_name, skpcGrouptypeEnumtoName(g_type));
         ++defn_errors;
         return NULL;
     }
@@ -4003,63 +4218,40 @@ parse_ip_addr(
 
 
 /*
- *  new_flags = log_flags_add_flag(old_flags, flag);
+ *  ipset = parse_ipset_filename(filename);
  *
- *    Add 'flag' to the 'old_flags' and return the new flags.  Warn if
- *    either value is explicitly "NONE".
+ *    Treat 'filename' as the name of an IPset file.  Load the file
+ *    and return a pointer to it.  Return NULL on failure.
  */
-static uint32_t
-log_flags_add_flag(
-    uint32_t            old_flags,
-    uint32_t            flag)
-{
-    if ((old_flags == SOURCE_LOG_NONE) || (flag == SOURCE_LOG_NONE)) {
-        skpcParseErr(("Cannot mix %s 'none' with other values on probe '%s'"),
-                     pcscan_clause, skpcProbeGetName(probe));
-        ++defn_errors;
-    }
-
-    return (old_flags | flag);
-}
-
-
-/*
- *  flag = parse_log_flag(s);
- *
- *    Parse the string 's' as a log flag.
- */
-static uint32_t
-parse_log_flag(
+static skipset_t *
+parse_ipset_filename(
     char               *s)
 {
-    int rv = UINT16_NO_VALUE;
+    skipset_t *ipset;
+    ssize_t rv;
 
-    if (!s || !*s) {
-        skpcParseErr("Missing value for %s on probe '%s'",
-                     pcscan_clause, skpcProbeGetName(probe));
-        ++defn_errors;
-    } else if (0 == strcmp(s, "all")) {
-        rv = SOURCE_LOG_ALL;
-    } else if (0 == strcmp(s, "bad")) {
-        rv = SOURCE_LOG_BAD;
-    } else if (0 == strcmp(s, "missing")) {
-        rv = SOURCE_LOG_MISSING;
-    } else if (0 == strcmp(s, "none")) {
-        rv = SOURCE_LOG_NONE;
-    } else if (0 == strcmp(s, "sampling")) {
-        rv = SOURCE_LOG_SAMPLING;
-    } else if (0 == strcmp(s, "firewall-event")) {
-        rv = SOURCE_LOG_FIREWALL;
-    } else {
-        skpcParseErr("Do not recognize %s value '%s' on probe '%s'",
-                     pcscan_clause, s, skpcProbeGetName(probe));
-        ++defn_errors;
+    /* reject standard input */
+    if (0 == strcmp(s, "-") || (0 == strcmp(s, "stdin"))) {
+        skpcParseErr("May not read an IPset from the standard input");
+        ipset = NULL;
+        goto END;
     }
 
-    if (s) {
-        free(s);
+    rv = skIPSetLoad(&ipset, s);
+    if (rv) {
+        skpcParseErr("Unable to read IPset from '%s': %s",
+                     s, skIPSetStrerror(rv));
+        ipset = NULL;
     }
-    return rv;
+    if (skIPSetCountIPs(ipset, NULL) == 0) {
+        skpcParseErr("May not use the IPset in '%s': IPset is empty", s);
+        skIPSetDestroy(&ipset);
+        ipset = NULL;
+    }
+
+  END:
+    free(s);
+    return ipset;
 }
 
 

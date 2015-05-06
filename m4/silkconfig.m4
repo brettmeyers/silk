@@ -1,4 +1,4 @@
-dnl Copyright (C) 2004-2014 by Carnegie Mellon University.
+dnl Copyright (C) 2004-2015 by Carnegie Mellon University.
 dnl
 dnl @OPENSOURCE_HEADER_START@
 dnl
@@ -48,7 +48,7 @@ dnl contract clause at 252.227.7013.
 dnl
 dnl @OPENSOURCE_HEADER_END@
 
-dnl RCSIDENT("$SiLK: silkconfig.m4 074cddbea3f2 2014-08-01 20:47:55Z mthomas $")
+dnl RCSIDENT("$SiLK: silkconfig.m4 b7b8edebba12 2015-01-05 18:05:21Z mthomas $")
 
 # ---------------------------------------------------------------------------
 # SILK_AC_COMPILER
@@ -1446,7 +1446,7 @@ AC_DEFUN([SILK_AC_PREPROC_ADDITIONAL_FLAGS],[
 
 
 # ---------------------------------------------------------------------------
-# SILK_AC_WRITE_SUMMARY
+# SILK_AC_WARN_TRANSFORM
 #
 #    Warn about use of --program-prefix, --program-suffix,
 #    --program-transform-name
@@ -1745,6 +1745,7 @@ AC_DEFUN([SILK_TEST_SUBST],[
     AC_SUBST([SK_ENABLE_INET6_NETWORKING], [$ENABLE_INET6_NETWORKING])
     AC_SUBST([SK_ENABLE_IPA], [$ENABLE_IPA])
     AC_SUBST([SK_ENABLE_IPFIX], [$ENABLE_IPFIX])
+    AC_SUBST([SK_ENABLE_IPFIX_SFLOW], [$ENABLE_IPFIX_SFLOW])
     AC_SUBST([SK_ENABLE_IPV6], [$ENABLE_IPV6])
     AC_SUBST([SK_ENABLE_OUTPUT_COMPRESSION], [$ENABLE_OUTPUT_COMPRESSION])
     AC_SUBST([SK_ENABLE_SILK3_IPSETS], [${ENABLE_SILK3_IPSETS}])

@@ -50,27 +50,29 @@
      INTERFACES_T = 266,
      INTERFACE_VALUES_T = 267,
      IPBLOCKS_T = 268,
-     ISP_IP_T = 269,
-     LISTEN_AS_HOST_T = 270,
-     LISTEN_ON_PORT_T = 271,
-     LISTEN_ON_USOCKET_T = 272,
-     LOG_FLAGS_T = 273,
-     POLL_DIRECTORY_T = 274,
-     PRIORITY_T = 275,
-     PROBE_T = 276,
-     PROTOCOL_T = 277,
-     QUIRKS_T = 278,
-     READ_FROM_FILE_T = 279,
-     REMAINDER_T = 280,
-     SENSOR_T = 281,
-     ID = 282,
-     NET_NAME_INTERFACE = 283,
-     NET_NAME_IPBLOCK = 284,
-     PROBES = 285,
-     QUOTED_STRING = 286,
-     NET_DIRECTION = 287,
-     FILTER = 288,
-     ERR_STR_TOO_LONG = 289
+     IPSETS_T = 269,
+     ISP_IP_T = 270,
+     LISTEN_AS_HOST_T = 271,
+     LISTEN_ON_PORT_T = 272,
+     LISTEN_ON_USOCKET_T = 273,
+     LOG_FLAGS_T = 274,
+     POLL_DIRECTORY_T = 275,
+     PRIORITY_T = 276,
+     PROBE_T = 277,
+     PROTOCOL_T = 278,
+     QUIRKS_T = 279,
+     READ_FROM_FILE_T = 280,
+     REMAINDER_T = 281,
+     SENSOR_T = 282,
+     ID = 283,
+     NET_NAME_INTERFACE = 284,
+     NET_NAME_IPBLOCK = 285,
+     NET_NAME_IPSET = 286,
+     PROBES = 287,
+     QUOTED_STRING = 288,
+     NET_DIRECTION = 289,
+     FILTER = 290,
+     ERR_STR_TOO_LONG = 291
    };
 #endif
 /* Tokens.  */
@@ -85,27 +87,29 @@
 #define INTERFACES_T 266
 #define INTERFACE_VALUES_T 267
 #define IPBLOCKS_T 268
-#define ISP_IP_T 269
-#define LISTEN_AS_HOST_T 270
-#define LISTEN_ON_PORT_T 271
-#define LISTEN_ON_USOCKET_T 272
-#define LOG_FLAGS_T 273
-#define POLL_DIRECTORY_T 274
-#define PRIORITY_T 275
-#define PROBE_T 276
-#define PROTOCOL_T 277
-#define QUIRKS_T 278
-#define READ_FROM_FILE_T 279
-#define REMAINDER_T 280
-#define SENSOR_T 281
-#define ID 282
-#define NET_NAME_INTERFACE 283
-#define NET_NAME_IPBLOCK 284
-#define PROBES 285
-#define QUOTED_STRING 286
-#define NET_DIRECTION 287
-#define FILTER 288
-#define ERR_STR_TOO_LONG 289
+#define IPSETS_T 269
+#define ISP_IP_T 270
+#define LISTEN_AS_HOST_T 271
+#define LISTEN_ON_PORT_T 272
+#define LISTEN_ON_USOCKET_T 273
+#define LOG_FLAGS_T 274
+#define POLL_DIRECTORY_T 275
+#define PRIORITY_T 276
+#define PROBE_T 277
+#define PROTOCOL_T 278
+#define QUIRKS_T 279
+#define READ_FROM_FILE_T 280
+#define REMAINDER_T 281
+#define SENSOR_T 282
+#define ID 283
+#define NET_NAME_INTERFACE 284
+#define NET_NAME_IPBLOCK 285
+#define NET_NAME_IPSET 286
+#define PROBES 287
+#define QUOTED_STRING 288
+#define NET_DIRECTION 289
+#define FILTER 290
+#define ERR_STR_TOO_LONG 291
 
 
 
@@ -121,7 +125,7 @@ typedef union YYSTYPE
     skpc_filter_t       filter;
 }
 /* Line 1529 of yacc.c.  */
-#line 125 "probeconfparse.h"
+#line 129 "probeconfparse.h"
 	YYSTYPE;
 # define yystype YYSTYPE /* obsolescent; will be withdrawn */
 # define YYSTYPE_IS_DECLARED 1

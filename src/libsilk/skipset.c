@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2008-2014 by Carnegie Mellon University.
+** Copyright (C) 2008-2015 by Carnegie Mellon University.
 **
 ** @OPENSOURCE_HEADER_START@
 **
@@ -68,7 +68,7 @@
 
 #include <silk/silk.h>
 
-RCSIDENT("$SiLK: skipset.c cd598eff62b9 2014-09-21 19:31:29Z mthomas $");
+RCSIDENT("$SiLK: skipset.c b7b8edebba12 2015-01-05 18:05:21Z mthomas $");
 
 #include <silk/rwrec.h>
 #include <silk/skipaddr.h>
@@ -2152,7 +2152,7 @@ ipsetCopyOnWrite(
            (ipset->s.v3->leaves.entry_count * ipset->s.v3->leaves.entry_size));
 
     /* unmap the space */
-    rv = munmap(ipset->s.v3->mapped_file, ipset->s.v3->mapped_size);
+    munmap(ipset->s.v3->mapped_file, ipset->s.v3->mapped_size);
 
     ipset->s.v3->mapped_file = NULL;
     ipset->s.v3->mapped_size = 0;
@@ -7324,12 +7324,12 @@ ipsetReplaceNodeWithLeaf(
     if (NULL == parent) {
         assert(0 == IPSET_ROOT_IS_LEAF(ipset));
         ipsetDestroySubtree(ipset, IPSET_ROOT_INDEX(ipset), 1);
-        ipsetNewEntries(ipset, 0, 1, NULL, &new_leaf_idx);
+        ASSERT_OK(ipsetNewEntries(ipset, 0, 1, NULL, &new_leaf_idx));
         IPSET_ROOT_INDEX_SET(ipset, new_leaf_idx, 1);
     } else {
         assert(0 == NODEPTR_CHILD_IS_LEAF(&parent->v4, which_child));
         ipsetDestroySubtree(ipset, parent->v4.child[which_child], 1);
-        ipsetNewEntries(ipset, 0, 1, NULL, &new_leaf_idx);
+        ASSERT_OK(ipsetNewEntries(ipset, 0, 1, NULL, &new_leaf_idx));
         parent->v4.child[which_child] = new_leaf_idx;
         NODEPTR_CHILD_SET_LEAF(&parent->v4, which_child);
     }
@@ -9879,6 +9879,9 @@ skIPSetCountIPsString(
             break;
           default:
             skAbortBadCase(i);
+        }
+        if ((size_t)sz >= buflen) {
+            return NULL;
         }
         return buf;
     }

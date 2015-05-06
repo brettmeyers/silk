@@ -240,6 +240,14 @@ private enterprise number and the information element number,
 separated by a slash (/).  (Requires libfixbuf 1.4.0 or later.)
 I<Since SiLK 3.8.2.>
 
+=item SILK_LIBFIXBUF_SUPPRESS_WARNINGS
+
+When set to 1, B<rwipfix2silk> disables all warning messages generated
+by libfixbuf.  These warning messages include out-of-sequence packets,
+data records not having a corresponding template, record count
+discrepancies, and issues decoding list elements.  I<Since SiLK
+3.10.0.>
+
 =item SILK_CLOBBER
 
 The SiLK tools normally refuse to overwrite existing files.  Setting
@@ -255,7 +263,7 @@ B<zlib(3)>
 
 =cut
 
-$SiLK: rwipfix2silk.pod cd09f0a5fcc6 2014-06-14 15:43:33Z mthomas $
+$SiLK: rwipfix2silk.pod 1b61c87d5945 2014-12-11 22:26:18Z mthomas $
 
 Local Variables:
 mode:text

@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2005-2014 by Carnegie Mellon University.
+** Copyright (C) 2005-2015 by Carnegie Mellon University.
 **
 ** @OPENSOURCE_HEADER_START@
 **
@@ -57,7 +57,7 @@ extern "C" {
 
 #include <silk/silk.h>
 
-RCSIDENTVAR(rcsID_RWPMATCH_H, "$SiLK: rwppacketheaders.h 1c87fe1a22f7 2014-01-06 15:24:30Z mthomas $");
+RCSIDENTVAR(rcsID_RWPMATCH_H, "$SiLK: rwppacketheaders.h b7b8edebba12 2015-01-05 18:05:21Z mthomas $");
 
 #ifdef SK_HAVE_PCAP_PCAP_H
 #include <pcap/pcap.h>

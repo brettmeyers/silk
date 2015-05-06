@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2004-2014 by Carnegie Mellon University.
+** Copyright (C) 2004-2015 by Carnegie Mellon University.
 **
 ** @OPENSOURCE_HEADER_START@
 **
@@ -57,7 +57,7 @@ extern "C" {
 
 #include <silk/silk.h>
 
-RCSIDENTVAR(rcsID_RWFILTER_H, "$SiLK: rwfilter.h cd598eff62b9 2014-09-21 19:31:29Z mthomas $");
+RCSIDENTVAR(rcsID_RWFILTER_H, "$SiLK: rwfilter.h b7b8edebba12 2015-01-05 18:05:21Z mthomas $");
 
 /*
 **  rwfilter.h
@@ -104,9 +104,9 @@ RCSIDENTVAR(rcsID_RWFILTER_H, "$SiLK: rwfilter.h cd598eff62b9 2014-09-21 19:31:2
  *  The number and types of skstream_t output streams: pass, fail, all
  */
 #define DESTINATION_TYPES 3
-enum {
-    DEST_PASS = 0, DEST_FAIL, DEST_ALL
-};
+#define DEST_PASS  0
+#define DEST_FAIL  1
+#define DEST_ALL   2
 
 
 typedef struct destination_st destination_t;

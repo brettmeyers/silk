@@ -1,7 +1,7 @@
 #! /usr/bin/perl -w
 #
 #
-# RCSIDENT("$SiLK: flowcap-netflowv5-v6.pl 40a363507ed0 2014-04-01 14:09:52Z mthomas $")
+# RCSIDENT("$SiLK: flowcap-netflowv5-v6.pl 1a646139e082 2014-11-14 18:30:47Z mthomas $")
 
 use strict;
 use SiLKTests;
@@ -22,6 +22,14 @@ check_features(qw(inet6));
 
 # prefix any existing PYTHONPATH with the proper directories
 check_python_bin();
+
+# this script requires the optional Socket6 Perl module.  ensure it is
+# available
+eval "require Socket6";
+if ($@) {
+    # Socket6 is not available
+    skip_test('The Socket6 Perl module is not available');
+}
 
 # create our tempdir
 my $tmpdir = make_tempdir();

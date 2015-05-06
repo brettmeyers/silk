@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2001-2014 by Carnegie Mellon University.
+** Copyright (C) 2001-2015 by Carnegie Mellon University.
 **
 ** @OPENSOURCE_HEADER_START@
 **
@@ -61,7 +61,7 @@
 
 #include <silk/silk.h>
 
-RCSIDENT("$SiLK: rwappend.c cd598eff62b9 2014-09-21 19:31:29Z mthomas $");
+RCSIDENT("$SiLK: rwappend.c fb9df4655544 2015-02-03 20:13:17Z mthomas $");
 
 #include <silk/rwrec.h>
 #include <silk/sksite.h>
@@ -251,14 +251,31 @@ appSetup(
     ++arg_index;
 
     /* If the target does not exist, complain or create it. */
-    if ( !skFileExists(output_path)) {
-        if (0 == allow_create) {
-            skAppPrintErr(("Target file '%s' does not exist"
-                           " and --%s not specified"),
-                          output_path, appOptions[OPT_CREATE].name);
-            exit(EXIT_FAILURE);
-        }
+    errno = 0;
+    if (skFileExists(output_path)) {
+        /* file exists and is a regular file */
 
+    } else if (0 == errno) {
+        /* file is not a regular file */
+        skAppPrintErr("Target file '%s' is invalid: Not a regular file",
+                      output_path);
+        exit(EXIT_FAILURE);
+
+    } else if (ENOENT != errno) {
+        /* Some error other than "does not exist" */
+        skAppPrintSyserror("Target file '%s' is invalid",
+                           output_path);
+        exit(EXIT_FAILURE);
+
+    } else if (0 == allow_create) {
+        /* file does not exist but --create not given */
+        skAppPrintSyserror(
+            "Target file '%s' is invalid and --%s not specified",
+            output_path, appOptions[OPT_CREATE].name);
+        exit(EXIT_FAILURE);
+
+    } else {
+        /* create the file */
         did_create = 1;
         if (createFromTemplate(output_path, create_format)) {
             exit(EXIT_FAILURE);
@@ -268,13 +285,12 @@ appSetup(
     /* open the target file for append */
     rv = skStreamOpenSilkFlow(&out_ios, output_path, SK_IO_APPEND);
     if (rv) {
+        if (did_create) {
+            skAppPrintErr("Unable to open newly created target file '%s'",
+                          output_path);
+        }
         skStreamPrintLastErr(out_ios, rv, &skAppPrintErr);
         skStreamDestroy(&out_ios);
-        if (did_create) {
-            /* delete the target file if we created it but cannot open
-             * it as a SiLK flow file. */
-            unlink(output_path);
-        }
         exit(EXIT_FAILURE);
     }
 
@@ -309,9 +325,10 @@ appOptionsHandler(
       case OPT_CREATE:
         allow_create = 1;
         if (opt_arg) {
+            errno = 0;
             if ( !skFileExists(opt_arg)) {
-                skAppPrintErr("Invalid %s: File '%s' does not exist",
-                              appOptions[opt_index].name, opt_arg);
+                skAppPrintSyserror("Invalid %s '%s'",
+                                   appOptions[opt_index].name, opt_arg);
                 return 1;
             }
             create_format = opt_arg;

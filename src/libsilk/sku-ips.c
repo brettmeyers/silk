@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2007-2014 by Carnegie Mellon University.
+** Copyright (C) 2007-2015 by Carnegie Mellon University.
 **
 ** @OPENSOURCE_HEADER_START@
 **
@@ -58,7 +58,7 @@
 
 #include <silk/silk.h>
 
-RCSIDENT("$SiLK: sku-ips.c cd598eff62b9 2014-09-21 19:31:29Z mthomas $");
+RCSIDENT("$SiLK: sku-ips.c 3d95ecc1dbb2 2015-02-13 19:50:40Z mthomas $");
 
 #include <silk/skipaddr.h>
 #include <silk/utils.h>
@@ -621,13 +621,13 @@ skipaddrString(
         uint16_t hexdec[8];
         /* following two values used when finding the longest run of
          * 0s in an IPv6 address */
-        int longest_zero_pos;
-        int longest_zero_len;
+        unsigned int longest_zero_pos;
+        unsigned int longest_zero_len;
         uint64_t tmp;
         char tmpbuf[SK_NUM2DOT_STRLEN];
         char *pos;
-        int len;
-        int i, j, k;
+        unsigned int len;
+        unsigned int i, j, k;
 
         switch ((skipaddr_flags_t)ip_flags) {
           case SKIPADDR_CANONICAL:
@@ -728,6 +728,10 @@ skipaddrString(
             /* Fill buffer with a string representation of an integer
              * in hexadecimal format; this works by printing the value
              * then stripping leading 0's. */
+            if (skipaddrIsZero(ip)) {
+                snprintf(outbuf, SK_NUM2DOT_STRLEN, "0");
+                break;
+            }
             snprintf(tmpbuf, sizeof(tmpbuf),
                      ("%x%02x%02x%02x%02x%02x%02x%02x"
                       "%02x%02x%02x%02x%02x%02x%02x%02x"),
@@ -739,11 +743,10 @@ skipaddrString(
                      ip->ip_ip.ipu_ipv6[10], ip->ip_ip.ipu_ipv6[11],
                      ip->ip_ip.ipu_ipv6[12], ip->ip_ip.ipu_ipv6[13],
                      ip->ip_ip.ipu_ipv6[14], ip->ip_ip.ipu_ipv6[15]);
-            i = (int)strspn(tmpbuf, "0");
-            if ('\0' == tmpbuf[i]) {
-                assert(i > 0);
-                --i;
-            }
+            i = strspn(tmpbuf, "0");
+            /* checked for an IP of 0 above, so 'i' must be on some
+             * non-zero hex-digit */
+            assert('\0' != tmpbuf[i]);
             strncpy(outbuf, &tmpbuf[i], SK_NUM2DOT_STRLEN);
             break;
 
@@ -814,8 +817,9 @@ skipaddrString(
             break;
         }
     } else
-#endif
+#endif  /* SK_ENABLE_IPV6 */
     {
+        /* address is IPv4 */
         switch ((skipaddr_flags_t)ip_flags) {
           case SKIPADDR_CANONICAL:
             /* Convert integer 0 to string "0.0.0.0" */
@@ -1215,10 +1219,10 @@ ipwildcardIterNext(
 {
     uint32_t cidr_adjust;
     uint32_t tmp;
-    int check_ints;
-    int idx;
-    int i;
-    int j;
+    unsigned int check_ints;
+    unsigned int idx;
+    unsigned int i;
+    unsigned int j;
 
     assert(iter);
     assert(ipaddr);
@@ -1285,7 +1289,9 @@ ipwildcardIterNext(
 
     /* determine the end of this CIDR block by counting the number of
      * consecutive high bits in the bitmap */
-    for (i = iter->ipwild->num_blocks - 1; i >= 0; --i) {
+    i = iter->ipwild->num_blocks;
+    while (i > 0) {
+        --i;
         /* 'idx' is array position of the uint32_t we are currently
          * looking at in the bitmap for this octet/hexadectet */
         idx = _BMAP_INDEX(iter->i_block[i]);
@@ -1398,7 +1404,9 @@ ipwildcardIterNext(
   NEXT_IP:
     /* found the CIDR block to return this time.  move the iterator to
      * the start of the next IP or CIDR block for the next query */
-    for (i = iter->ipwild->num_blocks - 1; i >= 0; --i) {
+    i = iter->ipwild->num_blocks;
+    while (i > 0) {
+        --i;
         /* is the i'th octet/hexadectet at its maximum? */
         if (iter->i_block[i] >= iter->ipwild->m_max[i]) {
             /* yes; reset the counter for this octet/hexadectet and
@@ -1943,8 +1951,8 @@ skSockaddrArrayMatches(
     if (b == NULL) {
         return 0;
     }
-    for (i = 0; i < skSockaddrArraySize(a); i++) {
-        for (j = i; j < skSockaddrArraySize(b); j++) {
+    for (i = 0; i < skSockaddrArraySize(a); ++i) {
+        for (j = 0; j < skSockaddrArraySize(b); ++j) {
             if (skSockaddrCompare(skSockaddrArrayGet(a, i),
                                   skSockaddrArrayGet(b, j),
                                   flags) == 0)

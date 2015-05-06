@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2007-2014 by Carnegie Mellon University.
+** Copyright (C) 2007-2015 by Carnegie Mellon University.
 **
 ** @OPENSOURCE_HEADER_START@
 **
@@ -62,7 +62,7 @@
 #define LIBFLOWSOURCE_SOURCE 1
 #include <silk/silk.h>
 
-RCSIDENT("$SiLK: skipfix.c cd598eff62b9 2014-09-21 19:31:29Z mthomas $");
+RCSIDENT("$SiLK: skipfix.c b7b8edebba12 2015-01-05 18:05:21Z mthomas $");
 
 #include <silk/rwrec.h>
 #include <silk/skipaddr.h>
@@ -79,6 +79,7 @@ RCSIDENT("$SiLK: skipfix.c cd598eff62b9 2014-09-21 19:31:29Z mthomas $");
 
 /* Uncomment to force fixbuf-1.3.0 compatibility */
 /* #undef SK_HAVE_FBTEMPLATEGETCONTEXT */
+
 
 /* LOCAL DEFINES AND TYPEDEFS */
 
@@ -328,6 +329,9 @@ static fbInfoElementSpec_t ski_extrwrec_spec[] = {
     /* Microsecond start and end (RFC1305-style) (extended time) */
     { (char*)"flowStartMicroseconds",              8, 0 },
     { (char*)"flowEndMicroseconds",                8, 0 },
+    /* Nanosecond start and end (RFC1305-style) */
+    { (char*)"flowStartNanoseconds",               8, 0 },
+    { (char*)"flowEndNanoseconds",                 8, 0 },
     /* SysUpTime, used to handle Netflow v9 SysUpTime offset times */
     { (char*)"systemInitTimeMilliseconds",         8, 0 },
     /* Second start and end (extended time) */
@@ -411,89 +415,93 @@ typedef struct ski_extrwrec_st {
 
     /* Time can be represented in many different formats: */
 
-    /* start time as NTP (RFC1305); may either have end Time in same
-     * format or as an flowDurationMicroseconds value. */
+    /* start time as NTP microseconds (RFC1305); may either have end
+     * Time in same format or as an flowDurationMicroseconds value. */
     uint64_t        flowStartMicroseconds;          /* 200-207 */
     uint64_t        flowEndMicroseconds;            /* 208-215 */
 
+    /* start time as NTP nanoseconds (RFC1305) */
+    uint64_t        flowStartNanoseconds;           /* 216-223 */
+    uint64_t        flowEndNanoseconds;             /* 224-231 */
+
     /* SysUpTime: used for flow{Start,End}SysUpTime calculations.
      * Needed to support Netflow v9 in particular. */
-    uint64_t        systemInitTimeMilliseconds;     /* 216-223 */
+    uint64_t        systemInitTimeMilliseconds;     /* 232-239 */
 
     /* start time and end times as seconds since UNIX epoch. no
      * flowDuration field */
-    uint32_t        flowStartSeconds;               /* 224-227 */
-    uint32_t        flowEndSeconds;                 /* 228-231 */
+    uint32_t        flowStartSeconds;               /* 240-243 */
+    uint32_t        flowEndSeconds;                 /* 244-247 */
 
     /* elapsed time as either microsec or millisec.  used when the
      * flowEnd time is not given. */
-    uint32_t        flowDurationMicroseconds;       /* 232-235 */
-    uint32_t        flowDurationMilliseconds;       /* 236-239 */
+    uint32_t        flowDurationMicroseconds;       /* 248-251 */
+    uint32_t        flowDurationMilliseconds;       /* 252-255 */
 
     /* start time as delta (negative microsec offsets) from the export
      * time; may either have end time in same format or a
      * flowDurationMicroseconds value */
-    uint32_t        flowStartDeltaMicroseconds;     /* 240-243 */
-    uint32_t        flowEndDeltaMicroseconds;       /* 244-247 */
+    uint32_t        flowStartDeltaMicroseconds;     /* 256-259 */
+    uint32_t        flowEndDeltaMicroseconds;       /* 260-263 */
 
     /* start time of reverse flow, as millisec offset from start time
      * of forward flow */
-    uint32_t        reverseFlowDeltaMilliseconds;   /* 248-251 */
+    uint32_t        reverseFlowDeltaMilliseconds;   /* 264-267 */
 
     /* Start and end time as delta from the system init time.  Needed
      * to support Netflow v9. */
-    uint32_t        flowStartSysUpTime;             /* 252-255 */
-    uint32_t        flowEndSysUpTime;               /* 256-259 */
+    uint32_t        flowStartSysUpTime;             /* 268-271 */
+    uint32_t        flowEndSysUpTime;               /* 272-275 */
 
     /* Flags for the reverse flow: */
-    uint8_t         reverseTcpControlBits;          /* 260     */
-    uint8_t         reverseInitialTCPFlags;         /* 261     */
-    uint8_t         reverseUnionTCPFlags;           /* 262     */
+    uint8_t         reverseTcpControlBits;          /* 276     */
+    uint8_t         reverseInitialTCPFlags;         /* 277     */
+    uint8_t         reverseUnionTCPFlags;           /* 278     */
 
-    uint8_t         flowEndReason;                  /* 263     */
+    uint8_t         flowEndReason;                  /* 279     */
 
     /* Flow attribute flags */
-    uint16_t        flowAttributes;                 /* 264-265 */
-    uint16_t        reverseFlowAttributes;          /* 266-267 */
+    uint16_t        flowAttributes;                 /* 280-281 */
+    uint16_t        reverseFlowAttributes;          /* 282-283 */
 
     /* vlan IDs */
-    uint16_t        vlanId;                         /* 268-269 */
-    uint16_t        postVlanId;                     /* 270-271 */
-    uint16_t        reverseVlanId;                  /* 272-273 */
-    uint16_t        reversePostVlanId;              /* 274-275 */
+    uint16_t        vlanId;                         /* 284-285 */
+    uint16_t        postVlanId;                     /* 286-287 */
+    uint16_t        reverseVlanId;                  /* 288-289 */
+    uint16_t        reversePostVlanId;              /* 290-291 */
 
     /* ASN */
-    uint32_t        bgpSourceAsNumber;              /* 276-279 */
-    uint32_t        bgpDestinationAsNumber;         /* 280-283 */
+    uint32_t        bgpSourceAsNumber;              /* 292-295 */
+    uint32_t        bgpDestinationAsNumber;         /* 296-299 */
 
     /* MPLS */
-    uint32_t        mplsTopLabelIPv4Address;        /* 284-287 */
-    uint8_t         mplsLabels[18];                 /* 288-305 */
-    uint8_t         mplsTopLabelPrefixLength;       /* 306     */
-    uint8_t         mplsTopLabelType;               /* 307     */
+    uint32_t        mplsTopLabelIPv4Address;        /* 300-303 */
+    uint8_t         mplsLabels[18];                 /* 304-321 */
+    uint8_t         mplsTopLabelPrefixLength;       /* 322     */
+    uint8_t         mplsTopLabelType;               /* 323     */
 
     /* Firewall events */
-    uint8_t         firewallEvent;                  /* 308     */
-    uint8_t         NF_F_FW_EVENT;                  /* 309     */
-    uint16_t        NF_F_FW_EXT_EVENT;              /* 310-311 */
+    uint8_t         firewallEvent;                  /* 324     */
+    uint8_t         NF_F_FW_EVENT;                  /* 325     */
+    uint16_t        NF_F_FW_EXT_EVENT;              /* 326-327 */
 
     /* TOS */
-    uint8_t         ipClassOfService;               /* 312     */
-    uint8_t         reverseIpClassOfService;        /* 313     */
+    uint8_t         ipClassOfService;               /* 328     */
+    uint8_t         reverseIpClassOfService;        /* 329     */
 
     /* MAC Addresses */
-    uint8_t         sourceMacAddress[6];            /* 314-319 */
-    uint8_t         destinationMacAddress[6];       /* 320-325 */
+    uint8_t         sourceMacAddress[6];            /* 330-335 */
+    uint8_t         destinationMacAddress[6];       /* 336-341 */
 
     /* Flow Sampler ID */
-    uint16_t        flowSamplerID;                  /* 326-327 */
+    uint16_t        flowSamplerID;                  /* 342-343 */
 
     /* Flow Direction */
-    uint8_t         flowDirection;                  /* 328 */
+    uint8_t         flowDirection;                  /* 344 */
 
     /* padding */
 #if SKI_EXTRWREC_PADDING != 0
-    uint8_t         pad[SKI_EXTRWREC_PADDING];      /* 329-335 */
+    uint8_t         pad[SKI_EXTRWREC_PADDING];      /* 345-351 */
 #endif
 
     /* TCP flags from yaf (when it is run without --silk) */
@@ -842,7 +850,7 @@ skiPrintTemplate(
 
 /*
  *    The skiTemplateCallback() or skiTemplateCallbackCtx() callback
- *    is invoked whenever the session receives a new template.  The
+ *    is invoked whenever the session receives a new template.  One
  *    purpose of the callback is the tell fixbuf how to process items
  *    in a subTemplateMultiList.
  *
@@ -853,11 +861,14 @@ skiPrintTemplate(
  *    For fixbuf-1.4.0, the skiTemplateCallbackCtx() also examines the
  *    template and sets a context pointer that contains high bits for
  *    certain information elements.  See the detailed comment above.
+ *    If the SKI_ENV_PRINT_TEMPLATES environment variable is true, the
+ *    templates are printed to the log file.
  */
 #ifndef SK_HAVE_FBTEMPLATEGETCONTEXT
 /*
  *     This function must have the signature defined by the
- *     'fbNewTemplateCallback_fn' typedef.  For versions of libfixbuf
+ *     'fbNewTemplateCallback_fn' typedef.  It is set by calling
+ *     fbSessionAddTemplateCallback().  For versions of libfixbuf
  *     prior to 1.4.0.
  */
 static void
@@ -877,11 +888,12 @@ skiTemplateCallback(
     }
 }
 
-#else /* SK_HAVE_FBTEMPLATEGETCONTEXT */
+#else  /* SK_HAVE_FBTEMPLATEGETCONTEXT */
 
 /*
  *     This function must have the signature defined by the
- *     'fbTemplateCtxCallback_fn' typedef.  For fixbuf-1.4.0 and
+ *     'fbTemplateCtxCallback_fn' typedef.  It is set by calling
+ *     fbSessionAddTemplateCtxCallback().  For fixbuf-1.4.0 and
  *     later.
  */
 static void
@@ -1193,22 +1205,46 @@ skiCreateReadBufferForFP(
 }
 
 
-/* Convert an NTP timestamp (RFC1305) to epoch millisecond */
+/*
+ *    Convert the NTP timestamp (RFC1305) contained in 'ntp' to epoch
+ *    milliseconds.  The 'is_micro' field should be 0 if the function
+ *    is decoding dateTimeNanoseconds and non-zero when decoding
+ *    dateTimeMicroseconds.
+ *
+ *    An NTP timestamp is a 64 bit value that has whole seconds in the
+ *    upper 32 bits and fractional seconds in the lower 32 bits.  Each
+ *    fractional second represents 1/(2^32)th of a second.
+ *
+ *    In addition, NTP uses an epoch time of Jan 1, 1900.
+ *
+ *    When the 'is_micro' flag is set, decoding must ignore the 11
+ *    lowest bits of the fractional part of the timestamp.
+ *
+ *    If 'ntp' is 0, assume the element was not in the model and
+ *    return 0.
+ */
 static uint64_t
 skiNTPDecode(
-    uint64_t            ntp)
+    uint64_t            ntp,
+    int                 is_micro)
 {
-    double          dntp;
-    uint64_t        millis;
+    /* the UNIX epoch as a number of seconds since NTP epoch */
+#define JAN_1970  UINT64_C(0x83AA7E80)
+
+    double frac;
+    uint64_t t;
 
     if (!ntp) {
         return 0;
     }
+    /* handle fractional seconds; convert to milliseconds */
+    frac = (1000.0 * (ntp & (is_micro ? UINT32_C(0xFFFFF800) : UINT32_MAX))
+            / (double)UINT64_C(0x100000000));
 
-    dntp = (ntp & UINT64_C(0xFFFFFFFF00000000)) >> 32;
-    dntp += ((ntp & UINT64_C(0x00000000FFFFFFFF)) * 1.0) / (UINT64_C(2) << 32);
-    millis = (uint64_t)(dntp * 1000);
-    return millis;
+    /* handle whole seconds, convert to milliseconds */
+    t = ((ntp >> 32) - JAN_1970) * 1000;
+
+    return t + (uint64_t)frac;
 }
 
 
@@ -1834,39 +1870,111 @@ skiRwNextRecord(
     /* Run the Gauntlet of Time - convert all the various ways an IPFIX
      * record's time could be represented into start and elapsed times. */
     if (fixrec.rw.flowStartMilliseconds) {
-        TRACEMSG(("Setting time using flowStartMilliseconds"));
         /* Flow start time in epoch milliseconds */
         rwRecSetStartTime(rec, (sktime_t)fixrec.rw.flowStartMilliseconds);
         if (fixrec.rw.flowEndMilliseconds >= fixrec.rw.flowStartMilliseconds) {
             /* Flow end time in epoch milliseconds */
             rwRecSetElapsed(rec,(uint32_t)(fixrec.rw.flowEndMilliseconds
                                            -fixrec.rw.flowStartMilliseconds));
+            if (skpcProbeGetLogFlags(probe) & SOURCE_LOG_TIMESTAMPS) {
+                INFOMSG(("'%s': Used record times"
+                         " flowStartMilliseconds=%" PRIu64
+                         ", flowEndMilliseconds=%" PRIu64),
+                        skpcProbeGetName(probe),
+                        fixrec.rw.flowStartMilliseconds,
+                        fixrec.rw.flowEndMilliseconds);
+            }
         } else {
             /* Flow duration in milliseconds */
             rwRecSetElapsed(rec, fixrec.flowDurationMilliseconds);
+            if (skpcProbeGetLogFlags(probe) & SOURCE_LOG_TIMESTAMPS) {
+                if (fixrec.rw.flowEndMilliseconds) {
+                    INFOMSG(("'%s': Used record times"
+                             " flowStartMilliseconds=%" PRIu64
+                             ", flowDurationMilliseconds=%" PRIu32
+                             "(ignored flowEndMilliseconds=%" PRIu64
+                             " < Start)"),
+                            skpcProbeGetName(probe),
+                            fixrec.rw.flowStartMilliseconds,
+                            fixrec.flowDurationMilliseconds,
+                            fixrec.rw.flowEndMilliseconds);
+                } else {
+                    INFOMSG(("'%s': Used record times"
+                             " flowStartMilliseconds=%" PRIu64
+                             ", flowDurationMilliseconds=%" PRIu32),
+                            skpcProbeGetName(probe),
+                            fixrec.rw.flowStartMilliseconds,
+                            fixrec.flowDurationMilliseconds);
+                }
+            }
         }
     } else if (fixrec.flowStartMicroseconds) {
-        TRACEMSG(("Setting time using flowStartMicroseconds"));
         /* Flow start time in NTP microseconds */
-        sTime = skiNTPDecode(fixrec.flowStartMicroseconds);
+        sTime = skiNTPDecode(fixrec.flowStartMicroseconds, 1);
         rwRecSetStartTime(rec, (sktime_t)sTime);
         if (fixrec.flowEndMicroseconds >= fixrec.flowStartMicroseconds) {
             /* Flow end time in NTP microseconds */
-            rwRecSetElapsed(rec,
-                            (uint32_t)(skiNTPDecode(fixrec.flowEndMicroseconds)
-                                       - sTime));
+            eTime = skiNTPDecode(fixrec.flowEndMicroseconds, 1);
+            rwRecSetElapsed(rec, (uint32_t)(eTime - sTime));
+            if (skpcProbeGetLogFlags(probe) & SOURCE_LOG_TIMESTAMPS) {
+                INFOMSG(("'%s': Used record times"
+                         " flowStartMicroseconds=%" PRIu64
+                         ", flowEndMicroseconds=%" PRIu64),
+                        skpcProbeGetName(probe),
+                        fixrec.flowStartMicroseconds,
+                        fixrec.flowEndMicroseconds);
+            }
         } else {
             /* Flow duration in microseconds */
             rwRecSetElapsed(rec, (fixrec.flowDurationMicroseconds / 1000));
+            if (skpcProbeGetLogFlags(probe) & SOURCE_LOG_TIMESTAMPS) {
+                if (fixrec.flowEndMicroseconds) {
+                    INFOMSG(("'%s': Used record times"
+                             " flowStartMicroseconds=%" PRIu64
+                             ", flowDurationMicroseconds=%" PRIu32
+                             "(ignored flowEndMicroseconds=%" PRIu64
+                             " < Start)"),
+                            skpcProbeGetName(probe),
+                            fixrec.flowStartMicroseconds,
+                            fixrec.flowDurationMicroseconds,
+                            fixrec.flowEndMicroseconds);
+                } else {
+                    INFOMSG(("'%s': Used record times"
+                             " flowStartMicroseconds=%" PRIu64
+                             ", flowDurationMicroseconds=%" PRIu32),
+                            skpcProbeGetName(probe),
+                            fixrec.flowStartMicroseconds,
+                            fixrec.flowDurationMicroseconds);
+                }
+            }
+        }
+    } else if (fixrec.flowStartNanoseconds) {
+        /* Flow start time in NTP nanoseconds */
+        sTime = skiNTPDecode(fixrec.flowStartNanoseconds, 0);
+        eTime = skiNTPDecode(fixrec.flowEndNanoseconds, 0);
+        rwRecSetStartTime(rec, (sktime_t)sTime);
+        rwRecSetElapsed(rec, (uint32_t)(eTime - sTime));
+        if (skpcProbeGetLogFlags(probe) & SOURCE_LOG_TIMESTAMPS) {
+            INFOMSG(("'%s': Used record times"
+                     " flowStartNanoseconds=%" PRIu64
+                     ", flowEndNanoseconds=%" PRIu64),
+                    skpcProbeGetName(probe),
+                    fixrec.flowStartNanoseconds,
+                    fixrec.flowEndNanoseconds);
         }
     } else if (fixrec.flowStartSeconds) {
-        TRACEMSG(("Setting time using flowStartSeconds"));
-        /* Seconds? Sure, why not. */
         rwRecSetStartTime(rec, sktimeCreate(fixrec.flowStartSeconds, 0));
         rwRecSetElapsed(rec, ((uint32_t)1000 * (fixrec.flowEndSeconds
                                                 - fixrec.flowStartSeconds)));
+        if (skpcProbeGetLogFlags(probe) & SOURCE_LOG_TIMESTAMPS) {
+            INFOMSG(("'%s': Used record times"
+                     " flowStartSeconds=%" PRIu32
+                     ", flowEndSeconds=%" PRIu32),
+                    skpcProbeGetName(probe),
+                    fixrec.flowStartSeconds,
+                    fixrec.flowEndSeconds);
+        }
     } else if (fixrec.flowStartDeltaMicroseconds) {
-        TRACEMSG(("Setting time using flowStartDeltaMicroseconds"));
         /* Flow start time in delta microseconds */
         sTime = (fBufGetExportTime(fbuf) * 1000
                  - fixrec.flowStartDeltaMicroseconds / 1000);
@@ -1879,17 +1987,50 @@ skiRwNextRecord(
             eTime = (fBufGetExportTime(fbuf) * 1000
                      - fixrec.flowEndDeltaMicroseconds / 1000);
             rwRecSetElapsed(rec, (uint32_t)(eTime - sTime));
+            if (skpcProbeGetLogFlags(probe) & SOURCE_LOG_TIMESTAMPS) {
+                INFOMSG(("'%s': Used record times"
+                         " flowStartDeltaMicroseconds=%" PRIu32
+                         ", flowEndDeltaMicroseconds=%" PRIu32
+                         ", exportTimeSeconds=%" PRIu32),
+                        skpcProbeGetName(probe),
+                        fixrec.flowStartDeltaMicroseconds,
+                        fixrec.flowEndDeltaMicroseconds,
+                        fBufGetExportTime(fbuf));
+            }
         } else {
             /* Flow duration in microseconds */
             rwRecSetElapsed(rec, (fixrec.flowDurationMicroseconds / 1000));
+            if (skpcProbeGetLogFlags(probe) & SOURCE_LOG_TIMESTAMPS) {
+                if (fixrec.flowEndDeltaMicroseconds) {
+                    INFOMSG(("'%s': Used record times"
+                             " flowStartDeltaMicroseconds=%" PRIu32
+                             ", flowDurationMicroseconds=%" PRIu32
+                             ", exportTimeSeconds=%" PRIu32
+                             "(ignored flowEndDeltaMicroseconds=%" PRIu32
+                             " > Start)"),
+                            skpcProbeGetName(probe),
+                            fixrec.flowStartDeltaMicroseconds,
+                            fixrec.flowDurationMicroseconds,
+                            fBufGetExportTime(fbuf),
+                            fixrec.flowEndDeltaMicroseconds);
+                } else {
+                    INFOMSG(("'%s': Used record times"
+                             " flowStartDeltaMicroseconds=%" PRIu32
+                             ", flowDurationMicroseconds=%" PRIu32
+                             ", exportTimeSeconds=%" PRIu32),
+                            skpcProbeGetName(probe),
+                            fixrec.flowStartDeltaMicroseconds,
+                            fixrec.flowDurationMicroseconds,
+                            fBufGetExportTime(fbuf));
+                }
+            }
         }
     } else if (TMPL_HAS_ELEM(flowStartSysUpTime)) {
         /* Times based on flow generator system uptimes (Netflow v9) */
         intmax_t uptime, difference;
         sktime_t export_msec;
-
-        TRACEMSG(("Setting time from flowStartSysUpTime %u  %u",
-                  fixrec.flowStartSysUpTime, fixrec.flowEndSysUpTime));
+        const char *rollover_first;
+        const char *rollover_last = "";
 
         /* Set duration.  Our NetFlow v5 code checks the magnitude of
          * the difference between te eTime and sTime; this code is not
@@ -1902,6 +2043,7 @@ skiRwNextRecord(
             /* assume EndTime rolled-over and start did not */
             rwRecSetElapsed(rec, (ROLLOVER32 + fixrec.flowEndSysUpTime
                                   - fixrec.flowStartSysUpTime));
+            rollover_last = ", assume flowEndSysUpTime rollover";
         }
 
         /* Set start time. */
@@ -1910,28 +2052,23 @@ skiRwNextRecord(
             /* we do not know when the router booted.  assume end-time
              * is same as the record's export time and set start-time
              * accordingly. */
-            TRACEMSG((("Setting times for NetFlowV9:"
-                       " exportTime %" PRId64 ", bootTime N/A, upTime N/A"
-                       ", flowStartSysUpTime %" PRIu32
-                       ", flowEndSysUpTime %" PRIu32),
-                      (int64_t)export_msec, fixrec.flowStartSysUpTime,
-                      fixrec.flowEndSysUpTime));
             rwRecSetStartTime(rec, export_msec - rwRecGetElapsed(rec));
+            if (skpcProbeGetLogFlags(probe) & SOURCE_LOG_TIMESTAMPS) {
+                INFOMSG(("'%s': Used record times"
+                         ", flowStartSysUpTime=%" PRIu32
+                         ", flowEndSysUpTime=%" PRIu32
+                         ", no systemInitTimeMilliseconds"
+                         ", set end to exportTimeSeconds=%" PRIu32 "%s"),
+                        skpcProbeGetName(probe),
+                        fixrec.flowStartSysUpTime, fixrec.flowEndSysUpTime,
+                        fBufGetExportTime(fbuf), rollover_last);
+            }
         } else {
             /* systemInitTimeMilliseconds is the absolute router boot
              * time (msec), and libfixbuf sets it by subtracting the
              * NFv9 uptime (msec) from the record's abolute export
              * time (sec). */
             uptime = export_msec - fixrec.systemInitTimeMilliseconds;
-            TRACEMSG((("Setting times for NetFlowV9:"
-                       " exportTime %" PRId64 ", bootTime %" PRIu64
-                       ", upTime %" PRId64 ", flowStartSysUpTime %" PRIu32
-                       ", flowEndSysUpTime %" PRIu32),
-                      (int64_t)export_msec,
-                      fixrec.systemInitTimeMilliseconds, (int64_t)uptime,
-                      fixrec.flowStartSysUpTime,
-                      fixrec.flowEndSysUpTime));
-
             difference = uptime - fixrec.flowStartSysUpTime;
             if (difference > MAXIMUM_FLOW_TIME_DEVIATION) {
                 /* assume upTime is set before record is composed and
@@ -1939,32 +2076,64 @@ skiRwNextRecord(
                 rwRecSetStartTime(rec, (fixrec.systemInitTimeMilliseconds
                                         + fixrec.flowStartSysUpTime
                                         + ROLLOVER32));
+                rollover_first = ", assume flowStartSysUpTime rollover";
             } else if (-difference > MAXIMUM_FLOW_TIME_DEVIATION) {
                 /* assume upTime is set after record is composed and
                  * that upTime has rolled over. */
                 rwRecSetStartTime(rec, (fixrec.systemInitTimeMilliseconds
                                         + fixrec.flowStartSysUpTime
                                         - ROLLOVER32));
+                rollover_first = ", assume sysUpTime rollover";
             } else {
                 /* times look reasonable; assume no roll over */
                 rwRecSetStartTime(rec, (fixrec.systemInitTimeMilliseconds
                                         + fixrec.flowStartSysUpTime));
+                rollover_first = "";
+            }
+            if (skpcProbeGetLogFlags(probe) & SOURCE_LOG_TIMESTAMPS) {
+                INFOMSG(("'%s': Used record times"
+                         ", flowStartSysUpTime=%" PRIu32
+                         ", flowEndSysUpTime=%" PRIu32
+                         ", systemInitTimeMilliseconds=%" PRIu64
+                         ", exportTimeSeconds=%" PRIu32 "%s%s"),
+                        skpcProbeGetName(probe),
+                        fixrec.flowStartSysUpTime, fixrec.flowEndSysUpTime,
+                        fixrec.systemInitTimeMilliseconds,
+                        fBufGetExportTime(fbuf), rollover_first,rollover_last);
             }
         }
     } else {
-        TRACEMSG(("Setting time from export time %u",
-                  fBufGetExportTime(fbuf)));
         /* No per-flow time information.
          * Assume message export is flow end time. */
         if (fixrec.flowDurationMilliseconds) {
             /* Flow duration in milliseconds */
             rwRecSetElapsed(rec, fixrec.flowDurationMilliseconds);
+            if (skpcProbeGetLogFlags(probe) & SOURCE_LOG_TIMESTAMPS) {
+                INFOMSG(("'%s': Used record times"
+                         " flowDurationMilliseconds=%" PRIu32
+                         ", set end to exportTimeSeconds=%" PRIu32),
+                        skpcProbeGetName(probe),
+                        fixrec.flowDurationMilliseconds,
+                        fBufGetExportTime(fbuf));
+            }
         } else if (fixrec.flowDurationMicroseconds) {
             /* Flow duration in microseconds */
             rwRecSetElapsed(rec, (fixrec.flowDurationMicroseconds / 1000));
+            if (skpcProbeGetLogFlags(probe) & SOURCE_LOG_TIMESTAMPS) {
+                INFOMSG(("'%s': Used record times"
+                         " flowDurationMicroseconds=%" PRIu32
+                         ", set end to exportTimeSeconds=%" PRIu32),
+                        skpcProbeGetName(probe),
+                        fixrec.flowDurationMicroseconds,
+                        fBufGetExportTime(fbuf));
+            }
         } else {
             /* Presume zero duration flow */
             rwRecSetElapsed(rec, 0);
+            INFOMSG(("'%s': No record times, set start and end to"
+                     " exportTimeSeconds=%" PRIu32),
+                    skpcProbeGetName(probe),
+                    fBufGetExportTime(fbuf));
         }
         /* Set start time based on export and elapsed time */
         rwRecSetStartTime(rec, sktimeCreate((fBufGetExportTime(fbuf)

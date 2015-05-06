@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2006-2014 by Carnegie Mellon University.
+** Copyright (C) 2006-2015 by Carnegie Mellon University.
 **
 ** @OPENSOURCE_HEADER_START@
 **
@@ -60,7 +60,7 @@
 
 #include <silk/silk.h>
 
-RCSIDENT("$SiLK: rwsender.c cd598eff62b9 2014-09-21 19:31:29Z mthomas $");
+RCSIDENT("$SiLK: rwsender.c b7b8edebba12 2015-01-05 18:05:21Z mthomas $");
 
 #include <silk/utils.h>
 #include <silk/skdaemon.h>
@@ -1131,22 +1131,22 @@ handle_new_file(
     /* move the files from the temporary queues to the real queue on
      * each rwreceiver */
     while (skDLListPopHead(high, (void **)&dest_copy) == 0) {
-        rv = skDLListPopHead(high, (void **)&rcvr);
-        assert(rv == 0);
+        if (skDLListPopHead(high, (void **)&rcvr)) {
+            ERRMSG("Unable to pop item from high queue");
+            skAbort();
+        }
         err = mqQueueAdd(rcvr->app.r.high, dest_copy);
         CHECK_ALLOC(err != MQ_MEMERROR);
-        if (err != MQ_NOERROR) {
-            assert(shuttingdown);
-        }
+        assert(err == MQ_NOERROR || shuttingdown);
     }
     while (skDLListPopHead(low, (void **)&dest_copy) == 0) {
-        rv = skDLListPopHead(low, (void **)&rcvr);
-        assert(rv == 0);
+        if (skDLListPopHead(low, (void **)&rcvr)) {
+            ERRMSG("Unable to pop item from low queue");
+            skAbort();
+        }
         err = mqQueueAdd(rcvr->app.r.low, dest_copy);
         CHECK_ALLOC(err != MQ_MEMERROR);
-        if (err != MQ_NOERROR) {
-            assert(shuttingdown);
-        }
+        assert(err == MQ_NOERROR || shuttingdown);
     }
     skDLListDestroy(high);
     skDLListDestroy(low);
@@ -1529,7 +1529,7 @@ transferFile(
                 break;
             }
             map->map = mmap(0, size, PROT_READ, MAP_SHARED, fd, 0);
-            if (map == MAP_FAILED) {
+            if (map->map == MAP_FAILED) {
                 free(map);
                 map = NULL;
                 ERRMSG("Could not map '%s': %s", path, strerror(errno));

@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2001-2014 by Carnegie Mellon University.
+** Copyright (C) 2001-2015 by Carnegie Mellon University.
 **
 ** @OPENSOURCE_HEADER_START@
 **
@@ -65,7 +65,7 @@ extern "C" {
 
 #include <silk/silk.h>
 
-RCSIDENTVAR(rcsID_SKUNIQUE_H, "$SiLK: skunique.h cd598eff62b9 2014-09-21 19:31:29Z mthomas $");
+RCSIDENTVAR(rcsID_SKUNIQUE_H, "$SiLK: skunique.h d067c82452ae 2015-01-09 21:43:05Z mthomas $");
 
 #include <silk/silk_types.h>
 
@@ -911,7 +911,7 @@ struct sk_unique_iterator_st {
  *    be faster than using sk_sort_unique_t, since sk_sort_unique_t
  *    will still create a hash table to count the distinct values.
  *
- *    The processing of sk_sort_unique_t is vary different from that
+ *    The processing of sk_sort_unique_t is very different from that
  *    for sk_unique_t.  sk_sort_unique_t processing is callback based,
  *    as specified here:
  *

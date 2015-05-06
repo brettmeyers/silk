@@ -3,7 +3,7 @@
 ## The canonical pathname for this file is
 ## @sysconfdir@/@myprog@.conf
 ##
-## RCSIDENT("$SiLK: rwflowappend.conf.in 7f4317c4a2a1 2014-05-22 21:38:41Z mthomas $")
+## RCSIDENT("$SiLK: rwflowappend.conf.in f2d4deeba366 2014-11-06 20:27:08Z mthomas $")
 ##
 ## This is a /bin/sh file that gets loaded by the init.d/@myprog@
 ## wrapper script, and this file must follow /bin/sh syntax rules.
@@ -24,6 +24,10 @@ BIN_DIR=@sbindir@
 
 # The full path of the directory where incoming files will be placed.
 INCOMING_DIR=${statedirectory}/incoming
+
+# The number of appending threads that rwflowappend should use.  If
+# not set, the default is 1.
+APPEND_THREADS=
 
 # The full path of the directory where files will be placed if there
 # are errors within the file

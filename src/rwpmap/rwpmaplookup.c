@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2004-2014 by Carnegie Mellon University.
+** Copyright (C) 2004-2015 by Carnegie Mellon University.
 **
 ** @OPENSOURCE_HEADER_START@
 **
@@ -73,7 +73,7 @@
 
 #include <silk/silk.h>
 
-RCSIDENT("$SiLK: rwpmaplookup.c cd598eff62b9 2014-09-21 19:31:29Z mthomas $");
+RCSIDENT("$SiLK: rwpmaplookup.c b7b8edebba12 2015-01-05 18:05:21Z mthomas $");
 
 #include <silk/skcountry.h>
 #include <silk/skipaddr.h>
@@ -1051,16 +1051,19 @@ printProtoPort(
             break;
 
           case PMAPLOOKUP_FIELD_START_BLOCK:
+            assert(printing_block);
             snprintf(buf, sizeof(buf), "%u/%u", start_pp.proto, start_pp.port);
             fprintf(output.of_fp, "%*s", col_width[fields[i]], buf);
             break;
 
           case PMAPLOOKUP_FIELD_END_BLOCK:
+            assert(printing_block);
             snprintf(buf, sizeof(buf), "%u/%u", end_pp.proto, end_pp.port);
             fprintf(output.of_fp, "%*s", col_width[fields[i]], buf);
             break;
 
           case PMAPLOOKUP_FIELD_BLOCK:
+            assert(printing_block);
             snprintf(buf, sizeof(buf), "%u/%u %u/%u",
                      start_pp.proto, start_pp.port,
                      end_pp.proto, end_pp.port);

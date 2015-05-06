@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2001-2014 by Carnegie Mellon University.
+** Copyright (C) 2001-2015 by Carnegie Mellon University.
 **
 ** @OPENSOURCE_HEADER_START@
 **
@@ -65,9 +65,10 @@ extern "C" {
 
 #include <silk/silk.h>
 
-RCSIDENTVAR(rcsID_SKTEMPFILE_H, "$SiLK: sktempfile.h cd598eff62b9 2014-09-21 19:31:29Z mthomas $");
+RCSIDENTVAR(rcsID_SKTEMPFILE_H, "$SiLK: sktempfile.h 1e335cdcb7a4 2015-01-16 20:01:56Z mthomas $");
 
 #include <silk/silk_types.h>
+#include <silk/skstream.h>
 
 /**
  *  @file
@@ -87,11 +88,18 @@ RCSIDENTVAR(rcsID_SKTEMPFILE_H, "$SiLK: sktempfile.h cd598eff62b9 2014-09-21 19:
  *    object.  This context object must be passed to all other
  *    skTempFile*() functions.
  *
- *    The caller uses skTempFileCreate() to create a new tempory file
- *    and fclose() to close the file.  Alternative, the caller can use
- *    skTempFileWriteBuffer() to write a buffer into a new temporary
- *    file.  In either case, the file can be re-opened via
+ *    The caller uses skTempFileCreate() to create a new temporary
+ *    file and fclose() to close the file.  Alternatively, the caller
+ *    can use skTempFileWriteBuffer() to write a buffer into a new
+ *    temporary file.  In either case, the file can be re-opened via
  *    skTempFileOpen().
+ *
+ *    For compressed temporary files, the caller should use
+ *    skTempFileCreateStream() to create the stream, skStreamDestroy()
+ *    to close and destroy the stream, and skTempFileOpenStream() to
+ *    re-open the existing stream.  The helper function
+ *    skTempFileWriteBufferStream() writes a buffer of data in a
+ *    format readable by skTempFileOpenStream().
  *
  *    The temporary files are not removed until either the
  *    skTempFileRemove() or skTempFileTeardown() functions are
@@ -154,20 +162,46 @@ skTempFileTeardown(
 /**
  *    Creates and opens a new temporary file.  Returns an open FILE
  *    pointer.  'tmp_idx', which must not be NULL, is set to the index
- *    of the file, which can be used to access the file.  If 'name' in
+ *    of the file, which can be used to access the file.  If 'name' is
  *    non-NULL, it is set to point to the name of the file.
  *
  *    Returns NULL if a temporary file cannot be created.  The value
  *    of 'errno' should contain the error that prevented the file from
- *    being created.
+ *    being created.  A return value of NULL and errno of 0 indicates
+ *    either 'tmpctx' or 'tmp_idx' was NULL.
  *
- *    See also skTempFileWriteBuffer().
+ *    Files created with this function must be opened by calling
+ *    skTempFileOpen().
+ *
+ *    See also skTempFileCreateStream(), skTempFileWriteBuffer().
  */
 FILE *
 skTempFileCreate(
     sk_tempfilectx_t   *tmpctx,
     int                *tmp_idx,
     char              **name);
+
+/**
+ *    Creates and opens a new temporary file.  Returns an skstream
+ *    whose record format is FT_TEMPFILE, whose record length is 1,
+ *    and that uses compression.  'tmp_idx', which must not be NULL,
+ *    is set to the index of the file, which can be used to access the
+ *    file.
+ *
+ *    Returns NULL if a temporary file cannot be created.  The value of
+ *    'errno' should contain the error that prevented the file from
+ *    being created.  A return value of -1 and errno of 0 indicates
+ *    either 'tmpctx' or 'tmp_idx' was NULL.
+ *
+ *    Files created with this function must be opened by calling
+ *    skTempFileOpenStream().
+ *
+ *    See also skTempFileCreate(), skTempFileWriteBufferStream().
+ */
+skstream_t *
+skTempFileCreateStream(
+    sk_tempfilectx_t   *tmpctx,
+    int                *tmp_idx);
 
 /**
  *    Returns the name of the file index by 'tmp_idx'.  Returns the
@@ -179,15 +213,44 @@ skTempFileGetName(
     int                     tmp_idx);
 
 /**
- *    Opens the existing temporary file indexed by 'tmp_idx' and
+ *    Re-opens the existing temporary file indexed by 'tmp_idx' and
  *    returns a FILE pointer to that file.
+ *
+ *    This function should only be used to create temporary files
+ *    created using skTempFileCreate() or skTempFileWriteBuffer().
  *
  *    Returns NULL if no file is index by 'tmp_idx' or if there is an
  *    error opening the file.  The value of 'errno' should contain the
- *    error that prevented the function from succeeding.
+ *    error that prevented the function from succeeding.  A return
+ *    value of NULL and errno of 0 indicates 'tmp_idx' is not known
+ *    index.
+ *
+ *    See also skTempFileOpenStream().
  */
 FILE *
 skTempFileOpen(
+    const sk_tempfilectx_t *tmpctx,
+    int                     tmp_idx);
+
+/**
+ *    Re-opens the existing temporary file indexed by 'tmp_idx' and
+ *    returns an skstream whose record format is FT_TEMPFILE and whose
+ *    record length is 1.
+ *
+ *    This function should only be used to create temporary files
+ *    created using skTempFileCreateStream() or
+ *    skTempFileWriteBufferStream().
+ *
+ *    Returns NULL if no file is index by 'tmp_idx' or if there is an
+ *    error opening the file.  The value of 'errno' should contain the
+ *    error that prevented the function from succeeding.  A return
+ *    value of -1 and errno of 0 indicates 'tmp_idx' is not known
+ *    index.
+ *
+ *    See also skTempFileOpen().
+ */
+skstream_t *
+skTempFileOpenStream(
     const sk_tempfilectx_t *tmpctx,
     int                     tmp_idx);
 
@@ -213,9 +276,25 @@ skTempFileRemove(
  *    error writing the buffer to the file.  The value of 'errno'
  *    should contain the error that prevented the function from
  *    succeeding.
+ *
+ *    Files created with this function must be opened by calling
+ *    skTempFileOpen().
  */
 int
 skTempFileWriteBuffer(
+    sk_tempfilectx_t   *tmpctx,
+    int                *tmp_idx,
+    const void         *elem_buffer,
+    uint32_t            elem_size,
+    uint32_t            elem_count);
+
+/**
+ *    Creates a new temporary file for storing a data buffer just as
+ *    skTempFileWriteBuffer() does, except the file is written with a
+ *    SiLK file header and must be opened with skTempFileOpenStream().
+ */
+int
+skTempFileWriteBufferStream(
     sk_tempfilectx_t   *tmpctx,
     int                *tmp_idx,
     const void         *elem_buffer,

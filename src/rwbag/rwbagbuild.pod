@@ -40,14 +40,16 @@ delimiter and an integer count after the delimiter.  These lines may
 have a second delimiter after the integer count; the second delimiter
 and any text to the right of it are ignored.
 
-When the B<--default-count> switch is specified, its value will used
-as the count for each key, and the count value parsed from each line,
-if any, is ignored.  Otherwise, the parsed count is used, or 1 is used
-as the count if no delimiter was present.
+When the B<--default-count> switch is specified, its value is used as
+the count for each key, and the count value parsed from each line, if
+any, is ignored.  Otherwise, the parsed count is used, or 1 is used as
+the count if no delimiter was present.
 
-For each key-count pair, the key will be inserted into Bag with its
-count or, if the key is already present in the Bag, its total count
-will be incremented by the count from this line.
+For each key-count pair, the key is inserted into Bag with its count
+or, if the key is already present in the Bag, its total count is be
+incremented by the count from this line.  When using the
+B<--default-count> switch, the count for a key that appears in the
+input I<N> times is the product of I<N> and I<DEFAULTCOUNT>.
 
 The IP address or integer key must be expressed in one of the
 following formats.  B<rwbagbuild> complains if the key field contains
@@ -379,18 +381,32 @@ prompt.  The text after the dollar sign represents the command line.
 Lines have been wrapped for improved readability, and the back slash
 (C<\>) is used to indicate a wrapped line.
 
-Assume the file F<mybag.txt> contains the following (ignore leading
-whitespace and assume every line ends with a newline):
+=head2 Create a bag with IP addresses as keys from a text file
 
- 192.168.0.1|5
- 192.168.0.2|500
- 192.168.0.3|3
- 192.168.0.4|14
- 192.168.0.5|5
+Assume the file F<mybag.txt> contains the following lines, where each
+line contains an IP address, a comma as a delimiter, a count, and ends
+with a newline.
+
+ 192.168.0.1,5
+ 192.168.0.2,500
+ 192.168.0.3,3
+ 192.168.0.4,14
+ 192.168.0.5,5
 
 To build a bag with it:
 
- $ rwbagbuild --bag-input=mybag.txt > mybag.bag
+ $ rwbagbuild --bag-input=mybag.txt --delimiter=, > mybag.bag
+
+Use B<rwbagcat(1)> to view its contents:
+
+ $ rwbagcat mybag.bag
+     192.168.0.1|                   5|
+     192.168.0.2|                 500|
+     192.168.0.3|                   3|
+     192.168.0.4|                  14|
+     192.168.0.5|                   5|
+
+=head2 Create a bag with protocols as keys from a text file
 
 To create a Bag of protocol data from the text file F<myproto.txt>:
 
@@ -400,14 +416,138 @@ To create a Bag of protocol data from the text file F<myproto.txt>:
 
 use
 
- $ rwbagbuild --bag-input=myproto.txt > myproto.bag
+ $ rwbagbuild --key-type=proto --bag-input=myproto.txt > myproto.bag
+ $ rwbagcat myproto.bag
+          1|                   4|
+          6|                 138|
+         17|                 131|
+
+When the B<--key-type> switch is specified, B<rwbagcat> knows the keys
+should be printed as integers, and B<rwfileinfo(1)> shows the type of
+the key:
+
+ $ rwfileinfo --fields=bag myproto.bag
+ myproto.bag:
+   bag            key: protocol @ 4 octets; counter: custom @ 8 octets
+
+Without the B<--key-type> switch, B<rwbagbuild> assumes the integers
+in F<myproto.txt> represent IP addresses:
+
+ $ rwbagbuild --bag-input=myproto.txt | rwbagcat
+         0.0.0.1|                   4|
+         0.0.0.6|                 138|
+        0.0.0.17|                 131|
+
+Although the B<--integer-keys> switch on B<rwbagcat> forces it to
+print keys as integers, it is generally better to use the
+B<--key-type> switch when creating the bag.
+
+$ rwbagbuild --bag-input=myproto.txt | rwbagcat --integer-keys
+         1|                   4|
+         6|                 138|
+        17|                 131|
+
+=head2 Create a bag and override the existing counter
+
+To ignore the counts that exist in F<myproto.txt> and set the counts
+for each protocol to 1, use the B<--default-count> switch which
+overrides the existing value:
+
+ $ rwbagbuild --key-type=protocol --bag-input=myproto.txt  \
+        --default-count=1 --output-path=myproto1.bag
+ $ rwbagcat myproto1.bag
+          1|                   1|
+          6|                   1|
+         17|                   1|
+
+=head2 Create a bag with IP addresses as keys from an IPset file
 
 Given the IP set F<myset.set>, create a bag where every entry in the
-set has a count of 3:
+bag has a count of 3:
 
- $ rwbagbuild --set-input=myset.set --default-count=3 \
+ $ rwbagbuild --set-input=myset.set --default-count=3  \
         --out=mybag2.bag
 
+=head2 Create a bag from multiple input files
+
+Suppose we have three IPset files, F<A.set>, F<B.set>, and F<C.set>:
+
+ $ rwsetcat A.set
+ 10.0.0.1
+ 10.0.0.2
+ $ rwsetcat B.set
+ 10.0.0.2
+ 10.0.0.3
+ $ rwsetcat C.set
+ 10.0.0.1
+ 10.0.0.2
+ 10.0.0.4
+
+We want to create a bag file from these IPset files where the count
+for each IP address is the number of files that IP appears in.
+B<rwbagbuild> accepts a single file as an argument, so we cannot do
+the following:
+
+ $ rwbagbuild --set-input=A.set --set-input=B.set ...   # WRONG!
+
+(Even if we could repeat the B<--set-input> switch, specifying it
+multiple times would be annoying if we had 300 files instead of only
+3.)
+
+The IPset files are (mathematical) sets, so if we join them together
+first with B<rwsettool(1)> and then run B<rwbagbuild>, each IP address
+gets a count of 1:
+
+ $ rwsettool --union A.set B.set C.set   \
+   | rwbagbuild --set-input=-            \
+   | rwbagcat
+        10.0.0.1|                   1|
+        10.0.0.2|                   1|
+        10.0.0.3|                   1|
+        10.0.0.4|                   1|
+
+When B<rwbagbuild> is processing textual input, it sums the counters
+for keys that appear in the input multiple times.  We can use
+B<rwsetcat(1)> to convert each IPset file to text and feed that as
+single textual stream to B<rwbagbuild>.  Use the B<--cidr-blocks>
+switch on B<rwsetcat> to reduce the amount of input that B<rwbagbuild>
+must process.  This is probably the best approach to the problem:
+
+ $ rwsetcat --cidr-block *.set | rwbagbuild --bag-input=- > total1.bag
+ $ rwbagcat total1.bag
+        10.0.0.1|                   2|
+        10.0.0.2|                   3|
+        10.0.0.3|                   1|
+        10.0.0.4|                   1|
+
+A less efficient solution is to convert each IPset to a bag and then
+use B<rwbagtool(1)> to add the bags together:
+
+ $ for i in *.set ; do
+        rwbagbuild --set-input=$i --output-file=/tmp/$i.bag ;
+   done
+ $ rwbagtool --add /tmp/*.set.bag > total2.bag
+ $ rm /tmp/*.set.bag
+
+There is no need to create a bag file for each IPset; we can get by
+with only two bag files, the final bag file, F<total3.bag>, and a
+temporary file, F<tmp.bag>.  We initialize F<total3.bag> to an empty
+bag.  As we loop over each IPset, B<rwbagbuild> converts the IPset to
+a bag on its standard output, B<rwbagtool> creates F<tmp.bag> by
+adding its standard input to F<total3.bag>, and we rename F<tmp.bag>
+to F<total3.bag>:
+
+ $ rwbagbuild --bag-input=/dev/null --output-file=total3.bag
+ $ for i in *.set ; do
+        rwbagbuild --set-input=$i  \
+        | rwbagtool --output-file=tmp.bag --add total3.bag stdin ;
+        /bin/mv tmp.bag total3.bag ;
+   done
+ $ rwbagcat total3.bag
+        10.0.0.1|                   2|
+        10.0.0.2|                   3|
+        10.0.0.3|                   1|
+        10.0.0.4|                   1|
 
 =head1 ENVIRONMENT
 
@@ -423,7 +563,8 @@ SILK_CLOBBER to a non-empty value removes this restriction.
 =head1 SEE ALSO
 
 B<rwbag(1)>, B<rwbagcat(1)>, B<rwbagtool(1)>, B<rwfileinfo(1)>,
-B<rwset(1)>, B<rwsetbuild(1)>, B<silk(7)>, B<zlib(3)>
+B<rwset(1)>, B<rwsetbuild(1)>, B<rwsetcat(1)>, B<rwsettool(1)>,
+B<silk(7)>, B<zlib(3)>
 
 =head1 BUGS
 
@@ -431,7 +572,7 @@ The B<--default-count> switch is poorly named.
 
 =cut
 
-$SiLK: rwbagbuild.pod 477e54df24bf 2014-07-08 18:02:17Z mthomas $
+$SiLK: rwbagbuild.pod b3f76b20749f 2014-11-06 20:12:44Z mthomas $
 
 Local Variables:
 mode:text

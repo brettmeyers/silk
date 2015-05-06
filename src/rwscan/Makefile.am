@@ -1,15 +1,23 @@
-# RCSIDENT("$SiLK: Makefile.am f09105e13b0f 2014-05-23 20:14:04Z mthomas $");
+# RCSIDENT("$SiLK: Makefile.am a0de5ee69dff 2015-02-18 21:42:47Z mthomas $");
 
 # Installed Targets
 
 bin_PROGRAMS = rwscan
-bin_SCRIPTS = rwscanquery
+if HAVE_PERL_DBI
+have_dbi = rwscanquery
+else
+missing_dbi = rwscanquery
+endif
+bin_SCRIPTS = $(have_dbi)
+noinst_SCRIPTS = $(missing_dbi)
 
 EXTRA_DIST = rwscan.pod rwscanquery.in
 if HAVE_POD2MAN
 if HAVE_PODSELECT
+if HAVE_PERL_DBI
 # Perl files have POD embedded in the file which podselect extracts
 src2pod2man = rwscanquery.1
+endif
 endif
 man1_MANS = rwscan.1 $(src2pod2man)
 endif

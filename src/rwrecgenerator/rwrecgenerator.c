@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2011-2014 by Carnegie Mellon University.
+** Copyright (C) 2011-2015 by Carnegie Mellon University.
 **
 ** @OPENSOURCE_HEADER_START@
 **
@@ -70,7 +70,7 @@
 
 #include <silk/silk.h>
 
-RCSIDENT("$SiLK: rwrecgenerator.c cd598eff62b9 2014-09-21 19:31:29Z mthomas $");
+RCSIDENT("$SiLK: rwrecgenerator.c b7b8edebba12 2015-01-05 18:05:21Z mthomas $");
 
 #include <silk/rwascii.h>
 #include <silk/rwrec.h>
@@ -181,6 +181,7 @@ typedef struct recgen_subprocess_st {
 static void appUsageLong(void);
 static void appTeardown(void);
 static void appSetup(int argc, char **argv);
+static void appExit(int exit_status) NORETURN;
 static int  appOptionsHandler(clientData cData, int opt_index, char *opt_arg);
 static int
 parseFlowtype(
@@ -984,19 +985,18 @@ appOptionsHandler(
     skPrefixMapErr_t pmap_err;
     uint64_t tmp64;
     uint32_t time_flags = 0;
-    int precision;
     int rv;
 
     switch ((appOptionsEnum)opt_index) {
       case OPT_START_TIME:
-        rv = skStringParseDatetime(&start_time, opt_arg, &precision);
+        rv = skStringParseDatetime(&start_time, opt_arg, NULL);
         if (rv) {
             goto PARSE_ERROR;
         }
         break;
 
       case OPT_END_TIME:
-        rv = skStringParseDatetime(&end_time, opt_arg, &precision);
+        rv = skStringParseDatetime(&end_time, opt_arg, NULL);
         if (rv) {
             goto PARSE_ERROR;
         }

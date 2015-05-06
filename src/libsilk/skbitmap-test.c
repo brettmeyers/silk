@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2005-2014 by Carnegie Mellon University.
+** Copyright (C) 2005-2015 by Carnegie Mellon University.
 **
 ** @OPENSOURCE_HEADER_START@
 **
@@ -58,7 +58,7 @@
 
 #include <silk/silk.h>
 
-RCSIDENT("$SiLK: skbitmap-test.c cd598eff62b9 2014-09-21 19:31:29Z mthomas $");
+RCSIDENT("$SiLK: skbitmap-test.c b7b8edebba12 2015-01-05 18:05:21Z mthomas $");
 
 #include <silk/skipaddr.h>
 #include <silk/utils.h>
@@ -1152,6 +1152,8 @@ ipwild_test_helper_v6(
     int j;
     int rv;
 
+    tmp_ipv6[0] = '\0';
+
     fprintf(stderr, "Testing IPWildcard '%s' ...", str);
 
     rv = skStringParseIPWildcard(&ipwild, str);
@@ -1237,6 +1239,10 @@ ipwild_test_helper_v6(
         ++i;
     }
 
+    if (0 == i) {
+        fprintf(stderr, "iterator returned no addresses");
+        exit(EXIT_FAILURE);
+    }
     if (range_length) {
         if (i != range_length) {
             fprintf(stderr, ("out of iterator before values i=%" PRId64

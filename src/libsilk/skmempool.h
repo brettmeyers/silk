@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2010-2014 by Carnegie Mellon University.
+** Copyright (C) 2010-2015 by Carnegie Mellon University.
 **
 ** @OPENSOURCE_HEADER_START@
 **
@@ -64,7 +64,7 @@ extern "C" {
 
 #include <silk/silk.h>
 
-RCSIDENTVAR(rcsID_SKMEMPOOL_H, "$SiLK: skmempool.h cd598eff62b9 2014-09-21 19:31:29Z mthomas $");
+RCSIDENTVAR(rcsID_SKMEMPOOL_H, "$SiLK: skmempool.h b7b8edebba12 2015-01-05 18:05:21Z mthomas $");
 
 /**
  *  @file
@@ -143,7 +143,7 @@ skMemoryPoolCreate(
 /**
  *    Destroys the memory pool at the location specify by '*pool'.
  *    The pool and all the elements it has created are destroyed.  If
- *    'pool' is NULL, no action is taken.
+ *    'pool' or the location it points to is NULL, no action is taken.
  */
 void
 skMemoryPoolDestroy(

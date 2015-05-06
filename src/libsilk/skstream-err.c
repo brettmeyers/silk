@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2005-2014 by Carnegie Mellon University.
+** Copyright (C) 2005-2015 by Carnegie Mellon University.
 **
 ** @OPENSOURCE_HEADER_START@
 **
@@ -58,7 +58,7 @@
 
 #include <silk/silk.h>
 
-RCSIDENT("$SiLK: skstream-err.c cd598eff62b9 2014-09-21 19:31:29Z mthomas $");
+RCSIDENT("$SiLK: skstream-err.c b7b8edebba12 2015-01-05 18:05:21Z mthomas $");
 
 #include "skstream_priv.h"
 
@@ -611,11 +611,34 @@ streamLastErrFunc(
         break;
 
       case SKSTREAM_ERR_COMPRESS_INVALID:
-        FILENAME_MSG("Specified compression method is not valid");
+        msg = "Specified compression identifier is not recognized";
+        if (!stream) {
+            ERR_FN(("%s", msg),
+                   (ef2_ctx, "%s", msg));
+        } else {
+            ssize_t cm;
+            cm = (ssize_t)skHeaderGetCompressionMethod(stream->silk_hdr);
+            ERR_FN(("%s %" SK_PRIdZ " '%s'",
+                    msg, cm, stream->pathname),
+                   (ef2_ctx, "%s %" SK_PRIdZ " '%s'",
+                    msg, cm, stream->pathname));
+        }
         break;
 
       case SKSTREAM_ERR_COMPRESS_UNAVAILABLE:
-        FILENAME_MSG("Specified compression method is not available");
+        msg = "Specified compression method is not available";
+        if (!stream) {
+            ERR_FN(("%s", msg),
+                   (ef2_ctx, "%s", msg));
+        } else {
+            sksiteCompmethodGetName(
+                format_name, sizeof(format_name),
+                skHeaderGetCompressionMethod(stream->silk_hdr));
+            ERR_FN(("%s '%s' uses %s",
+                    msg, stream->pathname, format_name),
+                   (ef2_ctx, "%s '%s' uses %s",
+                    msg, stream->pathname, format_name));
+        }
         break;
 
       case SKSTREAM_ERR_UNSUPPORT_CONTENT:

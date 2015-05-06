@@ -94,7 +94,7 @@ requesting more aggregate values slows performance.
 The B<--presorted-input> switch may allow B<rwuniq> to process data
 more efficiently by causing B<rwuniq> to assume the input has been
 previously sorted with the B<rwsort(1)> command.  With this switch,
-B<rwuniq> does not need large amounts of memory because it does not
+B<rwuniq> typically does not need large amounts of memory because it does not
 bin each flow; instead, it keeps a running summation and outputs the
 bin whenever the key changes.  For the output to be meaningful,
 B<rwsort> and B<rwuniq> I<must> be invoked with the same B<--fields>
@@ -118,12 +118,6 @@ is strongly recommended that F</tmp> I<not> be used as the temporary
 directory.  To modify the temporary directory used by B<rwuniq>,
 provide the B<--temp-directory> switch, set the SILK_TMPDIR
 environment variable, or set the TMPDIR environment variable.
-
-B<rwuniq> may run out of memory when computing distinct IP counts,
-causing the counts for some bins to be smaller than the actual number
-of distinct IPs.  When this occurs, a single warning is printed the
-standard error noting that B<rwuniq> has run out of memory, processing
-continues, and B<rwuniq> exits with status 16.
 
 =head1 OPTIONS
 
@@ -1258,12 +1252,6 @@ When computing distinct IP counts, B<rwuniq> will typically run faster
 if you do I<not> use the B<--presorted-input> switch, even if the data
 was previously sorted.
 
-B<rwuniq> may run out of memory when computing distinct IP counts,
-causing the counts for some bins to be smaller than the actual number
-of distinct IPs.  When this occurs, a single warning is printed the
-standard error noting that B<rwuniq> has run out of memory, processing
-continues, and B<rwuniq> exits with status 16.
-
 B<rwuniq>'s strength is its ability to build arbitrary keys and
 aggregate fields.  For a key of a single IP address, see
 B<rwaddrcount(1)> and B<rwbag(1)>; for a key made up of a single CIDR
@@ -1281,7 +1269,7 @@ B<yaf(1)>, B<dlopen(3)>
 
 =cut
 
-$SiLK: rwuniq.pod 477e54df24bf 2014-07-08 18:02:17Z mthomas $
+$SiLK: rwuniq.pod c19d64b322b8 2015-02-09 22:11:47Z mthomas $
 
 Local Variables:
 mode:text

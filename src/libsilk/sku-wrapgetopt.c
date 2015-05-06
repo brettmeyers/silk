@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2003-2014 by Carnegie Mellon University.
+** Copyright (C) 2003-2015 by Carnegie Mellon University.
 **
 ** @OPENSOURCE_HEADER_START@
 **
@@ -59,7 +59,7 @@
 #include <silk/silk.h>
 
 #ifndef SK_HAVE_GETOPT_LONG_ONLY
-RCSIDENT("$SiLK: sku-wrapgetopt.c 1c87fe1a22f7 2014-01-06 15:24:30Z mthomas $");
+RCSIDENT("$SiLK: sku-wrapgetopt.c b7b8edebba12 2015-01-05 18:05:21Z mthomas $");
 
 #include "getopt.c"
 #endif

@@ -1,4 +1,4 @@
-dnl Copyright (C) 2004-2014 by Carnegie Mellon University.
+dnl Copyright (C) 2004-2015 by Carnegie Mellon University.
 dnl
 dnl @OPENSOURCE_HEADER_START@
 dnl
@@ -48,7 +48,7 @@ dnl contract clause at 252.227.7013.
 dnl
 dnl @OPENSOURCE_HEADER_END@
 
-dnl RCSIDENT("$SiLK: ax_pkg_check_gnutls.m4 1c87fe1a22f7 2014-01-06 15:24:30Z mthomas $")
+dnl RCSIDENT("$SiLK: ax_pkg_check_gnutls.m4 b7b8edebba12 2015-01-05 18:05:21Z mthomas $")
 
 
 # ---------------------------------------------------------------------------
@@ -64,19 +64,88 @@ AC_DEFUN([AX_PKG_CHECK_GNUTLS],[
     AC_SUBST(GNUTLS_CFLAGS)
     AC_SUBST(GNUTLS_LDFLAGS)
 
+    # Either one or two arguments; first is minimum version required;
+    # if a second is present, it represents a version that is "too
+    # new"
     gnutls_required_version="$1"
-    gnutls_declined=no
     if test "x$2" = "x"
     then
-        version_check="gnutls >= ${gnutls_required_version}"
+        version_check="gnutls >= $1"
+        report_version="gnutls.pc >= $1"
     else
-        version_check="gnutls >= ${gnutls_required_version} gnutls < $2"
+        version_check="gnutls >= $1 gnutls < $2"
+        report_version="gnutls.pc >= $1, gnutls.pc < $2"
     fi
 
     ENABLE_GNUTLS=0
 
-    m4_ifdef([PKG_CHECK_MODULES], [AX_PKG_CHECK_GNUTLS_PKGCONFIG])
+    # The configure switch
+    sk_pkg_config=""
+    AC_ARG_WITH([gnutls],[AS_HELP_STRING([--with-gnutls=DIR],
+            [specify location of the GnuTLS transport security package; find "gnutls.pc" in the directory DIR/ (i.e., prepend DIR to PKG_CONFIG_PATH).  The last component of DIR is likely "pkgconfig" [auto]])[]dnl
+        ],[
+            if test "x${withval}" != "xyes"
+            then
+                sk_pkg_config="${withval}"
+            fi
+    ])
 
+    if test "x${sk_pkg_config}" = "xno"
+    then
+        AC_MSG_NOTICE([(${PACKAGE}) Building without GnuTLS support at user request])
+    else
+        # prepend any argument to PKG_CONFIG_PATH
+        if test "x${sk_pkg_config}" != "x"
+        then
+            sk_save_PKG_CONFIG_PATH="${PKG_CONFIG_PATH}"
+            PKG_CONFIG_PATH="${sk_pkg_config}:${PKG_CONFIG_PATH}"
+            export PKG_CONFIG_PATH
+        fi
+
+        # use pkg-config to check for gnutls existence
+        PKG_CHECK_MODULES([GNUTLS],
+            [${version_check}],
+            [ENABLE_GNUTLS=1], [ENABLE_GNUTLS=0])
+
+        if test "x${ENABLE_GNUTLS}" = "x0"
+        then
+            AC_MSG_NOTICE([(${PACKAGE}) Building without GnuTLS support since pkg-config failed to find ${report_version}])
+        else
+            # verify that gnutls has the packages it depends on
+            gnutls_reported_version=`${PKG_CONFIG} --modversion gnutls 2>/dev/null`
+            if test "x${gnutls_reported_version}" = "x"
+            then
+                # PKG_CHECK_MODULES() says package is available, but
+                # pkg-config does not find it; assume the user set the
+                # GNUTLS_LIBS/GNUTLS_CFLAGS variables
+                gnutls_reported_version=unknown
+            else
+                AC_MSG_CHECKING([presence of gnutls dependencies])
+                echo "${as_me}:${LINENO}: \$PKG_CONFIG --libs gnutls >/dev/null 2>&AS_MESSAGE_LOG_FD" >&AS_MESSAGE_LOG_FD
+                (${PKG_CONFIG} --libs gnutls) >/dev/null 2>&AS_MESSAGE_LOG_FD
+                sk_pkg_status=$?
+                echo "${as_me}:${LINENO}: \$? = ${sk_pkg_status}" >&AS_MESSAGE_LOG_FD
+    
+                if test 0 -eq ${sk_pkg_status}
+                then
+                    AC_MSG_RESULT([yes])
+                else
+                    AC_MSG_RESULT([no])
+                    AC_MSG_NOTICE([(${PACKAGE}) Building without GnuTLS support due to missing dependencies for gnutls. Details in config.log])
+                    ENABLE_GNUTLS=0
+                fi
+            fi
+        fi
+
+        # Restore the PKG_CONFIG_PATH to the saved value
+        if test "x${sk_pkg_config}" != "x"
+        then
+            PKG_CONFIG_PATH="${sk_save_PKG_CONFIG_PATH}"
+            export PKG_CONFIG_PATH
+        fi
+    fi
+
+    # compile program that uses gnutls
     if test "x${ENABLE_GNUTLS}" = "x1"
     then
         # Cache current values
@@ -85,19 +154,16 @@ AC_DEFUN([AX_PKG_CHECK_GNUTLS],[
         sk_save_CFLAGS="${CFLAGS}"
         sk_save_CPPFLAGS="${CPPFLAGS}"
 
-        # Add libgcrypt flags to gnutls flags
-        GNUTLS_CFLAGS="${GNUTLS_CFLAGS} ${LIBGCRYPT_CFLAGS}"
-        GNUTLS_LDFLAGS="${GNUTLS_LIBS} ${LIBGCRYPT_LDFLAGS}"
-
+        GNUTLS_LDFLAGS="${GNUTLS_LIBS}"
         LIBS="${GNUTLS_LDFLAGS} ${LIBS}"
-        CFLAGS="${GNUTLS_CFLAGS} ${CFLAGS}"
+
+        CPPFLAGS="${GNUTLS_CFLAGS} ${CPPFLAGS}"
 
         AC_MSG_CHECKING([usability of gnutls library and headers])
         AC_LINK_IFELSE(
                 [AC_LANG_PROGRAM([
 #include <stdlib.h>
 #include <gnutls/gnutls.h>
-#include <gcrypt.h>
 #ifdef HAVE_PTHREAD_H
 #include <pthread.h>
 #endif
@@ -106,19 +172,15 @@ AC_DEFUN([AX_PKG_CHECK_GNUTLS],[
 #endif
 
 gnutls_certificate_credentials_t cred;
-GCRY_THREAD_OPTION_PTHREAD_IMPL;
                     ],[
-gcry_control (GCRYCTL_SET_THREAD_CBS, &gcry_threads_pthread);
 gnutls_global_init();
-                     ])],[
-                AC_MSG_RESULT([yes])
-                ENABLE_GNUTLS=1
-                ],[
-                AC_MSG_RESULT([no])
-                ENABLE_GNUTLS=0])
+                     ])],[ENABLE_GNUTLS=1],[ENABLE_GNUTLS=0])
 
-        if test "x${ENABLE_GNUTLS}" = "x1"
+        if test "x${ENABLE_GNUTLS}" = "x0"
         then
+            AC_MSG_RESULT([no])
+            AC_MSG_NOTICE([(${PACKAGE}) Building without GnuTLS support since unable to compile program using gnutls. Details in config.log])
+        else
             # This function went away in GnuTLS 3.0.0
             AC_CHECK_FUNCS([gnutls_transport_set_lowat])
 
@@ -137,12 +199,6 @@ gnutls_global_init();
     then
         GNUTLS_LDFLAGS=
         GNUTLS_CFLAGS=
-        if test "x${gnutls_declined}" = "xyes"
-        then
-            AC_MSG_NOTICE([(${PACKAGE}) Building without GnuTLS support at user request])
-        else
-            AC_MSG_NOTICE([(${PACKAGE}) Building without GnuTLS support since pkg-config failed to find gnutls.pc >= ${gnutls_required_version}])
-        fi
     fi
 
     AC_DEFINE_UNQUOTED([ENABLE_GNUTLS], [${ENABLE_GNUTLS}],
@@ -157,59 +213,6 @@ gnutls_global_init();
 #    Run the part of --with-gnutls that requires pkgconfig
 #
 AC_DEFUN([AX_PKG_CHECK_GNUTLS_PKGCONFIG],[
-    sk_pkg_config=""
-    AC_ARG_WITH([gnutls],[AS_HELP_STRING([--with-gnutls=DIR],
-            [specify location of the GnuTLS transport security package; find "gnutls.pc" in the directory DIR/ (i.e., prepend DIR to PKG_CONFIG_PATH).  The last component of DIR is likely "pkgconfig" [auto]])[]dnl
-        ],[
-            if test "x${withval}" != "xyes"
-            then
-                sk_pkg_config="${withval}"
-            fi
-    ])
-
-    if test "x${sk_pkg_config}" = "xno"
-    then
-        gnutls_declined=yes
-    else
-        AX_CHECK_LIBGCRYPT
-
-        if test "x${sk_pkg_config}" != "x"
-        then
-            sk_save_PKG_CONFIG_PATH="${PKG_CONFIG_PATH}"
-            PKG_CONFIG_PATH="${sk_pkg_config}:${PKG_CONFIG_PATH}"
-            export PKG_CONFIG_PATH
-        fi
-
-        # check for gnutls existence
-        PKG_CHECK_MODULES([GNUTLS],
-            [${version_check}],
-            [ENABLE_GNUTLS=1], [ENABLE_GNUTLS=0])
-
-        # verify that gnutls has the packages it needs
-        if test "x${ENABLE_GNUTLS}" = "x1"
-        then
-            AC_MSG_CHECKING([presence of gnutls dependencies])
-            echo "${as_me}:${LINENO}: \$PKG_CONFIG --libs gnutls >/dev/null 2>&AS_MESSAGE_LOG_FD" >&AS_MESSAGE_LOG_FD
-            (${PKG_CONFIG} --libs gnutls) >/dev/null 2>&AS_MESSAGE_LOG_FD
-            sk_pkg_status=$?
-            echo "${as_me}:${LINENO}: \$? = ${sk_pkg_status}" >&AS_MESSAGE_LOG_FD
-
-            if test 0 -eq ${sk_pkg_status}
-            then
-                AC_MSG_RESULT([yes])
-            else
-                AC_MSG_RESULT([no])
-                AC_MSG_NOTICE([(${PACKAGE}) Building without GnuTLS support due to missing dependencies for gnutls. Details in config.log])
-                ENABLE_GNUTLS=0
-            fi
-        fi
-
-        if test "x${sk_pkg_config}" != "x"
-        then
-            PKG_CONFIG_PATH="${sk_save_PKG_CONFIG_PATH}"
-            export PKG_CONFIG_PATH
-        fi
-    fi
 ])# AX_PKG_CHECK_GNUTLS_PKGCONFIG
 
 

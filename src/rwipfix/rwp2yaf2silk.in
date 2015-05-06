@@ -1,6 +1,6 @@
 #! @PERL@
 #
-# Copyright (C) 2006-2014 by Carnegie Mellon University.
+# Copyright (C) 2006-2015 by Carnegie Mellon University.
 #
 # @OPENSOURCE_HEADER_START@
 #
@@ -60,7 +60,7 @@
 #    Mark Thomas
 #    November 2006
 #
-#  RCSIDENT("$SiLK: rwp2yaf2silk.in cd09f0a5fcc6 2014-06-14 15:43:33Z mthomas $")
+#  RCSIDENT("$SiLK: rwp2yaf2silk.in b7b8edebba12 2015-01-05 18:05:21Z mthomas $")
 #
 ##############################################################################
 
@@ -242,7 +242,7 @@ sub print_version_exit
 
     print <<EOF;
 $name: Part of $pkg
-Copyright (C) 2001-2014 by Carnegie Mellon University
+Copyright (C) 2001-2015 by Carnegie Mellon University
 GNU Public License (GPL) Rights pursuant to Version 2, June 1991.
 Government Purpose License Rights (GPLR) pursuant to DFARS 252.227.7013.
 Send bug reports, feature requests, and comments to $bugs.
